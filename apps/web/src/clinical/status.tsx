@@ -1,6 +1,5 @@
-import type { MedicalRecordStatus } from '@drmayday/shared';
+import { MEDICAL_RECORD_STATUS_LABELS, type MedicalRecordStatus } from '@drmayday/shared';
 import { Tag } from 'antd';
-import { MEDICAL_RECORD_STATUS_LABELS } from './status-labels';
 
 const STATUS_COLORS: Record<MedicalRecordStatus, string | undefined> = {
   draft: undefined,

@@ -1,5 +1,6 @@
 import {
   LIMIT_DEFAULT,
+  MEDICAL_RECORD_STATUS_LABELS,
   MEDICAL_RECORD_STATUSES,
   PAGE_DEFAULT,
   type MedicalRecordListItem,
@@ -10,7 +11,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useMedicalRecords } from '../../clinical/medical-records-api';
 import { MedicalRecordStatusTag } from '../../clinical/status';
-import { MEDICAL_RECORD_STATUS_LABELS } from '../../clinical/status-labels';
 import { EntityTable } from '../../components/crud/EntityTable';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { usePageClamp } from '../../components/crud/use-page-clamp';
