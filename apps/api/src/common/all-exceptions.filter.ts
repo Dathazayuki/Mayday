@@ -24,15 +24,22 @@ const DRIVER_CONNECTION_CODES = new Set([
   45028, // ER_GET_CONNECTION_TIMEOUT
 ]);
 
-/** Transaction tương tác không lấy được kết nối trong maxWait (MySQL tắt) → P2028 với thông điệp này. */
-const TRANSACTION_START_TIMEOUT = 'Unable to start a transaction in the given time';
+/**
+ * Transaction tương tác không lấy được kết nối trong maxWait (MySQL tắt) → P2028 với thông điệp này.
+ * Prisma không cho dấu hiệu cấu trúc nào khác (meta rỗng, lớp lỗi con không được export) nên phải so
+ * khớp thông điệp. Đã kiểm chứng với Prisma 7.10.1; test "P2028 thật" trong all-exceptions.filter.spec.ts
+ * tạo lỗi thật của Prisma và sẽ báo đỏ nếu bản Prisma mới đổi thông điệp.
+ */
+const P2028_TRANSACTION_START_TIMEOUT_MESSAGE = 'Unable to start a transaction in the given time';
 
 /** Lỗi Prisma do không kết nối được CSDL → 9902. */
 export function isDatabaseConnectionError(exception: unknown): boolean {
   if (exception instanceof Prisma.PrismaClientInitializationError) return true;
   if (!(exception instanceof Prisma.PrismaClientKnownRequestError)) return false;
   if (PRISMA_CONNECTION_CODES.has(exception.code)) return true;
-  if (exception.code === 'P2028') return exception.message.includes(TRANSACTION_START_TIMEOUT);
+  if (exception.code === 'P2028') {
+    return exception.message.includes(P2028_TRANSACTION_START_TIMEOUT_MESSAGE);
+  }
   const driverError = exception.meta?.driverAdapterError as
     { cause?: { kind?: unknown; code?: unknown } } | undefined;
   const cause = driverError?.cause;

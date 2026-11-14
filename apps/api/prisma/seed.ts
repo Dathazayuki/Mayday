@@ -1,7 +1,8 @@
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import bcrypt from 'bcryptjs';
 import { config } from 'dotenv';
-import { pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 
 /**
@@ -110,5 +111,14 @@ async function main(): Promise<void> {
   }
 }
 
-// Chỉ chạy khi gọi trực tiếp (pnpm db:seed), không chạy khi test import seedBase.
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) await main();
+/** File này là entry point (pnpm db:seed) hay chỉ được import (test dùng seedBase)? */
+function isEntryPoint(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  // So sánh đường dẫn tuyệt đối đã chuẩn hoá; Windows không phân biệt hoa/thường (ví dụ ổ c: và C:).
+  const normalize = (path: string) =>
+    process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path);
+  return normalize(entry) === normalize(fileURLToPath(import.meta.url));
+}
+
+if (isEntryPoint()) await main();

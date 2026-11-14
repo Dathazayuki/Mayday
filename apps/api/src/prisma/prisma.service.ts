@@ -28,9 +28,7 @@ export class PrismaService implements OnModuleDestroy {
     try {
       this.client = new PrismaClient({ adapter: new PrismaMariaDb(url) });
     } catch (error) {
-      this.logger.warn(
-        `DATABASE_URL không hợp lệ: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.logger.warn(`DATABASE_URL không hợp lệ: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -46,9 +44,7 @@ export class PrismaService implements OnModuleDestroy {
       await this.client.$queryRaw`SELECT 1`;
       return 'up';
     } catch (error) {
-      this.logger.warn(
-        `Không kết nối được CSDL: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.logger.warn(`Không kết nối được CSDL: ${error instanceof Error ? error.message : String(error)}`);
       return 'down';
     }
   }

@@ -1,5 +1,5 @@
 // Test tích hợp với MySQL thật: đồng bộ schema lên CSDL test rồi chạy vitest.config.db.ts.
-// Dùng: pnpm --filter @drmayday/api test:db [tham số vitest...]
+// Dùng: pnpm --filter @drmayday/api test:db [tham số vitest...] (hoặc node scripts/test-db.mjs trong apps/api).
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,8 +35,12 @@ function quote(arg) {
 // Không dùng --force-reset: Prisma 7 chặn lệnh phá dữ liệu khi được gọi bởi AI agent.
 // Dữ liệu được làm sạch bởi resetData() trong từng test.
 run(
-  'prisma db push',
+  'pnpm exec prisma db push',
   'Không đồng bộ được schema lên CSDL test. Nếu schema đổi kiểu làm mất dữ liệu, hãy tự chạy\n' +
     '`prisma db push --force-reset --url <TEST_DATABASE_URL>` trong apps/api.',
 );
-run(['vitest run --config vitest.config.db.ts', ...process.argv.slice(2).map(quote)].join(' '));
+run(
+  ['pnpm exec vitest run --config vitest.config.db.ts', ...process.argv.slice(2).map(quote)].join(
+    ' ',
+  ),
+);

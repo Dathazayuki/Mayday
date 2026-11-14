@@ -86,6 +86,69 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
     });
   });
 
+  it('resetData xoá sạch các bảng con đang có dữ liệu rồi seed lại dữ liệu nền', async () => {
+    const { roles, branchId, departmentId, roomId } = await seedBase(prisma);
+    const patient = await prisma.users.create({
+      data: {
+        password_hash: 'hash',
+        ho_ten: 'BỆNH NHÂN',
+        so_dien_thoai: '0911111111',
+        patients: { create: { role_id: roles.patient } },
+      },
+    });
+    const staff = await prisma.users.create({
+      data: {
+        password_hash: 'hash',
+        ho_ten: 'BÁC SĨ',
+        so_dien_thoai: '0922222222',
+        staffs: {
+          create: {
+            role_id: roles.doctor,
+            branch_id: branchId,
+            department_id: departmentId,
+            room_id: roomId,
+          },
+        },
+      },
+    });
+    await prisma.user_fcm_tokens.create({
+      data: { user_id: patient.user_id, fcm_token: 'fcm-token', device_type: 'android' },
+    });
+    await prisma.token_blacklist.create({
+      data: {
+        jti: 'jti-reset',
+        user_id: staff.user_id,
+        expires_at: new Date(Date.now() + 3_600_000),
+      },
+    });
+
+    const restored = await resetData(prisma);
+
+    const childCounts = await prisma.$transaction([
+      prisma.users.count(),
+      prisma.patients.count(),
+      prisma.staffs.count(),
+      prisma.user_fcm_tokens.count(),
+      prisma.token_blacklist.count(),
+    ]);
+    expect(childCounts).toEqual([0, 0, 0, 0, 0]);
+
+    const baseCounts = await prisma.$transaction([
+      prisma.roles.count(),
+      prisma.branches.count(),
+      prisma.departments.count(),
+      prisma.rooms.count(),
+    ]);
+    expect(baseCounts).toEqual([9, 1, 1, 1]);
+    const rows = await prisma.roles.findMany();
+    expect(restored.roles).toEqual(
+      Object.fromEntries(rows.map((role) => [role.name, role.role_id])),
+    );
+    await expect(
+      prisma.rooms.findUniqueOrThrow({ where: { id: restored.roomId } }),
+    ).resolves.toMatchObject({ department_id: restored.departmentId });
+  });
+
   it('GET /api/v1/health → db: up', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/health').expect(200);
     expect(res.body).toMatchObject({ code: '1000', data: { status: 'ok', db: 'up' } });
