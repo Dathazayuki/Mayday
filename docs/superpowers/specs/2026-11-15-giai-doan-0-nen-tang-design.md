@@ -104,7 +104,7 @@ Một unit test đọc bảng trong file tài liệu đó và kiểm tra **mọi
    | Lỗi kiểm tra input | Xem mục 5 |
    | HTTP 401 | 3003 |
    | HTTP 403 | 3101 |
-   | HTTP 404, gồm cả route không tồn tại (tài liệu không có mã riêng, MT-58) | 2003 |
+   | HTTP 4xx khác của Nest, gồm cả route không tồn tại (tài liệu không có mã riêng, MT-58) | 2003, **giữ nguyên HTTP status gốc** (404 vẫn là 404). Mã 2003 do kiểm tra input sinh ra thì dùng HTTP 400 theo catalog |
    | HTTP 413 | 6003 |
    | Còn lại | 9901 (ghi log đầy đủ) |
 
