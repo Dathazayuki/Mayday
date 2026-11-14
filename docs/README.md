@@ -23,6 +23,7 @@ Hệ thống quản lý khám bệnh và theo dõi bệnh mề đay (DrMayDay). 
 | [04-tu-dien-du-lieu-183-bien.md](04-tu-dien-du-lieu-183-bien.md) | Từ điển 183 biến lâm sàng, luật cảnh báo phản vệ, CDSS | Google Doc của BV Da liễu TW |
 | [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md) | **Mâu thuẫn giữa các nguồn và điểm cần chốt** (viết tay) | Tổng hợp |
 | [06-ke-hoach-tuan-va-api-cu.md](06-ke-hoach-tuan-va-api-cu.md) | Kế hoạch 10 tuần (91 API) và danh sách API của đồ án cũ | Sheet, tab 1 và 2 |
+| [07-tien-do.md](07-tien-do.md) | **Checklist tiến độ triển khai** theo giai đoạn/slice (viết tay) | Kế hoạch trong `superpowers/plans/` |
 | `nguon/` | Bản chụp tài liệu gốc (xlsx, docx), tên tab Sheet, bản chép nội dung ảnh slide | Tải tự động |
 
 ## Tài liệu gốc
