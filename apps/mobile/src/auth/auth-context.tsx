@@ -1,10 +1,11 @@
-import type {
-  ChangePasswordRequest,
-  LoginRequest,
-  LoginResponseData,
-  LoginUserInfo,
-  SignupRequest,
-  SignupResponseData,
+import {
+  LOGOUT_TIMEOUT_MS,
+  type ChangePasswordRequest,
+  type LoginRequest,
+  type LoginResponseData,
+  type LoginUserInfo,
+  type SignupRequest,
+  type SignupResponseData,
 } from '@drmayday/shared';
 import {
   createContext,
@@ -84,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await apiClient.post('/auth/logout');
+      await apiClient.post('/auth/logout', undefined, { timeoutMs: LOGOUT_TIMEOUT_MS });
     } catch {
       // Bỏ qua lỗi mạng hay token hết hạn: vẫn phải đăng xuất trên máy.
     } finally {
