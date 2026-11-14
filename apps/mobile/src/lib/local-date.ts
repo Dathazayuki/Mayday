@@ -5,3 +5,9 @@ export function todayLocalIso(): string {
   const day = String(now.getDate()).padStart(2, '0');
   return `${now.getFullYear()}-${month}-${day}`;
 }
+
+/** Đổi YYYY-MM-DD thành dd/MM/yyyy để hiển thị. */
+export function formatDisplayDate(iso: string): string {
+  const [year, month, day] = iso.split('-');
+  return `${day}/${month}/${year}`;
+}

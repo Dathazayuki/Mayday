@@ -5,8 +5,15 @@ import {
   type Uas7WeekData,
 } from '@drmayday/shared';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  AppState,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/auth/auth-context';
 import { AuthGate } from '@/components/auth-gate';
@@ -34,15 +41,17 @@ async function loadState(patientId: number): Promise<Uas7State> {
 
 function Uas7Content() {
   const { user } = useAuth();
+  const userId = user?.user_id;
   const [state, setState] = useState<Uas7State | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [today, setToday] = useState(todayLocalIso);
 
   // Chỉ nhận kết quả của lần tải mới nhất, tránh phản hồi cũ về muộn ghi đè.
   const latestRequest = useRef(0);
 
   const load = useCallback(async () => {
-    const patientId = Number(user?.user_id);
+    const patientId = Number(userId);
     if (!Number.isInteger(patientId)) {
       setError('Không xác định được tài khoản. Vui lòng đăng nhập lại.');
       return;
@@ -55,14 +64,22 @@ function Uas7Content() {
     } catch (e) {
       if (requestId === latestRequest.current) setError(describeError(e));
     }
-  }, [user]);
+  }, [userId]);
 
-  // Tải lại mỗi lần tab được mở để thấy điểm và tổng tuần mới nhất.
-  useFocusEffect(
-    useCallback(() => {
-      void load();
-    }, [load]),
-  );
+  // Cập nhật "hôm nay" rồi tải lại; gọi khi mở tab và khi app quay lại, để qua nửa đêm không giữ ngày cũ.
+  const reload = useCallback(() => {
+    setToday(todayLocalIso());
+    void load();
+  }, [load]);
+
+  useFocusEffect(reload);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (status) => {
+      if (status === 'active') reload();
+    });
+    return () => subscription.remove();
+  }, [reload]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -75,7 +92,6 @@ function Uas7Content() {
 
   const medicalRecordId =
     state?.eligibility.eligible === 'true' ? state.eligibility.medical_record_id : undefined;
-  const today = todayLocalIso();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -87,17 +103,16 @@ function Uas7Content() {
       >
         <Text style={styles.title}>Chấm điểm UAS7</Text>
         {error && <Banner tone="error" message={error} />}
+        {error && <PrimaryButton title="Thử lại" variant="secondary" onPress={() => void load()} />}
         {!state ? (
-          error ? (
-            <PrimaryButton title="Thử lại" variant="secondary" onPress={() => void load()} />
-          ) : (
-            <ActivityIndicator size="large" />
-          )
+          !error && <ActivityIndicator size="large" />
         ) : !medicalRecordId ? (
           <Text style={styles.message}>Bạn cần có bệnh án đang điều trị để chấm điểm UAS7</Text>
         ) : (
           <>
             <TodayCard
+              key={today}
+              scoreDate={today}
               medicalRecordId={medicalRecordId}
               submitted={state.scores.find((score) => score.score_date === today)}
               onChanged={load}

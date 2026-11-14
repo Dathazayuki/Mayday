@@ -1,21 +1,20 @@
-import { UAS7_WEEK_MAX, type Uas7WeekData } from '@drmayday/shared';
+import { UAS7_WEEK_DAYS, UAS7_WEEK_MAX, type Uas7WeekData } from '@drmayday/shared';
 import { StyleSheet, Text, View } from 'react-native';
-
-const DAYS_IN_WEEK = 7;
+import { formatDisplayDate } from '@/lib/local-date';
 
 export function WeekCard({ week }: { week: Uas7WeekData }) {
   return (
     <View style={styles.card}>
       <Text style={styles.title}>7 ngày gần nhất</Text>
       <Text style={styles.period}>
-        {week.start_date} - {week.end_date}
+        {formatDisplayDate(week.start_date)} - {formatDisplayDate(week.end_date)}
       </Text>
       <Text style={styles.score}>
         {week.week_score}/{UAS7_WEEK_MAX}
       </Text>
       <Text style={styles.line}>Mức độ: {week.severity_label}</Text>
       <Text style={styles.line}>
-        Đã chấm: {week.completed_days}/{DAYS_IN_WEEK} ngày
+        Đã chấm: {week.completed_days}/{UAS7_WEEK_DAYS} ngày
       </Text>
     </View>
   );

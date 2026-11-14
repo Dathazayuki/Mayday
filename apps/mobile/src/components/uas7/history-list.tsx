@@ -1,7 +1,6 @@
-import { UAS7_FIELD_LABELS, UAS7_SCORE_MAX, type Uas7ScoreData } from '@drmayday/shared';
+import { UAS7_FIELD_LABELS, UAS7_DAILY_MAX, type Uas7ScoreData } from '@drmayday/shared';
 import { StyleSheet, Text, View } from 'react-native';
-
-const DAILY_MAX = 2 * UAS7_SCORE_MAX;
+import { formatDisplayDate } from '@/lib/local-date';
 
 export function HistoryList({ scores }: { scores: Uas7ScoreData[] }) {
   return (
@@ -13,9 +12,9 @@ export function HistoryList({ scores }: { scores: Uas7ScoreData[] }) {
         scores.map((score) => (
           <View key={score.score_date} style={styles.item}>
             <View style={styles.header}>
-              <Text style={styles.date}>{score.score_date}</Text>
+              <Text style={styles.date}>{formatDisplayDate(score.score_date)}</Text>
               <Text style={styles.total}>
-                {score.daily_score}/{DAILY_MAX}
+                {score.daily_score}/{UAS7_DAILY_MAX}
               </Text>
             </View>
             <Text style={styles.detail}>
