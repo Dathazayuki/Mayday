@@ -4,7 +4,7 @@ import { SignupDto } from './signup.dto.js';
 
 /**
  * POST /auth/admin/create-staff — Sheet tab "1.6 create_staff": các trường tài khoản như signup,
- * cộng vai trò và nơi công tác. Tồn tại/quan hệ cha–con của chúng do AuthService kiểm tra (2003).
+ * cộng vai trò và nơi công tác. Vai trò do AuthService kiểm tra, nơi công tác (tồn tại, quan hệ cha–con) do FacilitiesService kiểm tra; sai → 2003.
  */
 export class CreateStaffDto extends SignupDto implements CreateStaffRequest {
   @IsDefined()

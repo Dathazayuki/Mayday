@@ -6,6 +6,7 @@ import { AllExceptionsFilter } from './common/all-exceptions.filter.js';
 import { ResponseInterceptor } from './common/response.interceptor.js';
 import { createValidationPipe } from './common/validation.js';
 import { validateEnv } from './config/env.js';
+import { FacilitiesModule } from './facilities/facilities.module.js';
 import { HealthController } from './health/health.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
@@ -18,6 +19,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     }),
     PrismaModule,
     AuthModule,
+    FacilitiesModule,
   ],
   controllers: [HealthController],
   providers: [

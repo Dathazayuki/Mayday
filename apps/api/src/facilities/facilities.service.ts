@@ -1,13 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AppException } from '../common/app.exception.js';
 import { FacilitiesRepository } from './facilities.repository.js';
-
-/** Nơi công tác của nhân viên: chi nhánh → khoa → phòng (phòng không bắt buộc). */
-export interface Placement {
-  branchId: number;
-  departmentId: number;
-  roomId: number | null;
-}
+import type { Placement } from './placement.js';
 
 @Injectable()
 export class FacilitiesService {

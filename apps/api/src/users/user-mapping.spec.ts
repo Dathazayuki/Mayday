@@ -18,6 +18,7 @@ import {
   yearFromDate,
   type UserRecord,
 } from './user-mapping.js';
+import { userRecord } from './user-record.fixture.js';
 
 describe('gender API ↔ CSDL (MT-59)', () => {
   it.each<[Gender, users_gioi_tinh]>([
@@ -181,14 +182,7 @@ describe('profileUpdateToDb (PUT profile)', () => {
 });
 
 describe('UserRecord → data trả về', () => {
-  const record = {
-    user_id: 7,
-    ho_ten: 'NGUYỄN VĂN A',
-    so_dien_thoai: '0912345678',
-    gioi_tinh: 'Khac',
-    is_active: true,
-    created_at: new Date('2026-11-15T01:02:03.000Z'),
-  } as UserRecord;
+  const record = userRecord({ gioi_tinh: 'Khac' });
 
   it('toSignupData: ID và is_active kiểu int, created_at ISO (MT-06)', () => {
     expect(toSignupData(record, 2)).toEqual({
