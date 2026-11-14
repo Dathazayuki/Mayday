@@ -1,6 +1,6 @@
 import type { AdminUserListItem } from '@drmayday/shared';
 import { useEntityModal } from '../../../components/crud/use-entity-modal';
-import type { AccountValues } from './AccountFields';
+import type { AccountValues } from '../../../components/account/AccountFields';
 import type { PlacementValues } from './PlacementFields';
 
 export interface UserFormValues extends AccountValues {

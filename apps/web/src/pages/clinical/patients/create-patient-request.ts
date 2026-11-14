@@ -3,7 +3,7 @@ import {
   type CreatePatientRequest,
   type PatientProfileFields,
 } from '@drmayday/shared';
-import type { AccountValues } from '../../admin/users/AccountFields';
+import type { AccountValues } from '../../../components/account/AccountFields';
 
 export type CreatePatientFormValues = AccountValues &
   Partial<Pick<PatientProfileFields, (typeof PATIENT_EDITABLE_FIELDS)[number]>>;

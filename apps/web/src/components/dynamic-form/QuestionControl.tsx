@@ -33,12 +33,14 @@ export function QuestionControl({ question, inputId, value, disabled, onChange }
       );
     case 'checkbox':
       return (
-        <Checkbox.Group
-          disabled={disabled}
-          options={question.options.map((o) => ({ value: o.option_value, label: o.option_text }))}
-          value={Array.isArray(value) ? [...value] : []}
-          onChange={(values) => onChange(values as string[])}
-        />
+        <div role="group" aria-label={question.question_text}>
+          <Checkbox.Group
+            disabled={disabled}
+            options={question.options.map((o) => ({ value: o.option_value, label: o.option_text }))}
+            value={Array.isArray(value) ? [...value] : []}
+            onChange={(values) => onChange(values as string[])}
+          />
+        </div>
       );
     case 'number':
       return (
@@ -71,7 +73,11 @@ export function QuestionControl({ question, inputId, value, disabled, onChange }
       );
     }
     case 'image_upload':
-      return <Button disabled>{IMAGE_PLACEHOLDER_TEXT}</Button>;
+      return (
+        <Button id={inputId} disabled>
+          {IMAGE_PLACEHOLDER_TEXT}
+        </Button>
+      );
     case 'mix_text_image':
       return (
         <>

@@ -3,6 +3,7 @@ import { Button, Card, Select, Tag } from 'antd';
 import { useState } from 'react';
 import { EntityTable } from '../../components/crud/EntityTable';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
+import { usePageClamp } from '../../components/crud/use-page-clamp';
 import { RowActions } from '../../admin/RowActions';
 import { useRoles } from '../../admin/rbac-api';
 import { useDeleteAction } from '../../components/crud/use-run-action';
@@ -37,10 +38,7 @@ export function UsersPage() {
   const { user } = useAuth();
   const currentUserId = user ? Number(user.user_id) : undefined;
 
-  // Trang hiện tại không còn dòng nào (vừa xoá dòng cuối của trang cuối): lùi về trang cuối hợp lệ.
-  if (data && !isPlaceholderData && data.items.length === 0 && page > PAGE_DEFAULT) {
-    setPage(Math.max(PAGE_DEFAULT, Math.ceil(data.total / limit)));
-  }
+  usePageClamp({ data, isPlaceholderData, page, limit, setPage });
 
   const roleOf = (id: number) => roleList.find((r) => r.id === id);
 

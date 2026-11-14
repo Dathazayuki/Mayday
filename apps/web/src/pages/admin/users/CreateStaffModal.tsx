@@ -2,7 +2,7 @@ import type { AdminUserListItem, RoleData } from '@drmayday/shared';
 import { Form, Select } from 'antd';
 import { EntityFormModal } from '../../../components/crud/EntityFormModal';
 import { isPatientRole, useCreateStaff } from '../../../admin/users-api';
-import { AccountFields } from './AccountFields';
+import { AccountFields } from '../../../components/account/AccountFields';
 import { PlacementFields } from './PlacementFields';
 import type { StaffFormValues, useCreateStaffModal } from './user-modals';
 

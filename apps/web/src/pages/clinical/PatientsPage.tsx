@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { usePatientSearch } from '../../clinical/patients-api';
 import { EntityTable } from '../../components/crud/EntityTable';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
+import { usePageClamp } from '../../components/crud/use-page-clamp';
 import { useEntityModal } from '../../components/crud/use-entity-modal';
 import { CreatePatientModal } from './patients/CreatePatientModal';
 import type { CreatePatientFormValues } from './patients/create-patient-request';
@@ -30,6 +31,8 @@ export function PatientsPage() {
     page,
     limit,
   });
+
+  usePageClamp({ data, isPlaceholderData, page, limit, setPage });
 
   return (
     <Card title="Bệnh nhân">

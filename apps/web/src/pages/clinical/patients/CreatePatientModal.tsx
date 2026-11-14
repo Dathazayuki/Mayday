@@ -2,7 +2,7 @@ import { useCreatePatient } from '../../../clinical/patients-api';
 import { EntityFormModal } from '../../../components/crud/EntityFormModal';
 import type { EntityModal } from '../../../components/crud/use-entity-modal';
 import { PatientEditableFields } from '../../../profile/PatientEditableFields';
-import { AccountFields } from '../../admin/users/AccountFields';
+import { AccountFields } from '../../../components/account/AccountFields';
 import { toCreatePatientRequest, type CreatePatientFormValues } from './create-patient-request';
 
 /** Modal "Thêm bệnh nhân" (POST /doctor/patients/create): tài khoản kèm hồ sơ bệnh nhân. */

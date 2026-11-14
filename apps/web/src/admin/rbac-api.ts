@@ -8,8 +8,9 @@ import type {
   SetRolePermissionsRequest,
   UpdatePermissionRequest,
 } from '@drmayday/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api';
+import { useInvalidatingMutation } from '../components/crud/use-invalidating-mutation';
 
 /** Tiền tố của mọi query vai trò (danh sách và kiểm tra admin): dùng để làm mới cả nhóm. */
 export const ROLES_KEY = ['roles'] as const;
@@ -38,42 +39,26 @@ export function useRolePermissions(roleId: number | undefined) {
   });
 }
 
-/** Mọi thay đổi làm mới các nhóm query liên quan, kể cả khi thất bại giữa chừng. */
-function useInvalidatingMutation<TVars, TData>(
-  fn: (vars: TVars) => Promise<TData>,
-  keys: ReadonlyArray<readonly unknown[]>,
-) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: fn,
-    onSettled: () =>
-      Promise.all(keys.map((queryKey) => queryClient.invalidateQueries({ queryKey }))),
-  });
-}
-
 export const useCreateRole = () =>
-  useInvalidatingMutation(
-    (body: CreateRoleRequest) => apiClient.post<RoleData>('/roles', body),
-    [ROLES_KEY],
+  useInvalidatingMutation([ROLES_KEY], (body: CreateRoleRequest) =>
+    apiClient.post<RoleData>('/roles', body),
   );
 
 export const useCreatePermission = () =>
-  useInvalidatingMutation(
-    (body: CreatePermissionRequest) => apiClient.post<PermissionSummary>('/permissions', body),
-    [PERMISSIONS_KEY],
+  useInvalidatingMutation([PERMISSIONS_KEY], (body: CreatePermissionRequest) =>
+    apiClient.post<PermissionSummary>('/permissions', body),
   );
 
 export const useUpdatePermission = () =>
   useInvalidatingMutation(
+    [PERMISSIONS_KEY, ROLE_PERMISSIONS_KEY],
     ({ id, changes }: { id: number; changes: UpdatePermissionRequest }) =>
       apiClient.put<PermissionData>(`/permissions/${id}`, changes),
-    [PERMISSIONS_KEY, ROLE_PERMISSIONS_KEY],
   );
 /** Xoá quyền kéo theo việc gỡ quyền đó khỏi mọi vai trò (CASCADE phía API). */
 export const useDeletePermission = () =>
-  useInvalidatingMutation(
-    (id: number) => apiClient.delete<object>(`/permissions/${id}`),
-    [PERMISSIONS_KEY, ROLE_PERMISSIONS_KEY],
+  useInvalidatingMutation([PERMISSIONS_KEY, ROLE_PERMISSIONS_KEY], (id: number) =>
+    apiClient.delete<object>(`/permissions/${id}`),
   );
 
 /** Kết quả lưu phân quyền: số lệnh gán/thu hồi thất bại và lỗi đầu tiên (để mô tả cho người dùng). */
@@ -90,6 +75,7 @@ export interface SaveOutcome {
  */
 export function useSaveRolePermissions() {
   return useInvalidatingMutation(
+    [ROLE_PERMISSIONS_KEY],
     async ({
       roleId,
       toAdd,
@@ -114,6 +100,5 @@ export function useSaveRolePermissions() {
         firstError: failures[0]?.reason,
       };
     },
-    [ROLE_PERMISSIONS_KEY],
   );
 }

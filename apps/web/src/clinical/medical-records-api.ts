@@ -61,25 +61,27 @@ export function useMedicalRecordAnswers(id: number) {
 
 /** Mọi thay đổi trạng thái hoặc câu trả lời làm mới danh sách, chi tiết, tóm tắt, lịch sử và câu trả lời. */
 export const useAcceptMedicalRecord = () =>
-  useInvalidatingMutation(RECORDS_KEY, (id: number) =>
+  useInvalidatingMutation([RECORDS_KEY], (id: number) =>
     apiClient.post<AcceptMedicalRecordData>(`/medical_records/${id}/accept`),
   );
 
 export const useSaveAnswers = () =>
-  useInvalidatingMutation(RECORDS_KEY, ({ id, answers }: { id: number; answers: AnswerInput[] }) =>
-    apiClient.put<AnswersCountData>(`/medical_records/${id}/answers`, { answers }),
+  useInvalidatingMutation(
+    [RECORDS_KEY],
+    ({ id, answers }: { id: number; answers: AnswerInput[] }) =>
+      apiClient.put<AnswersCountData>(`/medical_records/${id}/answers`, { answers }),
   );
 
 /** Chốt bệnh án (PUT /:id) với dặn dò cho bệnh nhân. */
 export const useCloseMedicalRecord = () =>
   useInvalidatingMutation(
-    RECORDS_KEY,
+    [RECORDS_KEY],
     ({ id, ...body }: { id: number } & CloseMedicalRecordRequest) =>
       apiClient.put<MedicalRecordData>(`/medical_records/${id}`, body),
   );
 
 export const useCancelMedicalRecord = () =>
-  useInvalidatingMutation(RECORDS_KEY, (id: number) =>
+  useInvalidatingMutation([RECORDS_KEY], (id: number) =>
     apiClient.patch<MedicalRecordStatusData>(`/medical_records/${id}/status`, {
       status: 'cancelled',
     }),

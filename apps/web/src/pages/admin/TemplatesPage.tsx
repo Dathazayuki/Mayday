@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { EntityTable } from '../../components/crud/EntityTable';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
+import { usePageClamp } from '../../components/crud/use-page-clamp';
 import { RowActions } from '../../admin/RowActions';
 import { useDeleteTemplate, useTemplates } from '../../admin/templates-api';
 import { useEntityModal } from '../../components/crud/use-entity-modal';
@@ -30,10 +31,7 @@ export function TemplatesPage() {
   const deleteRow = useDeleteAction('mẫu phiếu');
   const modal = useEntityModal<TemplateFormValues, TemplateSummary>(toTemplateFormValues);
 
-  // Trang hiện tại không còn dòng nào (vừa xoá dòng cuối của trang cuối): lùi về trang cuối hợp lệ.
-  if (data && !isPlaceholderData && data.items.length === 0 && page > PAGE_DEFAULT) {
-    setPage(Math.max(PAGE_DEFAULT, Math.ceil(data.total / limit)));
-  }
+  usePageClamp({ data, isPlaceholderData, page, limit, setPage });
 
   return (
     <Card title="Mẫu phiếu khám">

@@ -14,8 +14,9 @@ import type {
   UpdateDepartmentRequest,
   UpdateRoomRequest,
 } from '@drmayday/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api';
+import { useInvalidatingMutation } from '../components/crud/use-invalidating-mutation';
 
 const FACILITIES_KEY = ['facilities'] as const;
 
@@ -45,44 +46,47 @@ export function useRooms(departmentId?: number) {
   });
 }
 
-/** Mọi thay đổi làm mới toàn bộ nhóm facilities: khoa/phòng phụ thuộc chi nhánh/khoa. */
-function useInvalidatingMutation<TVars, TData>(fn: (vars: TVars) => Promise<TData>) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: fn,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: FACILITIES_KEY }),
-  });
-}
-
 export const useCreateBranch = () =>
-  useInvalidatingMutation((body: CreateBranchRequest) =>
+  useInvalidatingMutation([FACILITIES_KEY], (body: CreateBranchRequest) =>
     apiClient.post<BranchData>('/branches', body),
   );
 export const useUpdateBranch = () =>
-  useInvalidatingMutation(({ id, changes }: { id: string; changes: UpdateBranchRequest }) =>
-    apiClient.put<BranchData>(`/branches/${id}`, changes),
+  useInvalidatingMutation(
+    [FACILITIES_KEY],
+    ({ id, changes }: { id: string; changes: UpdateBranchRequest }) =>
+      apiClient.put<BranchData>(`/branches/${id}`, changes),
   );
 export const useDeleteBranch = () =>
-  useInvalidatingMutation((id: string) => apiClient.delete<object>(`/branches/${id}`));
+  useInvalidatingMutation([FACILITIES_KEY], (id: string) =>
+    apiClient.delete<object>(`/branches/${id}`),
+  );
 
 export const useCreateDepartment = () =>
-  useInvalidatingMutation((body: CreateDepartmentRequest) =>
+  useInvalidatingMutation([FACILITIES_KEY], (body: CreateDepartmentRequest) =>
     apiClient.post<DepartmentCreatedData>('/departments', body),
   );
 export const useUpdateDepartment = () =>
-  useInvalidatingMutation(({ id, changes }: { id: string; changes: UpdateDepartmentRequest }) =>
-    apiClient.put<DepartmentData>(`/departments/${id}`, changes),
+  useInvalidatingMutation(
+    [FACILITIES_KEY],
+    ({ id, changes }: { id: string; changes: UpdateDepartmentRequest }) =>
+      apiClient.put<DepartmentData>(`/departments/${id}`, changes),
   );
 export const useDeleteDepartment = () =>
-  useInvalidatingMutation((id: string) => apiClient.delete<object>(`/departments/${id}`));
+  useInvalidatingMutation([FACILITIES_KEY], (id: string) =>
+    apiClient.delete<object>(`/departments/${id}`),
+  );
 
 export const useCreateRoom = () =>
-  useInvalidatingMutation((body: CreateRoomRequest) =>
+  useInvalidatingMutation([FACILITIES_KEY], (body: CreateRoomRequest) =>
     apiClient.post<RoomCreatedData>('/rooms', body),
   );
 export const useUpdateRoom = () =>
-  useInvalidatingMutation(({ id, changes }: { id: string; changes: UpdateRoomRequest }) =>
-    apiClient.put<RoomData>(`/rooms/${id}`, changes),
+  useInvalidatingMutation(
+    [FACILITIES_KEY],
+    ({ id, changes }: { id: string; changes: UpdateRoomRequest }) =>
+      apiClient.put<RoomData>(`/rooms/${id}`, changes),
   );
 export const useDeleteRoom = () =>
-  useInvalidatingMutation((id: string) => apiClient.delete<object>(`/rooms/${id}`));
+  useInvalidatingMutation([FACILITIES_KEY], (id: string) =>
+    apiClient.delete<object>(`/rooms/${id}`),
+  );

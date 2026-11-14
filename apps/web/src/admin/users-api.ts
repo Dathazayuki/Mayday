@@ -11,8 +11,9 @@ import type {
   RoleData,
   UpdateUserRequest,
 } from '@drmayday/shared';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api';
+import { useInvalidatingMutation } from '../components/crud/use-invalidating-mutation';
 
 const USERS_KEY = ['admin-users'] as const;
 
@@ -43,35 +44,32 @@ export function useAdminUser(userId: number | undefined) {
   });
 }
 
-/** Mọi thay đổi làm mới cả danh sách lẫn chi tiết (cùng tiền tố USERS_KEY). */
-function useInvalidatingMutation<TVars, TData>(fn: (vars: TVars) => Promise<TData>) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: fn,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: USERS_KEY }),
-  });
-}
-
 export const useCreateUser = () =>
-  useInvalidatingMutation((body: CreateUserRequest) =>
+  useInvalidatingMutation([USERS_KEY], (body: CreateUserRequest) =>
     apiClient.post<CreateUserResponseData>('/admin/users', body),
   );
 
 /** Tạo tài khoản nhân viên kèm nơi công tác (giai đoạn 1, create-staff). */
 export const useCreateStaff = () =>
-  useInvalidatingMutation((body: CreateStaffRequest) =>
+  useInvalidatingMutation([USERS_KEY], (body: CreateStaffRequest) =>
     apiClient.post<CreateStaffResponseData>('/auth/admin/create-staff', body),
   );
 
 export const useUpdateUser = () =>
-  useInvalidatingMutation(({ id, changes }: { id: number; changes: UpdateUserRequest }) =>
-    apiClient.put<AdminUserDetailData>(`/admin/users/${id}`, changes),
+  useInvalidatingMutation(
+    [USERS_KEY],
+    ({ id, changes }: { id: number; changes: UpdateUserRequest }) =>
+      apiClient.put<AdminUserDetailData>(`/admin/users/${id}`, changes),
   );
 
 export const useAssignUser = () =>
-  useInvalidatingMutation(({ id, placement }: { id: number; placement: AssignUserRequest }) =>
-    apiClient.put<AssignUserResponseData>(`/admin/users/${id}/assign`, placement),
+  useInvalidatingMutation(
+    [USERS_KEY],
+    ({ id, placement }: { id: number; placement: AssignUserRequest }) =>
+      apiClient.put<AssignUserResponseData>(`/admin/users/${id}/assign`, placement),
   );
 
 export const useDeleteUser = () =>
-  useInvalidatingMutation((id: number) => apiClient.delete<object>(`/admin/users/${id}`));
+  useInvalidatingMutation([USERS_KEY], (id: number) =>
+    apiClient.delete<object>(`/admin/users/${id}`),
+  );

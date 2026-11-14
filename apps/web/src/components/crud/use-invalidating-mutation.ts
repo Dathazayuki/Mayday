@@ -1,13 +1,17 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
 
-/** Mutation làm mới mọi query có tiền tố `queryKey` sau khi thành công (danh sách lẫn chi tiết). */
+/**
+ * Mutation làm mới mọi query có tiền tố nằm trong `queryKeys` khi kết thúc (kể cả khi thất bại giữa
+ * chừng, vì thao tác có thể đã ghi một phần). Dùng chung cho mọi module API.
+ */
 export function useInvalidatingMutation<TVars, TData>(
-  queryKey: readonly unknown[],
+  queryKeys: readonly QueryKey[],
   fn: (vars: TVars) => Promise<TData>,
 ) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onSettled: () =>
+      Promise.all(queryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey }))),
   });
 }

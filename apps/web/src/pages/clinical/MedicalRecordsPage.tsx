@@ -13,6 +13,7 @@ import { MedicalRecordStatusTag } from '../../clinical/status';
 import { MEDICAL_RECORD_STATUS_LABELS } from '../../clinical/status-labels';
 import { EntityTable } from '../../components/crud/EntityTable';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
+import { usePageClamp } from '../../components/crud/use-page-clamp';
 
 const STATUS_OPTIONS = MEDICAL_RECORD_STATUSES.map((value) => ({
   value,
@@ -27,6 +28,8 @@ export function MedicalRecordsPage() {
   const [limit, setLimit] = useState(LIMIT_DEFAULT);
 
   const { data, error, isPending, isPlaceholderData } = useMedicalRecords({ status, page, limit });
+
+  usePageClamp({ data, isPlaceholderData, page, limit, setPage });
 
   return (
     <Card title="Bệnh án">

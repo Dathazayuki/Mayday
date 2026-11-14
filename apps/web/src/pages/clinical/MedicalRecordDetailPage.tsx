@@ -23,7 +23,6 @@ import {
 } from 'antd';
 import { useState } from 'react';
 import { useParams } from 'react-router';
-import { useTemplateDetail } from '../../admin/templates-api';
 import {
   useAcceptMedicalRecord,
   useCancelMedicalRecord,
@@ -38,6 +37,7 @@ import { MedicalRecordStatusTag } from '../../clinical/status';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { useRunAction } from '../../components/crud/use-run-action';
 import { DynamicForm } from '../../components/dynamic-form/DynamicForm';
+import { useTemplateDetail } from '../../templates/template-detail-api';
 
 const formatTime = (iso: string) => new Date(iso).toLocaleString('vi-VN');
 
@@ -138,6 +138,7 @@ function ExamPanel({
 }) {
   const id = record.medical_record_id;
   const allQuestions = template.sections.flatMap((s) => s.questions);
+  // Trạng thái form chỉ khởi tạo một lần từ câu trả lời đã lưu; refetch sau đó không ghi đè phần đang nhập.
   const [state, setState] = useState<FormState>(() => answersToState(allQuestions, answers));
   const [closing, setClosing] = useState(false);
   const run = useRunAction();
@@ -204,6 +205,7 @@ function ExamPanel({
           </Popconfirm>
         </Space>
       )}
+      {/* Nhân viên có quyền khám được điền mọi section (spec 3): không giới hạn theo filled_by. */}
       <DynamicForm template={template} value={state} onChange={setState} readOnly={finished} />
       <CloseModal
         open={closing}

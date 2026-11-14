@@ -22,6 +22,6 @@ export function usePatientSearch(
 }
 
 export const useCreatePatient = () =>
-  useInvalidatingMutation(PATIENTS_KEY, (body: CreatePatientRequest) =>
+  useInvalidatingMutation([PATIENTS_KEY], (body: CreatePatientRequest) =>
     apiClient.post<CreatePatientResponseData>('/doctor/patients/create', body),
   );

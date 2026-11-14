@@ -1,10 +1,10 @@
 import type { ComponentType } from 'react';
 import { FacilitiesPage } from '../pages/admin/FacilitiesPage';
-import { MedicalRecordsPage } from '../pages/clinical/MedicalRecordsPage';
-import { PatientsPage } from '../pages/clinical/PatientsPage';
 import { RolesPage } from '../pages/admin/RolesPage';
 import { TemplatesPage } from '../pages/admin/TemplatesPage';
 import { UsersPage } from '../pages/admin/UsersPage';
+import { MedicalRecordsPage } from '../pages/clinical/MedicalRecordsPage';
+import { PatientsPage } from '../pages/clinical/PatientsPage';
 
 export interface NavItem {
   key: string;
