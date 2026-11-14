@@ -1,5 +1,5 @@
-import { LogoutOutlined } from '@ant-design/icons';
-import { Button, Layout, Menu, Space, Typography, type MenuProps } from 'antd';
+import { DownOutlined, KeyOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
+import { Button, Dropdown, Layout, Menu, type MenuProps } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../auth/useAuth';
 import { NAV_GROUPS } from './menu';
@@ -19,6 +19,19 @@ export function AppLayout() {
     })),
   ];
 
+  const userMenu: MenuProps = {
+    items: [
+      { key: '/profile', icon: <UserOutlined />, label: 'Hồ sơ cá nhân' },
+      { key: '/change-password', icon: <KeyOutlined />, label: 'Đổi mật khẩu' },
+      { type: 'divider' },
+      { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất' },
+    ],
+    onClick: ({ key }) => {
+      if (key === 'logout') void logout();
+      else navigate(key);
+    },
+  };
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Layout.Sider breakpoint="lg" collapsedWidth={0} theme="light" width={240}>
@@ -34,12 +47,11 @@ export function AppLayout() {
         <Layout.Header
           style={{ background: '#fff', display: 'flex', justifyContent: 'flex-end', paddingInline: 16 }}
         >
-          <Space>
-            <Typography.Text>{user?.full_name}</Typography.Text>
-            <Button icon={<LogoutOutlined />} onClick={logout}>
-              Đăng xuất
+          <Dropdown menu={userMenu} trigger={['click']}>
+            <Button type="text" icon={<UserOutlined />}>
+              {user?.full_name} <DownOutlined />
             </Button>
-          </Space>
+          </Dropdown>
         </Layout.Header>
         <Layout.Content style={{ margin: 16 }}>
           <Outlet />

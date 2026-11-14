@@ -1,25 +1,11 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
 import { UNAUTHENTICATED_EVENT } from './api';
-import { AuthProvider } from './auth/AuthContext';
 import { AppRoutes } from './routes';
+import { jsonResponse, okResponse, renderApp, seedSession } from './test/helpers';
 
 function renderAt(path: string) {
-  return render(
-    <AuthProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <AppRoutes />
-      </MemoryRouter>
-    </AuthProvider>,
-  );
-}
-
-function jsonResponse(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return renderApp(<AppRoutes />, path);
 }
 
 async function submitLogin(phone: string, password: string) {
@@ -34,6 +20,14 @@ describe('Định tuyến và đăng nhập', () => {
     renderAt('/medical-records');
     expect(screen.getByRole('button', { name: /Đăng nhập/ })).toBeInTheDocument();
   });
+
+  it.each(['/profile', '/change-password'])(
+    'chưa đăng nhập mà vào %s thì chuyển về trang đăng nhập',
+    (path) => {
+      renderAt(path);
+      expect(screen.getByRole('button', { name: /Đăng nhập/ })).toBeInTheDocument();
+    },
+  );
 
   it('báo lỗi ngay tại client khi số điện thoại sai định dạng, không gọi API', async () => {
     const fetchMock = vi.fn();
@@ -95,5 +89,22 @@ describe('Định tuyến và đăng nhập', () => {
 
     expect(await screen.findByRole('button', { name: /Đăng nhập/ })).toBeInTheDocument();
     expect(localStorage.getItem('drmayday.token')).toBeNull();
+  });
+
+  it('menu người dùng có Hồ sơ cá nhân, Đổi mật khẩu và Đăng xuất (gọi API rồi về đăng nhập)', async () => {
+    seedSession();
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    vi.stubGlobal('fetch', fetchMock);
+    renderAt('/');
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /Nguyễn Văn An/ }));
+    expect(await screen.findByText('Hồ sơ cá nhân')).toBeInTheDocument();
+    expect(screen.getByText('Đổi mật khẩu')).toBeInTheDocument();
+    await user.click(screen.getByText('Đăng xuất'));
+
+    expect(await screen.findByRole('button', { name: /Đăng nhập/ })).toBeInTheDocument();
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toBe('http://localhost:3000/api/v1/auth/logout');
   });
 });

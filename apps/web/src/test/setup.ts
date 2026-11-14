@@ -16,6 +16,13 @@ Object.defineProperty(window, 'matchMedia', {
   }),
 });
 
+// Dropdown/Menu của antd quan sát kích thước; jsdom không có ResizeObserver.
+globalThis.ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
 afterEach(() => {
   cleanup();
   localStorage.clear();

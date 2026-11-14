@@ -10,7 +10,8 @@ export function LoginPage() {
   const location = useLocation();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const from = (location.state as { from?: string } | null)?.from ?? '/';
+  const state = location.state as { from?: string; notice?: string } | null;
+  const from = state?.from ?? '/';
 
   if (isAuthenticated) return <Navigate to={from} replace />;
 
@@ -44,6 +45,14 @@ export function LoginPage() {
         <Typography.Paragraph type="secondary" style={{ textAlign: 'center' }}>
           Hệ thống quản lý khám bệnh &amp; theo dõi mề đay
         </Typography.Paragraph>
+        {state?.notice === 'password-changed' && (
+          <Alert
+            type="success"
+            showIcon
+            title="Đổi mật khẩu thành công, vui lòng đăng nhập lại"
+            style={{ marginBottom: 16 }}
+          />
+        )}
         {error && <Alert type="error" showIcon title={error} style={{ marginBottom: 16 }} />}
         <Form<LoginRequest> layout="vertical" onFinish={handleFinish} requiredMark={false}>
           <Form.Item
