@@ -3,10 +3,12 @@ import {
   type LabResultRequestData,
   type MedicalRecordData,
 } from '@drmayday/shared';
-import { Button, Card, List, Space, Typography } from 'antd';
+import { Button, Card, Space, Typography } from 'antd';
 import { useState } from 'react';
 import { useCreateLabRequest, useLabResults } from '../../clinical/labs-api';
 import { buildLabRequest, type LabRequestFormValues } from '../../clinical/request-builders';
+import { canExamine } from '../../clinical/record-state';
+import { ItemList } from '../../components/ItemList';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { useRunAction } from '../../components/crud/use-run-action';
 import { formatDateTime } from '../../lib/format-date';
@@ -19,10 +21,10 @@ const FIELDS: ItemField[] = [
 
 function LabRequestItem({ request }: { request: LabResultRequestData }) {
   return (
-    <List.Item>
+    <>
       <Space orientation="vertical" size={4} style={{ width: '100%' }}>
         <Space>
-          <strong>{LAB_REQUEST_STATUS_LABELS[request.status]}</strong>
+          <strong>{LAB_REQUEST_STATUS_LABELS[request.status] ?? request.status}</strong>
           <span>{formatDateTime(request.created_at)}</span>
           {request.note && <Typography.Text type="secondary">{request.note}</Typography.Text>}
         </Space>
@@ -35,7 +37,7 @@ function LabRequestItem({ request }: { request: LabResultRequestData }) {
           ))}
         </ul>
       </Space>
-    </List.Item>
+    </>
   );
 }
 
@@ -60,7 +62,7 @@ export function LabPanel({ record }: { record: MedicalRecordData }) {
       title="Xét nghiệm"
       style={{ marginBottom: 16 }}
       extra={
-        record.status === 'in_progress' && (
+        canExamine(record) && (
           <Button type="primary" onClick={() => setOpen(true)}>
             Chỉ định xét nghiệm
           </Button>
@@ -68,10 +70,11 @@ export function LabPanel({ record }: { record: MedicalRecordData }) {
       }
     >
       <QueryErrorAlert error={labs.error} />
-      <List
+      <ItemList
         loading={labs.isPending}
-        dataSource={labs.data ?? []}
-        locale={{ emptyText: 'Chưa có chỉ định xét nghiệm' }}
+        items={labs.data ?? []}
+        rowKey={(request) => request.id}
+        emptyText="Chưa có chỉ định xét nghiệm"
         renderItem={(request) => <LabRequestItem request={request} />}
       />
       <ItemsFormModal<LabRequestFormValues>

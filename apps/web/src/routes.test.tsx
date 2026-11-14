@@ -146,6 +146,7 @@ describe('Định tuyến và đăng nhập', () => {
 
   it('menu "Quản trị hệ thống" hiện với admin (GET /roles thành công)', async () => {
     seedSession();
+    // Mỗi lời gọi phải trả Response mới: body của một Response chỉ đọc được một lần.
     vi.stubGlobal(
       'fetch',
       vi.fn(() => Promise.resolve(okResponse([]))),

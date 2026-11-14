@@ -1,7 +1,7 @@
 import type { MedicalRecordData } from '@drmayday/shared';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { App } from 'antd';
+import { App, ConfigProvider } from 'antd';
 import { errorResponse, okResponse, renderApp, seedSession } from '../../test/helpers';
 import { PrescriptionPanel } from './PrescriptionPanel';
 
@@ -43,9 +43,12 @@ function setup(post: () => Response, record = RECORD) {
   vi.stubGlobal('fetch', fetchMock);
   seedSession();
   renderApp(
-    <App>
-      <PrescriptionPanel record={record} />
-    </App>,
+    // Tắt hiệu ứng để modal gỡ khỏi DOM ngay khi đóng (jsdom không chạy transitionend).
+    <ConfigProvider theme={{ token: { motion: false } }}>
+      <App>
+        <PrescriptionPanel record={record} />
+      </App>
+    </ConfigProvider>,
   );
   return fetchMock;
 }
@@ -54,6 +57,22 @@ const posts = (fetchMock: ReturnType<typeof setup>) =>
   fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST');
 
 describe('PrescriptionPanel', () => {
+  it('mở lại form sau khi đóng thì các ô trống (không giữ dữ liệu cũ)', async () => {
+    const user = userEvent.setup();
+    setup(() => okResponse(ISSUED));
+    await user.click(screen.getByRole('button', { name: 'Kê đơn' }));
+    let dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Tên thuốc'), 'Dở dang');
+    await user.click(within(dialog).getByRole('button', { name: /Thêm dòng/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Đóng' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Kê đơn' }));
+    dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getAllByLabelText('Tên thuốc')).toHaveLength(1);
+    expect(within(dialog).getByLabelText('Tên thuốc')).toHaveValue('');
+  });
+
   it('bệnh án không in_progress thì không có nút Kê đơn', () => {
     setup(() => okResponse(ISSUED), { ...RECORD, status: 'pending' });
     expect(screen.queryByRole('button', { name: 'Kê đơn' })).not.toBeInTheDocument();
@@ -107,6 +126,7 @@ describe('PrescriptionPanel', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Lưu' }));
 
     expect((await screen.findAllByText('Bệnh án này đã kê đơn rồi')).length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Kê đơn' })).toBeDisabled();
   });
 

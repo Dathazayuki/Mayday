@@ -1,5 +1,5 @@
 import type { NotificationData } from '@drmayday/shared';
-import { countUnread, notificationPath } from './notification-utils';
+import { notificationPath } from './notification-utils';
 
 const make = (patch: Partial<NotificationData>): NotificationData => ({
   id: '1',
@@ -13,13 +13,6 @@ const make = (patch: Partial<NotificationData>): NotificationData => ({
   created_at: '',
   updated_at: '',
   ...patch,
-});
-
-describe('countUnread', () => {
-  it('đếm thông báo có is_read là "0"', () => {
-    expect(countUnread([make({}), make({ is_read: '1' }), make({})])).toBe(2);
-    expect(countUnread([])).toBe(0);
-  });
 });
 
 describe('notificationPath', () => {

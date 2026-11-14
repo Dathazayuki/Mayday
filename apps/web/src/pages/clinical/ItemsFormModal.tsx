@@ -47,6 +47,8 @@ export function ItemsFormModal<TValues extends Values>({
       <Form
         form={form}
         name={formName}
+        // Bỏ giá trị khi form gỡ khỏi DOM (destroyOnHidden) để lần mở sau luôn trống.
+        preserve={false}
         layout="vertical"
         initialValues={{ items: [{}] }}
         onFinish={onSubmit}

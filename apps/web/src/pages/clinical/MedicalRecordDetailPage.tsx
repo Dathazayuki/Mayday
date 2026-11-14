@@ -15,7 +15,6 @@ import {
   Descriptions,
   Form,
   Input,
-  List,
   Modal,
   Popconfirm,
   Skeleton,
@@ -33,8 +32,10 @@ import {
   usePatientHistory,
   useSaveAnswers,
 } from '../../clinical/medical-records-api';
+import { canExamine } from '../../clinical/record-state';
 import { MedicalRecordStatusTag } from '../../clinical/status';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
+import { ItemList } from '../../components/ItemList';
 import { useRunAction } from '../../components/crud/use-run-action';
 import { DynamicForm } from '../../components/dynamic-form/DynamicForm';
 import { formatDateTime } from '../../lib/format-date';
@@ -67,21 +68,20 @@ function HistoryCard({ patientId }: { patientId: number }) {
   return (
     <Card title="Lịch sử bệnh án của bệnh nhân" style={{ marginBottom: 16 }}>
       <QueryErrorAlert error={error} />
-      <List
+      <ItemList
         loading={isPending}
-        dataSource={data ?? []}
-        locale={{ emptyText: 'Chưa có bệnh án nào' }}
+        items={data ?? []}
+        rowKey={(item) => item.medical_record_id}
+        emptyText="Chưa có bệnh án nào"
         renderItem={(item) => (
-          <List.Item>
-            <Space orientation="vertical" size={0}>
-              <Space>
-                <span>#{item.medical_record_id}</span>
-                <MedicalRecordStatusTag status={item.status} />
-                <span>{formatDateTime(item.created_at)}</span>
-              </Space>
-              {item.instructions && <span>{item.instructions}</span>}
+          <Space orientation="vertical" size={0}>
+            <Space>
+              <span>#{item.medical_record_id}</span>
+              <MedicalRecordStatusTag status={item.status} />
+              <span>{formatDateTime(item.created_at)}</span>
             </Space>
-          </List.Item>
+            {item.instructions && <span>{item.instructions}</span>}
+          </Space>
         )}
       />
     </Card>
@@ -190,7 +190,7 @@ function ExamPanel({
           >
             Lưu câu trả lời
           </Button>
-          {record.status === 'in_progress' && (
+          {canExamine(record) && (
             <Button type="primary" onClick={() => setClosing(true)}>
               Chốt bệnh án
             </Button>

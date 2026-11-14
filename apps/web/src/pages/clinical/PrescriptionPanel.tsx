@@ -6,6 +6,7 @@ import {
 } from '@drmayday/shared';
 import { Alert, Button, Card, Table, Typography } from 'antd';
 import { useState } from 'react';
+import { canExamine } from '../../clinical/record-state';
 import { useCreatePrescription, useIssuedPrescription } from '../../clinical/prescriptions-api';
 import {
   buildPrescriptionRequest,
@@ -70,14 +71,14 @@ export function PrescriptionPanel({ record }: { record: MedicalRecordData }) {
     create.error instanceof ApiError && create.error.code === ALREADY_PRESCRIBED
       ? describeError(create.error)
       : null;
-  const canIssue = record.status === 'in_progress' && !issued && !lockedReason;
+  const canIssue = canExamine(record) && !issued && !lockedReason;
 
   return (
     <Card
       title="Đơn thuốc"
       style={{ marginBottom: 16 }}
       extra={
-        record.status === 'in_progress' && (
+        canExamine(record) && (
           <Button type="primary" disabled={!canIssue} onClick={() => setOpen(true)}>
             Kê đơn
           </Button>
@@ -87,19 +88,16 @@ export function PrescriptionPanel({ record }: { record: MedicalRecordData }) {
       {lockedReason && (
         <Alert type="warning" showIcon title={lockedReason} style={{ marginBottom: 16 }} />
       )}
-      {issued ? (
-        <IssuedPrescription prescription={issued} />
-      ) : (
-        <Typography.Text type="secondary">Chưa kê đơn trong phiên này</Typography.Text>
-      )}
+      {issued && <IssuedPrescription prescription={issued} />}
       <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
-        Xem lại đơn đã kê trước đó cần API chưa có (MT-77).
+        Đơn đã kê trước đây chưa xem được (MT-77): cần API chưa có.
       </Typography.Paragraph>
       <ItemsFormModal<PrescriptionFormValues>
         title="Kê đơn thuốc"
         formName="prescription"
         fields={FIELDS}
-        open={open}
+        // Khoá (8003) hoặc đã kê xong thì modal đóng theo.
+        open={open && canIssue}
         saving={create.isPending}
         onClose={() => setOpen(false)}
         onSubmit={(values) => void handleSubmit(values)}
