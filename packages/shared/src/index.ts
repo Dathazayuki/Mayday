@@ -10,3 +10,5 @@ export * from './contracts/profile.js';
 export * from './contracts/admin-users.js';
 export * from './contracts/rbac.js';
 export * from './contracts/facilities.js';
+export * from './contracts/templates.js';
+export * from './form-tree.js';
