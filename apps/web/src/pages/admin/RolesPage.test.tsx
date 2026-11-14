@@ -33,7 +33,7 @@ const ASSIGNED = [10, 11].map((id) => ({
 type Call = { method: string; url: string; body?: string };
 const BASE = 'http://localhost:3000/api/v1';
 
-function setup(overrides: Record<string, (call: Call) => Response> = {}) {
+function setup(overrides: Record<string, (call: Call) => Response | Promise<Response>> = {}) {
   const calls: Call[] = [];
   const fetchMock = vi.fn((url: string, init: RequestInit) => {
     const call = { method: init.method ?? 'GET', url, body: init.body as string | undefined };
@@ -177,5 +177,41 @@ describe('RolesPage', () => {
         calls.filter((c) => c.url === `${BASE}/role_permissions/role/2`).length,
       ).toBeGreaterThan(1),
     );
+  });
+
+  it('danh sách quyền chưa tải xong thì không cho Lưu, không thể thu hồi nhầm', async () => {
+    const calls = setup({ 'GET /permissions': () => new Promise<Response>(() => undefined) });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: 'Phân quyền' }));
+    await user.click(screen.getByLabelText('Chọn vai trò'));
+    const options = await screen.findAllByTitle('doctor');
+    await user.click(options[options.length - 1]!);
+    await waitFor(() =>
+      expect(calls.some((c) => c.url === `${BASE}/role_permissions/role/2`)).toBe(true),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByRole('button', { name: /Lưu phân quyền/ })).toBeDisabled();
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false);
+  });
+
+  it('quyền đã gán nhưng không còn trong danh sách quyền không sinh lệnh DELETE', async () => {
+    const calls = setup({
+      'GET /permissions': () =>
+        okResponse(PERMISSIONS.filter((permission) => permission.id !== 11)),
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: 'Phân quyền' }));
+    await user.click(screen.getByLabelText('Chọn vai trò'));
+    const options = await screen.findAllByTitle('doctor');
+    await user.click(options[options.length - 1]!);
+    const manageUsers = await screen.findByRole('checkbox', { name: 'manage_users' });
+    await waitFor(() => expect(manageUsers).toBeChecked());
+    const save = screen.getByRole('button', { name: /Lưu phân quyền/ });
+    expect(save).toBeDisabled();
+
+    await user.click(screen.getByRole('checkbox', { name: 'manage_roles' }));
+    await user.click(save);
+    expect(await screen.findByText('Đã lưu phân quyền')).toBeInTheDocument();
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false);
   });
 });

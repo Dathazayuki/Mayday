@@ -21,14 +21,21 @@ export function AssignmentTab() {
   const { message } = App.useApp();
 
   const assigned = assignment.data?.map((p) => p.permission_id);
-  // Quyền vừa bị xoá ở tab khác không còn trong danh sách: bỏ khỏi lựa chọn để không gán lại.
+  // Chỉ xét các quyền còn trong danh sách quyền: quyền đã bị xoá ở tab khác (hoặc chưa tải xong
+  // danh sách) không được gán lại và cũng không sinh lệnh thu hồi ngoài ý muốn.
   const existing = new Set((permissions.data ?? []).map((p) => p.id));
-  const selected = (draft ?? assigned ?? []).filter((id) => existing.has(id));
-  const { toAdd, toRemove } = diffPermissions(assigned ?? [], selected);
-  const canSave = roleId !== undefined && toAdd.length + toRemove.length > 0;
+  const baseline = (assigned ?? []).filter((id) => existing.has(id));
+  const selected = draft ? draft.filter((id) => existing.has(id)) : baseline;
+  const { toAdd, toRemove } = diffPermissions(baseline, selected);
+  const canSave =
+    roleId !== undefined &&
+    permissions.data !== undefined &&
+    assigned !== undefined &&
+    toAdd.length + toRemove.length > 0;
 
   async function handleSave() {
     if (roleId === undefined) return;
+    // Không dùng useRunAction vì lưu một phần cần thông báo lỗi riêng (không phải thành công/thất bại).
     try {
       const { failedAdd, failedRemove, firstError } = await save.mutateAsync({
         roleId,
