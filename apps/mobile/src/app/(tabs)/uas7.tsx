@@ -69,14 +69,18 @@ function Uas7Content() {
   // Cập nhật "hôm nay" rồi tải lại; gọi khi mở tab và khi app quay lại, để qua nửa đêm không giữ ngày cũ.
   const reload = useCallback(() => {
     setToday(todayLocalIso());
-    void load();
+    return load();
   }, [load]);
 
-  useFocusEffect(reload);
+  useFocusEffect(
+    useCallback(() => {
+      void reload();
+    }, [reload]),
+  );
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (status) => {
-      if (status === 'active') reload();
+      if (status === 'active') void reload();
     });
     return () => subscription.remove();
   }, [reload]);
@@ -84,7 +88,7 @@ function Uas7Content() {
   async function handleRefresh() {
     setRefreshing(true);
     try {
-      await load();
+      await reload();
     } finally {
       setRefreshing(false);
     }
