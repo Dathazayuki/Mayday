@@ -2,10 +2,10 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   errorResponse,
-  imageResponse,
   okResponse,
   renderApp,
   seedSession,
+  stubImageApi,
 } from '../../test/helpers';
 import { LesionPanel } from './LesionPanel';
 
@@ -82,20 +82,7 @@ const PHOTOS = [
 ];
 
 function setup(routes: Record<string, () => Response>) {
-  const urls: string[] = [];
-  vi.stubGlobal(
-    'fetch',
-    vi.fn((url: string) => {
-      urls.push(url);
-      if (url.includes('/image-attachments/view/')) {
-        return Promise.resolve(imageResponse());
-      }
-      const handler = routes[url.replace(BASE, '')];
-      return Promise.resolve(handler ? handler() : okResponse([]));
-    }),
-  );
-  URL.createObjectURL = vi.fn(() => 'blob:x');
-  URL.revokeObjectURL = vi.fn();
+  const urls = stubImageApi((path) => routes[path]?.());
   seedSession();
   renderApp(<LesionPanel medicalRecordId={101} />);
   return urls;

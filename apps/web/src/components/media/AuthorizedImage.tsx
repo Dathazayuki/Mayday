@@ -1,16 +1,5 @@
-import { Image, Spin } from 'antd';
-import type { CSSProperties } from 'react';
+import { Image, Spin, theme } from 'antd';
 import { useMediaObjectUrl } from './use-media-object-url';
-
-const PLACEHOLDER_STYLE: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'rgba(0, 0, 0, 0.04)',
-  color: 'rgba(0, 0, 0, 0.45)',
-  textAlign: 'center',
-  fontSize: 12,
-};
 
 /** Ảnh từ endpoint view cần đăng nhập: tải bằng fetch kèm token (thẻ img không gửi được header). */
 export function AuthorizedImage({
@@ -27,6 +16,7 @@ export function AuthorizedImage({
   /** Cho phép bấm xem ảnh lớn. */
   preview?: boolean;
 }) {
+  const { token } = theme.useToken();
   const image = useMediaObjectUrl(fileUrl);
   if (image.status === 'ready') {
     return (
@@ -41,7 +31,19 @@ export function AuthorizedImage({
     );
   }
   return (
-    <div style={{ ...PLACEHOLDER_STYLE, width, height }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        fontSize: token.fontSizeSM,
+        background: token.colorFillTertiary,
+        color: token.colorTextTertiary,
+        width,
+        height,
+      }}
+    >
       {image.status === 'error' ? 'Không tải được ảnh' : <Spin size="small" />}
     </div>
   );

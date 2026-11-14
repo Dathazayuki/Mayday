@@ -1,9 +1,19 @@
-import { resolveMediaUrl } from '@drmayday/shared';
+import { resolveMediaUrl, UNAUTHENTICATED_CODES } from '@drmayday/shared';
 import { useEffect, useState } from 'react';
-import { API_BASE_URL } from '../../api';
-import { authStorage } from '../../auth/auth-storage';
+import { API_BASE_URL, authHeaders, notifyUnauthenticated } from '../../api';
 
 type Result = { status: 'loading' } | { status: 'error' } | { status: 'ready'; objectUrl: string };
+
+/** 401 hoặc JSON lỗi 3001/3002/3003: giống luồng hết phiên của api client. */
+async function isSessionExpired(response: Response): Promise<boolean> {
+  if (response.status === 401) return true;
+  try {
+    const body = (await response.json()) as { code?: string };
+    return (UNAUTHENTICATED_CODES as readonly (string | undefined)[]).includes(body.code);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Tải ảnh từ endpoint view (cần Bearer token, MT-85) thành object URL để gán cho `<img>`.
@@ -16,14 +26,16 @@ export function useMediaObjectUrl(fileUrl: string): Result {
   useEffect(() => {
     const controller = new AbortController();
     let objectUrl: string | null = null;
-    const token = authStorage.getToken();
 
     fetch(resolveMediaUrl(API_BASE_URL, fileUrl), {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: authHeaders(),
       signal: controller.signal,
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          if (await isSessionExpired(response)) notifyUnauthenticated();
+          throw new Error(`HTTP ${response.status}`);
+        }
         const blob = await response.blob();
         if (controller.signal.aborted) return;
         objectUrl = URL.createObjectURL(blob);

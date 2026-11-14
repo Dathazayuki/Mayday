@@ -2,10 +2,10 @@ import type { OptionData } from '@drmayday/shared';
 import { screen } from '@testing-library/react';
 import {
   errorResponse,
-  imageResponse,
   okResponse,
   renderApp,
   seedSession,
+  stubImageApi,
 } from '../../test/helpers';
 import { AnswerImages } from './AnswerImages';
 
@@ -32,20 +32,9 @@ const item = (id: string, option_value: string | null) => ({
 });
 
 function setup(answerId: number | undefined, response: () => Response) {
-  const urls: string[] = [];
-  vi.stubGlobal(
-    'fetch',
-    vi.fn((url: string) => {
-      urls.push(url);
-      return Promise.resolve(
-        url.includes('/image-attachments/view/') ? imageResponse() : response(),
-      );
-    }),
-  );
-  URL.createObjectURL = vi.fn(() => 'blob:x');
-  URL.revokeObjectURL = vi.fn();
+  const urls = stubImageApi(response);
   seedSession();
-  renderApp(<AnswerImages answerId={answerId} options={OPTIONS} />);
+  renderApp(<AnswerImages answerId={answerId} options={OPTIONS} labelledBy="label" />);
   return urls;
 }
 

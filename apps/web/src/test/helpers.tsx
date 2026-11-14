@@ -4,6 +4,8 @@ import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { AuthProvider } from '../auth/AuthContext';
 
+const API_BASE = 'http://localhost:3000/api/v1';
+
 export const STAFF_USER = {
   user_id: '1',
   full_name: 'Nguyễn Văn An',
@@ -50,4 +52,23 @@ export function renderApp(
       </AuthProvider>
     </QueryClientProvider>,
   );
+}
+
+/**
+ * Giả lập fetch cho màn có ảnh: endpoint view trả ảnh giả, route khác do `respond(path)` quyết định
+ * (path đã bỏ địa chỉ API, mặc định trả mảng rỗng). Trả về danh sách URL đã gọi.
+ */
+export function stubImageApi(respond: (path: string) => Response | undefined = () => undefined) {
+  const urls: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: string) => {
+      urls.push(url);
+      if (url.includes('/image-attachments/view/')) return Promise.resolve(imageResponse());
+      return Promise.resolve(respond(url.replace(API_BASE, '')) ?? okResponse([]));
+    }),
+  );
+  URL.createObjectURL = vi.fn(() => 'blob:x');
+  URL.revokeObjectURL = vi.fn();
+  return urls;
 }

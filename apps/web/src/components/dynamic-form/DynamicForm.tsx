@@ -50,7 +50,12 @@ function QuestionTree({
       const inputId = `question-${question.question_id}`;
       return (
         <div key={question.question_id} style={{ marginBottom: 16 }}>
-          <label htmlFor={inputId} style={{ display: 'block', marginBottom: 4 }}>
+          {/* Câu image_upload không có ô nhập: nhãn gắn với vùng ảnh bằng aria-labelledby. */}
+          <label
+            id={`${inputId}-label`}
+            htmlFor={question.type_question === 'image_upload' ? undefined : inputId}
+            style={{ display: 'block', marginBottom: 4 }}
+          >
             <strong>{question.question_text}</strong>
             {question.is_required === '1' && <span style={{ color: 'red' }}> *</span>}
           </label>
@@ -65,6 +70,7 @@ function QuestionTree({
           {questionAcceptsImages(question) && (
             <AnswerImages
               answerId={answerIdByQuestion?.[question.question_id]}
+              labelledBy={`${inputId}-label`}
               options={question.options}
             />
           )}

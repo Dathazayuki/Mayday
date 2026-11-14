@@ -1,8 +1,8 @@
 import type { FilledBy, FormState, QuestionData, TemplateDetailData } from '@drmayday/shared';
 import { render, screen } from '@testing-library/react';
-import { imageResponse, okResponse, renderApp, seedSession } from '../../test/helpers';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
+import { okResponse, renderApp, seedSession, stubImageApi } from '../../test/helpers';
 import { DynamicForm } from './DynamicForm';
 
 function question(
@@ -209,35 +209,25 @@ describe('DynamicForm', () => {
   });
 
   it('câu có ảnh (image_upload, allow_image = 1) và đã có câu trả lời thì hiện ảnh; câu khác thì không', async () => {
-    const urls: string[] = [];
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) => {
-        urls.push(url);
-        if (url.includes('/image-attachments/view/')) {
-          return Promise.resolve(imageResponse());
-        }
-        const id = url.split('/').pop();
-        return Promise.resolve(
-          okResponse([
-            {
-              id: `1${id}`,
-              option_value: null,
-              attachment: {
-                attachment_id: `9${id}`,
-                file_url: `/api/v1/image-attachments/view/9${id}`,
-                file_name: 'a.jpg',
-              },
-            },
-          ]),
-        );
-      }),
-    );
-    URL.createObjectURL = vi.fn(() => 'blob:x');
-    URL.revokeObjectURL = vi.fn();
+    const urls = stubImageApi((path) => {
+      const id = path.split('/').pop();
+      return okResponse([
+        {
+          id: `1${id}`,
+          option_value: null,
+          attachment: {
+            attachment_id: `9${id}`,
+            file_url: `/api/v1/image-attachments/view/9${id}`,
+            file_name: 'a.jpg',
+          },
+        },
+      ]);
+    });
     seedSession();
     renderApp(<Harness answerIdByQuestion={{ Q_PHOTO: 21, Q_SKIN: 22, Q_DIAG: 23, Q_ITCH: 24 }} />);
     expect(await screen.findAllByRole('img')).toHaveLength(2);
+    // Nhãn câu image_upload không trỏ vào phần tử nào; vùng ảnh được đặt tên bằng aria-labelledby.
+    expect(await screen.findByRole('group', { name: 'Ảnh vùng ngứa' })).toBeInTheDocument();
     const answerImageUrls = urls.filter((url) => url.includes('/answer-images/')).sort();
     expect(answerImageUrls).toEqual([
       'http://localhost:3000/api/v1/answer-images/21',

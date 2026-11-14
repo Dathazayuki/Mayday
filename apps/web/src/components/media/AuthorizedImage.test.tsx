@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import { UNAUTHENTICATED_EVENT } from '../../api';
 import { imageResponse, jsonResponse, seedSession } from '../../test/helpers';
 import { AuthorizedImage } from './AuthorizedImage';
 
@@ -64,5 +65,34 @@ describe('AuthorizedImage', () => {
     await waitFor(() => expect(signals).toHaveLength(2));
     expect(signals[0].aborted).toBe(true);
     expect(signals[1].aborted).toBe(false);
+  });
+
+  it.each([
+    ['HTTP 401', () => new Response('', { status: 401 })],
+    ['JSON 3002', () => jsonResponse(403, { code: '3002', message: 'x' })],
+  ])('phiên hết hạn (%s) thì phát sự kiện đăng xuất', async (_name, response) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response())),
+    );
+    const listener = vi.fn();
+    window.addEventListener(UNAUTHENTICATED_EVENT, listener);
+    render(<AuthorizedImage fileUrl={FILE_URL} alt="Ảnh" />);
+    expect(await screen.findByText('Không tải được ảnh')).toBeInTheDocument();
+    window.removeEventListener(UNAUTHENTICATED_EVENT, listener);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('lỗi 3106 không phải hết phiên nên không phát sự kiện đăng xuất', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse(403, { code: '3106', message: 'x' }))),
+    );
+    const listener = vi.fn();
+    window.addEventListener(UNAUTHENTICATED_EVENT, listener);
+    render(<AuthorizedImage fileUrl={FILE_URL} alt="Ảnh" />);
+    await screen.findByText('Không tải được ảnh');
+    window.removeEventListener(UNAUTHENTICATED_EVENT, listener);
+    expect(listener).not.toHaveBeenCalled();
   });
 });
