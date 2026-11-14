@@ -1,10 +1,14 @@
-export const NODE_ENVS = ['development', 'test', 'production'] as const;
-export type NodeEnv = (typeof NODE_ENVS)[number];
+/**
+ * Môi trường chạy của API. Dùng biến riêng APP_ENV thay vì NODE_ENV: file .env ở thư mục gốc dùng
+ * chung với Web, Vite đọc NODE_ENV từ đó và sẽ build Web ở chế độ development.
+ */
+export const APP_ENVS = ['development', 'test', 'production'] as const;
+export type AppEnv = (typeof APP_ENVS)[number];
 
 /** Biến môi trường của API. Danh sách chuẩn: .env.example ở thư mục gốc. */
 export interface Env {
   /** Chưa đặt thì nơi dùng coi như production: tính năng chỉ dành cho dev (VD log OTP) bị tắt. */
-  NODE_ENV?: NodeEnv;
+  APP_ENV?: AppEnv;
   PORT: number;
   DATABASE_URL?: string;
   JWT_SECRET: string;
@@ -38,11 +42,11 @@ function positiveInt(
   return parsed;
 }
 
-function nodeEnv(raw: Record<string, unknown>, errors: string[]): NodeEnv | undefined {
-  const value = optionalString(raw, 'NODE_ENV');
+function appEnv(raw: Record<string, unknown>, errors: string[]): AppEnv | undefined {
+  const value = optionalString(raw, 'APP_ENV');
   if (value === undefined) return undefined;
-  const known = NODE_ENVS.find((name) => name === value);
-  if (!known) errors.push(`NODE_ENV phải là ${NODE_ENVS.join(', ')} (đang là "${value}")`);
+  const known = APP_ENVS.find((name) => name === value);
+  if (!known) errors.push(`APP_ENV phải là ${APP_ENVS.join(', ')} (đang là "${value}")`);
   return known;
 }
 
@@ -54,7 +58,7 @@ export function validateEnv(raw: Record<string, unknown>): Env {
   }
 
   const env: Env = {
-    NODE_ENV: nodeEnv(raw, errors),
+    APP_ENV: appEnv(raw, errors),
     PORT: positiveInt(raw, 'PORT', errors, 3000) ?? 3000,
     DATABASE_URL: optionalString(raw, 'DATABASE_URL'),
     JWT_SECRET: jwtSecret ?? '',

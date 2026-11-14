@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PATIENT_EDITABLE_FIELDS, type ProfileData } from '@drmayday/shared';
 import { AppException } from '../common/app.exception.js';
 import { isBlank } from '../common/text.js';
-import { isPatient, requireRoleId, toProfileData, type UserRecord } from '../users/user-mapping.js';
+import { requireRoleId } from '../users/require-role-id.js';
+import { isPatient, toProfileData, type UserRecord } from '../users/user-mapping.js';
 import { UsersRepository } from '../users/users.repository.js';
 import type { UpdateProfileDto } from './dto/update-profile.dto.js';
 

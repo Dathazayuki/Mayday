@@ -14,7 +14,7 @@ export interface OtpSender {
 }
 
 /**
- * Bản dev: ghi OTP ra log để thử luồng quên mật khẩu, chỉ khi NODE_ENV là development hoặc test.
+ * Bản dev: ghi OTP ra log để thử luồng quên mật khẩu, chỉ khi APP_ENV là development hoặc test.
  * Môi trường khác (production, chưa đặt) chưa có kênh gửi thật (MT-16): không sẵn sàng, send → 9903,
  * không bao giờ ghi OTP ra log.
  */
@@ -24,8 +24,8 @@ export class DevLogOtpSender implements OtpSender {
   private readonly enabled: boolean;
 
   constructor(config: ConfigService<Env, true>) {
-    const nodeEnv = config.get('NODE_ENV', { infer: true });
-    this.enabled = nodeEnv === 'development' || nodeEnv === 'test';
+    const appEnv = config.get('APP_ENV', { infer: true });
+    this.enabled = appEnv === 'development' || appEnv === 'test';
   }
 
   isAvailable(): boolean {

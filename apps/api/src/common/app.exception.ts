@@ -1,3 +1,4 @@
+import type { Logger } from '@nestjs/common';
 import { RESPONSE_CODES, type ResponseCode } from '@drmayday/shared';
 
 export interface AppExceptionOptions {
@@ -28,4 +29,13 @@ export function notFound(): AppException {
 /** Thao tác bị dữ liệu liên quan chặn (RESTRICT) hoặc trùng khoá → 2003 + HTTP 409 (spec giai đoạn 2, mục 3.1). */
 export function conflict(): AppException {
   return new AppException('2003', undefined, { httpStatus: 409 });
+}
+
+/**
+ * Dữ liệu trong CSDL không nhất quán (VD chưa seed, thiếu bản ghi subtype): ghi log vào `logger` của
+ * nơi gọi để xử lý, client nhận 9901.
+ */
+export function corruptData(logger: Logger, detail: string): AppException {
+  logger.error(detail);
+  return new AppException('9901');
 }

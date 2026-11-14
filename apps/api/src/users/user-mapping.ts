@@ -1,4 +1,3 @@
-import type { Logger } from '@nestjs/common';
 import type {
   Career,
   CreateStaffResponseData,
@@ -10,7 +9,6 @@ import type {
   ProfileData,
   SignupResponseData,
 } from '@drmayday/shared';
-import { AppException } from '../common/app.exception.js';
 import type {
   Prisma,
   patients,
@@ -147,9 +145,9 @@ function change<T, R>(value: T | null | undefined, convert: (value: T) => R): R 
   return convert(value);
 }
 
-/** Cột chữ tự do: bỏ khoảng trắng hai đầu. */
-function trimText(text: string): string {
-  return text.trim();
+/** Cột chữ tự do: bỏ khoảng trắng hai đầu; còn lại chuỗi rỗng thì ghi null (CSDL không lưu ''). */
+function trimText(text: string): string | null {
+  return text.trim() || null;
 }
 
 // ---- Ghi ----
@@ -198,17 +196,6 @@ export function profileUpdateToDb(
 /** role_id nằm ở bảng subtype `staffs` hoặc `patients` (MT-62); không có cả hai → null. */
 export function roleIdOf(record: UserRecord): number | null {
   return record.staffs?.role_id ?? record.patients?.role_id ?? null;
-}
-
-/**
- * role_id của người dùng. Không có bản ghi staffs/patients là dữ liệu hỏng: ghi log để xử lý, client
- * nhận 9901. Dùng chung cho login và profile.
- */
-export function requireRoleId(record: UserRecord, logger: Logger): number {
-  const roleId = roleIdOf(record);
-  if (roleId !== null) return roleId;
-  logger.error(`Người dùng ${record.user_id} không có bản ghi staffs hoặc patients`);
-  throw new AppException('9901');
 }
 
 /** Bệnh nhân có bản ghi `patients`; nhân viên chỉ có `staffs`. */

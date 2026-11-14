@@ -1,4 +1,3 @@
-import type { Logger } from '@nestjs/common';
 import type { Career, Gender } from '@drmayday/shared';
 import type { patients_nghe_nghiep, staffs, users_gioi_tinh } from '../generated/prisma/client.js';
 import {
@@ -13,7 +12,6 @@ import {
   newUserToDb,
   normalizeFullName,
   profileUpdateToDb,
-  requireRoleId,
   roleIdOf,
   toCreateStaffData,
   toLoginUserInfo,
@@ -111,29 +109,6 @@ describe('roleIdOf', () => {
   });
 });
 
-describe('requireRoleId', () => {
-  const logger = () => ({ error: vi.fn() });
-
-  it('trả role_id của staffs hoặc patients, không ghi log', () => {
-    const log = logger();
-    expect(requireRoleId(userRecord(), log as unknown as Logger)).toBe(2);
-    const staff = userRecord({ staffs: { role_id: 1 } as staffs, patients: null });
-    expect(requireRoleId(staff, log as unknown as Logger)).toBe(1);
-    expect(log.error).not.toHaveBeenCalled();
-  });
-
-  it('không có bản ghi staffs/patients (dữ liệu hỏng) → ghi log rồi ném 9901', () => {
-    const log = logger();
-    const corrupt = userRecord({ patients: null });
-    expect(() => requireRoleId(corrupt, log as unknown as Logger)).toThrow(
-      expect.objectContaining({ code: '9901' }),
-    );
-    expect(log.error).toHaveBeenCalledExactlyOnceWith(
-      'Người dùng 7 không có bản ghi staffs hoặc patients',
-    );
-  });
-});
-
 describe('ghi users khi tạo tài khoản', () => {
   it('newUserToDb: họ tên in hoa, gender theo enum CSDL', () => {
     expect(
@@ -207,15 +182,23 @@ describe('profileUpdateToDb (PUT profile)', () => {
     });
   });
 
-  it('cột chữ tự do được bỏ khoảng trắng hai đầu', () => {
+  it('cột chữ tự do được bỏ khoảng trắng hai đầu; còn lại chuỗi rỗng thì ghi null, không ghi ""', () => {
     const { patient } = profileUpdateToDb(
-      { ethnic: ' Kinh ', commune_address: '  Xã A', next_of_kin_name: 'Nguyễn Văn C  ' },
+      {
+        ethnic: ' Kinh ',
+        commune_address: '  Xã A',
+        next_of_kin_name: 'Nguyễn Văn C  ',
+        work_place: '   ',
+        health_insurance_number: '',
+      },
       birthDate,
     );
     expect(patient).toMatchObject({
       dan_toc: 'Kinh',
       dia_chi_xa_phuong: 'Xã A',
       nguoi_nha_ho_ten_dia_chi: 'Nguyễn Văn C',
+      noi_lam_viec: null,
+      bhyt_so_the: null,
     });
   });
 });

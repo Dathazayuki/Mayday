@@ -68,7 +68,7 @@ describe('Quên mật khẩu và đổi mật khẩu (MySQL thật)', () => {
       const after = Date.now();
       expect(res.body).toEqual({ code: '1000', message: 'OK', data: {} });
 
-      // DevLogOtpSender (NODE_ENV=test) ghi "OTP khôi phục cho ***5678: <otp>".
+      // DevLogOtpSender (APP_ENV=test) ghi "OTP khôi phục cho ***5678: <otp>".
       const otpLog = warn.mock.calls
         .map(([message]) => String(message))
         .find((message) => message.startsWith('OTP khôi phục cho ***5678: '));

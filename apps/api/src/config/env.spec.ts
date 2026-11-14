@@ -31,16 +31,20 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...base, PORT: 'abc' })).toThrow(/PORT/);
   });
 
-  it.each(['development', 'test', 'production'])('đọc NODE_ENV = %s', (nodeEnv) => {
-    expect(validateEnv({ ...base, NODE_ENV: nodeEnv }).NODE_ENV).toBe(nodeEnv);
+  it.each(['development', 'test', 'production'])('đọc APP_ENV = %s', (appEnv) => {
+    expect(validateEnv({ ...base, APP_ENV: appEnv }).APP_ENV).toBe(appEnv);
   });
 
-  it('NODE_ENV chưa đặt hoặc rỗng → undefined (nơi dùng coi như production)', () => {
-    expect(validateEnv(base).NODE_ENV).toBeUndefined();
-    expect(validateEnv({ ...base, NODE_ENV: '' }).NODE_ENV).toBeUndefined();
+  it('APP_ENV chưa đặt hoặc rỗng → undefined (nơi dùng coi như production)', () => {
+    expect(validateEnv(base).APP_ENV).toBeUndefined();
+    expect(validateEnv({ ...base, APP_ENV: '' }).APP_ENV).toBeUndefined();
   });
 
-  it('báo lỗi khi NODE_ENV ngoài development/test/production', () => {
-    expect(() => validateEnv({ ...base, NODE_ENV: 'staging' })).toThrow(/NODE_ENV/);
+  it('báo lỗi khi APP_ENV ngoài development/test/production', () => {
+    expect(() => validateEnv({ ...base, APP_ENV: 'staging' })).toThrow(/APP_ENV/);
+  });
+
+  it('không đọc NODE_ENV (biến của Node/Vite): NODE_ENV=development không bật chế độ dev', () => {
+    expect(validateEnv({ ...base, NODE_ENV: 'development' }).APP_ENV).toBeUndefined();
   });
 });

@@ -10,6 +10,7 @@ export default defineConfig({
       JWT_SECRET: 'jwt-secret-cho-vitest-unit-du-32-ky-tu',
       JWT_EXPIRES_IN: '3600',
       DATABASE_URL: '',
+      APP_ENV: 'test',
     },
   },
 });

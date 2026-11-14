@@ -7,13 +7,13 @@ import type {
   LoginResponseData,
   SignupResponseData,
 } from '@drmayday/shared';
-import { AppException } from '../common/app.exception.js';
+import { AppException, corruptData } from '../common/app.exception.js';
 import type { Env } from '../config/env.js';
 import { FacilitiesService } from '../facilities/facilities.service.js';
 import type { RoleName } from '../roles/role-names.js';
 import { RolesRepository } from '../roles/roles.repository.js';
+import { requireRoleId } from '../users/require-role-id.js';
 import {
-  requireRoleId,
   toCreateStaffData,
   toLoginUserInfo,
   toSignupData,
@@ -77,7 +77,9 @@ export class AuthService {
   async signup(dto: SignupDto): Promise<SignupResponseData> {
     if (await this.users.phoneExists(dto.phone)) throw new AppException('3006');
     const role = await this.roles.findByName(PATIENT_ROLE);
-    if (!role) throw this.corruptData(`Bảng roles chưa có vai trò "${PATIENT_ROLE}" (chưa seed?)`);
+    if (!role) {
+      throw corruptData(this.logger, `Bảng roles chưa có vai trò "${PATIENT_ROLE}" (chưa seed?)`);
+    }
 
     const user = await this.users.createPatient({
       fullName: dto.full_name,
@@ -181,11 +183,5 @@ export class AuthService {
     const passwordHash = await this.passwords.hash(dto.new_password);
     await this.blacklist.add({ jti: jwt.jti, userId, expiresAt: new Date(jwt.exp * 1000) });
     await this.users.updatePasswordHash(userId, passwordHash);
-  }
-
-  /** Dữ liệu trong CSDL không nhất quán: ghi log để xử lý, client nhận 9901. */
-  private corruptData(detail: string): AppException {
-    this.logger.error(detail);
-    return new AppException('9901');
   }
 }
