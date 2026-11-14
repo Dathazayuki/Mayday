@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import type { UpdateProfileRequest } from '@drmayday/shared';
 import type { staffs } from '../generated/prisma/client.js';
-import { toProfileData } from '../users/user-mapping.js';
+import { newUserToDb } from '../users/user-mapping.js';
 import { userRecord } from '../users/user-record.fixture.js';
 import type { UsersRepository } from '../users/users.repository.js';
 import { ProfileService } from './profile.service.js';
@@ -13,13 +13,34 @@ const STAFF = userRecord({
   staffs: { user_id: 7, role_id: ADMIN_ROLE_ID } as staffs,
   patients: null,
 });
+/** Bản ghi repository trả về sau khi ghi (ghi cột qua user-mapping như repository thật). */
+const UPDATED = userRecord(
+  newUserToDb({
+    fullName: 'trần văn b',
+    phone: '0912345678',
+    passwordHash: 'hash',
+    gender: 'female',
+  }),
+);
+const EMPTY_PATIENT_FIELDS = {
+  year_of_birth: null,
+  career: null,
+  ethnic: null,
+  hamlet_address: null,
+  commune_address: null,
+  city_address: null,
+  work_place: null,
+  health_insurance_number: null,
+  health_insurance_validate: null,
+  next_of_kin_name: null,
+  next_of_kin_phone: null,
+  first_visit: null,
+};
 
 function setup() {
   const users = {
     findById: vi.fn<UsersRepository['findById']>().mockResolvedValue(PATIENT),
-    updateProfile: vi
-      .fn<UsersRepository['updateProfile']>()
-      .mockResolvedValue(userRecord({ ho_ten: 'TRẦN VĂN B' })),
+    updateProfile: vi.fn<UsersRepository['updateProfile']>().mockResolvedValue(UPDATED),
   };
   const service = new ProfileService(users as unknown as UsersRepository);
   // Lỗi 9901 được ghi log; chặn log để output test gọn và kiểm tra nội dung.
@@ -33,12 +54,17 @@ describe('ProfileService', () => {
   });
 
   describe('get', () => {
-    it('bệnh nhân: đủ 17 trường (toProfileData với role_id của patients)', async () => {
+    it('bệnh nhân: đủ 17 trường, role_id lấy từ patients, trường chưa có giá trị là null', async () => {
       const { service, users } = setup();
-      const profile = await service.get(7);
+      await expect(service.get(7)).resolves.toStrictEqual({
+        user_id: 7,
+        full_name: 'NGUYỄN VĂN A',
+        phone: '0912345678',
+        role_id: PATIENT_ROLE_ID,
+        gender: null,
+        ...EMPTY_PATIENT_FIELDS,
+      });
       expect(users.findById).toHaveBeenCalledWith(7);
-      expect(profile).toStrictEqual(toProfileData(PATIENT, PATIENT_ROLE_ID));
-      expect(Object.keys(profile)).toHaveLength(17);
     });
 
     it('nhân viên: chỉ 5 trường, role_id lấy từ staffs', async () => {
@@ -123,19 +149,25 @@ describe('ProfileService', () => {
       expect(Object.keys(profile)).toHaveLength(5);
     });
 
-    it('bệnh nhân: chuyển nguyên thay đổi cho repository (chuỗi rỗng = xoá, profileUpdateToDb đổi thành null)', async () => {
+    it('bệnh nhân: chuyển nguyên thay đổi cho repository (null = xoá giá trị)', async () => {
       const { service, users } = setup();
-      const dto: UpdateProfileRequest = { ethnic: '', year_of_birth: 1990, work_place: null };
+      const dto: UpdateProfileRequest = { ethnic: null, year_of_birth: 1990, work_place: null };
       await service.update(7, dto);
       expect(users.updateProfile).toHaveBeenCalledWith(7, dto);
     });
 
     it('trả hồ sơ của bản ghi mà repository trả về sau khi ghi', async () => {
       const { service } = setup();
-      const profile = await service.update(7, { full_name: 'trần văn b' });
-      expect(profile).toStrictEqual(
-        toProfileData(userRecord({ ho_ten: 'TRẦN VĂN B' }), PATIENT_ROLE_ID),
-      );
+      await expect(
+        service.update(7, { full_name: 'trần văn b', gender: 'female' }),
+      ).resolves.toStrictEqual({
+        user_id: 7,
+        full_name: 'TRẦN VĂN B',
+        phone: '0912345678',
+        role_id: PATIENT_ROLE_ID,
+        gender: 'female',
+        ...EMPTY_PATIENT_FIELDS,
+      });
     });
 
     it('người dùng không có bản ghi staffs/patients → 9901, không ghi CSDL', async () => {

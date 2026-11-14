@@ -1,5 +1,6 @@
-import { createHash, randomInt, randomUUID } from 'node:crypto';
+import { createHmac, randomInt, randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type {
   CreateStaffResponseData,
@@ -7,11 +8,12 @@ import type {
   SignupResponseData,
 } from '@drmayday/shared';
 import { AppException } from '../common/app.exception.js';
+import type { Env } from '../config/env.js';
 import { FacilitiesService } from '../facilities/facilities.service.js';
 import type { RoleName } from '../roles/role-names.js';
 import { RolesRepository } from '../roles/roles.repository.js';
 import {
-  roleIdOf,
+  requireRoleId,
   toCreateStaffData,
   toLoginUserInfo,
   toSignupData,
@@ -42,9 +44,18 @@ function generateOtp(): string {
     .padStart(OTP_DIGITS, '0');
 }
 
-/** `users.reset_token` chỉ lưu SHA-256 (hex) của OTP, không lưu OTP gốc. */
-function hashOtp(otp: string): string {
-  return createHash('sha256').update(otp).digest('hex');
+/** Tách miền: khoá HMAC của OTP là JWT_SECRET, cũng là khoá ký JWT. */
+const OTP_HMAC_PREFIX = 'otp-reset:';
+
+/**
+ * Giá trị lưu ở `users.reset_token`: HMAC-SHA256 (hex, 64 ký tự) của OTP với khoá bí mật của server,
+ * không lưu OTP gốc. OTP chỉ có 10^6 giá trị nên SHA-256 trần dò ngược được ngay khi lộ CSDL; HMAC
+ * thì cần thêm khoá. Mọi chỗ băm/đối chiếu OTP (reset-password sau này, MT-16) dùng hàm này.
+ */
+function hashOtp(otp: string, secret: string): string {
+  return createHmac('sha256', secret)
+    .update(OTP_HMAC_PREFIX + otp)
+    .digest('hex');
 }
 
 @Injectable()
@@ -59,6 +70,7 @@ export class AuthService {
     private readonly blacklist: TokenBlacklistRepository,
     private readonly jwt: JwtService,
     @Inject(OTP_SENDER) private readonly otpSender: OtpSender,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   /** Tạo tài khoản bệnh nhân (users + patients). Trùng số điện thoại → 3006. */
@@ -111,10 +123,7 @@ export class AuthService {
     if (!(await this.passwords.verify(dto.password, user.password_hash))) {
       throw new AppException('3008');
     }
-    const roleId = roleIdOf(user);
-    if (roleId === null) {
-      throw this.corruptData(`Người dùng ${user.user_id} không có bản ghi staffs hoặc patients`);
-    }
+    const roleId = requireRoleId(user, this.logger);
 
     const payload: JwtPayload = {
       sub: String(user.user_id),
@@ -137,15 +146,18 @@ export class AuthService {
   }
 
   /**
-   * Cấp OTP khôi phục mật khẩu (reset-password chờ MT-16). Không có số điện thoại → 3007. Lưu mã
-   * băm trước rồi mới gửi, để OTP đã tới tay người dùng luôn có bản ghi để đối chiếu.
+   * Cấp OTP khôi phục mật khẩu (reset-password chờ MT-16). Chưa có kênh gửi → 9903 trước khi ghi gì,
+   * để không đè reset_token đang dùng; không có số điện thoại → 3007. Lưu mã băm trước rồi mới gửi,
+   * để OTP đã tới tay người dùng luôn có bản ghi để đối chiếu.
    */
   async forgotPassword(dto: ForgotPasswordDto): Promise<void> {
+    if (!this.otpSender.isAvailable()) throw new AppException('9903');
     const user = await this.users.findByPhone(dto.phone);
     if (!user) throw new AppException('3007');
 
     const otp = generateOtp();
-    await this.users.setResetToken(user.user_id, hashOtp(otp), new Date(Date.now() + OTP_TTL_MS));
+    const tokenHash = hashOtp(otp, this.config.get('JWT_SECRET', { infer: true }));
+    await this.users.setResetToken(user.user_id, tokenHash, new Date(Date.now() + OTP_TTL_MS));
     await this.otpSender.send(dto.phone, otp);
   }
 

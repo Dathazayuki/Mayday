@@ -30,4 +30,17 @@ describe('validateEnv', () => {
   it('báo lỗi khi PORT không phải số nguyên dương', () => {
     expect(() => validateEnv({ ...base, PORT: 'abc' })).toThrow(/PORT/);
   });
+
+  it.each(['development', 'test', 'production'])('đọc NODE_ENV = %s', (nodeEnv) => {
+    expect(validateEnv({ ...base, NODE_ENV: nodeEnv }).NODE_ENV).toBe(nodeEnv);
+  });
+
+  it('NODE_ENV chưa đặt hoặc rỗng → undefined (nơi dùng coi như production)', () => {
+    expect(validateEnv(base).NODE_ENV).toBeUndefined();
+    expect(validateEnv({ ...base, NODE_ENV: '' }).NODE_ENV).toBeUndefined();
+  });
+
+  it('báo lỗi khi NODE_ENV ngoài development/test/production', () => {
+    expect(() => validateEnv({ ...base, NODE_ENV: 'staging' })).toThrow(/NODE_ENV/);
+  });
 });

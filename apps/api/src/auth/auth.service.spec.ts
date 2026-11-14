@@ -1,9 +1,11 @@
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { Logger } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
 import type { JwtService } from '@nestjs/jwt';
 import type { ChangePasswordRequest, CreateStaffRequest, SignupRequest } from '@drmayday/shared';
 import type { FacilitiesRepository } from '../facilities/facilities.repository.js';
 import { FacilitiesService } from '../facilities/facilities.service.js';
+import type { Env } from '../config/env.js';
 import type { patients, roles, staffs } from '../generated/prisma/client.js';
 import type { RolesRepository } from '../roles/roles.repository.js';
 import { newUserToDb } from '../users/user-mapping.js';
@@ -17,6 +19,7 @@ import type { TokenBlacklistRepository } from './token-blacklist.repository.js';
 
 const PATIENT_ROLE_ID = 2;
 const TEN_MINUTES_MS = 10 * 60 * 1000;
+const JWT_SECRET = 'jwt-secret-cua-unit-test-du-32-ky-tu!';
 const DOCTOR_ROLE_ID = 6;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -102,7 +105,11 @@ function setup() {
   const jwt = {
     signAsync: vi.fn<(payload: object) => Promise<string>>().mockResolvedValue('signed-token'),
   };
-  const otpSender = { send: vi.fn<OtpSender['send']>().mockResolvedValue(undefined) };
+  const otpSender = {
+    isAvailable: vi.fn<OtpSender['isAvailable']>().mockReturnValue(true),
+    send: vi.fn<OtpSender['send']>().mockResolvedValue(undefined),
+  };
+  const config = { get: (key: keyof Env) => (key === 'JWT_SECRET' ? JWT_SECRET : undefined) };
   const service = new AuthService(
     users as unknown as UsersRepository,
     roleRepo as unknown as RolesRepository,
@@ -111,13 +118,16 @@ function setup() {
     blacklist as unknown as TokenBlacklistRepository,
     jwt as unknown as JwtService,
     otpSender,
+    config as unknown as ConfigService<Env, true>,
   );
   // Lỗi 9901 được ghi log; chặn log để output test gọn và kiểm tra nội dung.
   const logError = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
   return { service, users, roleRepo, facilityRepo, passwords, blacklist, jwt, otpSender, logError };
 }
 
-const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
+/** Oracle độc lập: HMAC-SHA256 hex, khoá JWT_SECRET, thông điệp có tiền tố tách miền 'otp-reset:'. */
+const otpHmac = (otp: string) =>
+  createHmac('sha256', JWT_SECRET).update(`otp-reset:${otp}`).digest('hex');
 
 describe('AuthService', () => {
   afterEach(() => {
@@ -349,7 +359,7 @@ describe('AuthService', () => {
       expect(otpSender.send).not.toHaveBeenCalled();
     });
 
-    it('gửi OTP 6 chữ số đúng 1 lần; lưu SHA-256 của OTP đó, hết hạn sau 10 phút', async () => {
+    it('gửi OTP 6 chữ số đúng 1 lần; lưu HMAC-SHA256 của OTP đó, hết hạn sau 10 phút', async () => {
       const { service, users, otpSender } = setup();
       users.findByPhone.mockResolvedValue(userRecord());
       const before = Date.now();
@@ -364,7 +374,8 @@ describe('AuthService', () => {
       expect(users.setResetToken).toHaveBeenCalledOnce();
       const [userId, tokenHash, expiresAt] = users.setResetToken.mock.calls[0]!;
       expect(userId).toBe(7);
-      expect(tokenHash).toBe(sha256(otp));
+      expect(tokenHash).toMatch(/^[0-9a-f]{64}$/);
+      expect(tokenHash).toBe(otpHmac(otp));
       expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + TEN_MINUTES_MS);
       expect(expiresAt.getTime()).toBeLessThanOrEqual(after + TEN_MINUTES_MS);
     });
@@ -376,6 +387,15 @@ describe('AuthService', () => {
       const [saveOrder] = users.setResetToken.mock.invocationCallOrder;
       const [sendOrder] = otpSender.send.mock.invocationCallOrder;
       expect(saveOrder).toBeLessThan(sendOrder!);
+    });
+
+    it('chưa có kênh gửi OTP (production, MT-16) → 9903 trước khi ghi: reset_token đang có giữ nguyên', async () => {
+      const { service, users, otpSender } = setup();
+      users.findByPhone.mockResolvedValue(userRecord());
+      otpSender.isAvailable.mockReturnValue(false);
+      await expect(service.forgotPassword(dto)).rejects.toMatchObject({ code: '9903' });
+      expect(users.setResetToken).not.toHaveBeenCalled();
+      expect(otpSender.send).not.toHaveBeenCalled();
     });
   });
 

@@ -1,5 +1,10 @@
+export const NODE_ENVS = ['development', 'test', 'production'] as const;
+export type NodeEnv = (typeof NODE_ENVS)[number];
+
 /** Biến môi trường của API. Danh sách chuẩn: .env.example ở thư mục gốc. */
 export interface Env {
+  /** Chưa đặt thì nơi dùng coi như production: tính năng chỉ dành cho dev (VD log OTP) bị tắt. */
+  NODE_ENV?: NodeEnv;
   PORT: number;
   DATABASE_URL?: string;
   JWT_SECRET: string;
@@ -33,6 +38,14 @@ function positiveInt(
   return parsed;
 }
 
+function nodeEnv(raw: Record<string, unknown>, errors: string[]): NodeEnv | undefined {
+  const value = optionalString(raw, 'NODE_ENV');
+  if (value === undefined) return undefined;
+  const known = NODE_ENVS.find((name) => name === value);
+  if (!known) errors.push(`NODE_ENV phải là ${NODE_ENVS.join(', ')} (đang là "${value}")`);
+  return known;
+}
+
 export function validateEnv(raw: Record<string, unknown>): Env {
   const errors: string[] = [];
   const jwtSecret = optionalString(raw, 'JWT_SECRET');
@@ -41,6 +54,7 @@ export function validateEnv(raw: Record<string, unknown>): Env {
   }
 
   const env: Env = {
+    NODE_ENV: nodeEnv(raw, errors),
     PORT: positiveInt(raw, 'PORT', errors, 3000) ?? 3000,
     DATABASE_URL: optionalString(raw, 'DATABASE_URL'),
     JWT_SECRET: jwtSecret ?? '',

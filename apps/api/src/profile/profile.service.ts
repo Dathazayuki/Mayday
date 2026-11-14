@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PATIENT_EDITABLE_FIELDS, type ProfileData } from '@drmayday/shared';
 import { AppException } from '../common/app.exception.js';
-import { isBlank } from '../common/is-optional-or-blank.decorator.js';
-import { isPatient, roleIdOf, toProfileData, type UserRecord } from '../users/user-mapping.js';
+import { isBlank } from '../common/text.js';
+import { isPatient, requireRoleId, toProfileData, type UserRecord } from '../users/user-mapping.js';
 import { UsersRepository } from '../users/users.repository.js';
 import type { UpdateProfileDto } from './dto/update-profile.dto.js';
 
@@ -36,15 +36,10 @@ export class ProfileService {
     return toProfileData(await this.users.updateProfile(userId, dto), roleId);
   }
 
-  /** Người dùng của token: không còn tồn tại → 3007; thiếu bản ghi staffs/patients → 9901 (như login). */
+  /** Người dùng của token: không còn tồn tại → 3007; thiếu bản ghi staffs/patients → 9901. */
   private async findUser(userId: number): Promise<{ user: UserRecord; roleId: number }> {
     const user = await this.users.findById(userId);
     if (!user) throw new AppException('3007');
-    const roleId = roleIdOf(user);
-    if (roleId === null) {
-      this.logger.error(`Người dùng ${userId} không có bản ghi staffs hoặc patients`);
-      throw new AppException('9901');
-    }
-    return { user, roleId };
+    return { user, roleId: requireRoleId(user, this.logger) };
   }
 }

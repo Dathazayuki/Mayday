@@ -35,15 +35,25 @@ describe('UpdateProfileDto', () => {
     expect(await errorFor({})).toBeNull();
   });
 
-  it.each(CLEARABLE_FIELDS)('%s = null hoặc chuỗi trống (xoá giá trị) → hợp lệ', async (field) => {
-    expect(await errorFor({ [field]: null })).toBeNull();
-    expect(await errorFor({ [field]: '' })).toBeNull();
-    expect(await errorFor({ [field]: '   ' })).toBeNull();
-  });
+  it.each(CLEARABLE_FIELDS)(
+    '%s = null hoặc chuỗi trống (xoá giá trị) → hợp lệ, service nhận null',
+    async (field) => {
+      for (const value of [null, '', '   ']) {
+        const dto = plainToInstance(UpdateProfileDto, { [field]: value });
+        expect(dto[field as keyof UpdateProfileDto]).toBeNull();
+        expect(await validate(dto)).toEqual([]);
+      }
+    },
+  );
 
-  it('full_name trống không bị DTO chặn: ProfileService trả 2003 thay vì 2001', async () => {
+  it('full_name trống giữ nguyên, không bị DTO chặn: ProfileService trả 2003 thay vì 2001', async () => {
+    expect(plainToInstance(UpdateProfileDto, { full_name: '  ' }).full_name).toBe('  ');
     expect(await errorFor({ full_name: '' })).toBeNull();
     expect(await errorFor({ full_name: null })).toBeNull();
+  });
+
+  it('chuỗi có nội dung giữ nguyên (cột chữ được trim khi ghi, ở profileUpdateToDb)', () => {
+    expect(plainToInstance(UpdateProfileDto, { ethnic: ' Kinh ' }).ethnic).toBe(' Kinh ');
   });
 
   const nextYear = new Date().getFullYear() + 1;

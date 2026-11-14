@@ -1,3 +1,4 @@
+import type { Logger } from '@nestjs/common';
 import type { Career, Gender } from '@drmayday/shared';
 import type { patients_nghe_nghiep, staffs, users_gioi_tinh } from '../generated/prisma/client.js';
 import {
@@ -12,13 +13,13 @@ import {
   newUserToDb,
   normalizeFullName,
   profileUpdateToDb,
+  requireRoleId,
   roleIdOf,
   toCreateStaffData,
   toLoginUserInfo,
   toProfileData,
   toSignupData,
   yearFromDate,
-  type ProfileWrite,
   type UserRecord,
 } from './user-mapping.js';
 import { patientRecord, userRecord } from './user-record.fixture.js';
@@ -110,6 +111,29 @@ describe('roleIdOf', () => {
   });
 });
 
+describe('requireRoleId', () => {
+  const logger = () => ({ error: vi.fn() });
+
+  it('trả role_id của staffs hoặc patients, không ghi log', () => {
+    const log = logger();
+    expect(requireRoleId(userRecord(), log as unknown as Logger)).toBe(2);
+    const staff = userRecord({ staffs: { role_id: 1 } as staffs, patients: null });
+    expect(requireRoleId(staff, log as unknown as Logger)).toBe(1);
+    expect(log.error).not.toHaveBeenCalled();
+  });
+
+  it('không có bản ghi staffs/patients (dữ liệu hỏng) → ghi log rồi ném 9901', () => {
+    const log = logger();
+    const corrupt = userRecord({ patients: null });
+    expect(() => requireRoleId(corrupt, log as unknown as Logger)).toThrow(
+      expect.objectContaining({ code: '9901' }),
+    );
+    expect(log.error).toHaveBeenCalledExactlyOnceWith(
+      'Người dùng 7 không có bản ghi staffs hoặc patients',
+    );
+  });
+});
+
 describe('ghi users khi tạo tài khoản', () => {
   it('newUserToDb: họ tên in hoa, gender theo enum CSDL', () => {
     expect(
@@ -183,29 +207,15 @@ describe('profileUpdateToDb (PUT profile)', () => {
     });
   });
 
-  it('chuỗi trống (sau trim) xoá giá trị như null; chữ còn lại bỏ khoảng trắng hai đầu', () => {
-    // UpdateProfileDto cho qua chuỗi trống ở mọi trường trừ full_name, kể cả gender/career/year_of_birth.
-    const changes = {
-      gender: '',
-      year_of_birth: '',
-      career: '  ',
-      ethnic: '',
-      hamlet_address: '   ',
-      commune_address: '  Xã A ',
-      health_insurance_validate: '',
-      next_of_kin_phone: '',
-    } as unknown as Partial<ProfileWrite>;
-    expect(profileUpdateToDb(changes, birthDate)).toEqual({
-      user: { gioi_tinh: null },
-      patient: {
-        ngay_sinh: null,
-        nghe_nghiep: null,
-        dan_toc: null,
-        dia_chi_so_nha_thon_pho: null,
-        dia_chi_xa_phuong: 'Xã A',
-        bhyt_gia_tri_den: null,
-        nguoi_nha_so_dien_thoai: null,
-      },
+  it('cột chữ tự do được bỏ khoảng trắng hai đầu', () => {
+    const { patient } = profileUpdateToDb(
+      { ethnic: ' Kinh ', commune_address: '  Xã A', next_of_kin_name: 'Nguyễn Văn C  ' },
+      birthDate,
+    );
+    expect(patient).toMatchObject({
+      dan_toc: 'Kinh',
+      dia_chi_xa_phuong: 'Xã A',
+      nguoi_nha_ho_ten_dia_chi: 'Nguyễn Văn C',
     });
   });
 });

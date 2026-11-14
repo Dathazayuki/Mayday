@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { Logger, type INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
@@ -18,7 +18,9 @@ const CHANGE = {
 };
 const TEN_MINUTES_MS = 10 * 60 * 1000;
 
-const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
+/** HMAC-SHA256 hex của OTP, khoá JWT_SECRET của app test (vitest.config.db.ts), tiền tố tách miền. */
+const otpHmac = (otp: string) =>
+  createHmac('sha256', process.env.JWT_SECRET!).update(`otp-reset:${otp}`).digest('hex');
 
 describe('Quên mật khẩu và đổi mật khẩu (MySQL thật)', () => {
   let app: INestApplication<App>;
@@ -59,7 +61,7 @@ describe('Quên mật khẩu và đổi mật khẩu (MySQL thật)', () => {
   });
 
   describe('POST /auth/forgot-password', () => {
-    it('200 / 1000: lưu SHA-256 hex (64 ký tự) của OTP đã gửi, hết hạn sau 10 phút', async () => {
+    it('200 / 1000: lưu HMAC-SHA256 hex (64 ký tự) của OTP đã gửi, hết hạn sau 10 phút', async () => {
       const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
       const before = Date.now();
       const res = await forgotPassword({ phone: PHONE }).expect(200);
@@ -74,7 +76,7 @@ describe('Quên mật khẩu và đổi mật khẩu (MySQL thật)', () => {
 
       const user = await findUser();
       expect(user.reset_token).toMatch(/^[0-9a-f]{64}$/);
-      expect(user.reset_token).toBe(sha256(otpLog!.slice(-6)));
+      expect(user.reset_token).toBe(otpHmac(otpLog!.slice(-6)));
       // Cột datetime(0) làm tròn tới giây.
       const expiresAt = user.reset_token_expires!.getTime();
       expect(expiresAt).toBeGreaterThanOrEqual(before + TEN_MINUTES_MS - 1000);

@@ -1,3 +1,4 @@
+import type { Logger } from '@nestjs/common';
 import type {
   Career,
   CreateStaffResponseData,
@@ -9,7 +10,7 @@ import type {
   ProfileData,
   SignupResponseData,
 } from '@drmayday/shared';
-import { isBlank } from '../common/is-optional-or-blank.decorator.js';
+import { AppException } from '../common/app.exception.js';
 import type {
   Prisma,
   patients,
@@ -52,8 +53,8 @@ export interface StaffAssignment {
 export interface NewStaff extends NewUser, StaffAssignment {}
 
 /**
- * Giá trị hồ sơ ghi vào CSDL (PUT profile), theo tên trường của Sheet; null hoặc chuỗi trống = xoá
- * giá trị. Chuỗi trống có thể tới ở mọi trường trừ full_name (UpdateProfileDto cho qua).
+ * Giá trị hồ sơ ghi vào CSDL (PUT profile), theo tên trường của Sheet; null = xoá giá trị (chuỗi
+ * trống đã được UpdateProfileDto đổi thành null).
  */
 export type ProfileWrite = { full_name: string; gender: Gender | null } & {
   [K in PatientEditableField]: PatientProfileFields[K];
@@ -139,10 +140,10 @@ function dateFromIso(isoDay: string): Date {
   return new Date(`${isoDay}T00:00:00.000Z`);
 }
 
-/** undefined = không đổi; null hoặc chuỗi trống (sau trim) = xoá; giá trị khác đổi bằng `convert`. */
+/** undefined = không đổi, null = xoá; giá trị khác đổi bằng `convert`. */
 function change<T, R>(value: T | null | undefined, convert: (value: T) => R): R | null | undefined {
   if (value === undefined) return undefined;
-  if (value === null || isBlank(value)) return null;
+  if (value === null) return null;
   return convert(value);
 }
 
@@ -199,8 +200,19 @@ export function roleIdOf(record: UserRecord): number | null {
   return record.staffs?.role_id ?? record.patients?.role_id ?? null;
 }
 
+/**
+ * role_id của người dùng. Không có bản ghi staffs/patients là dữ liệu hỏng: ghi log để xử lý, client
+ * nhận 9901. Dùng chung cho login và profile.
+ */
+export function requireRoleId(record: UserRecord, logger: Logger): number {
+  const roleId = roleIdOf(record);
+  if (roleId !== null) return roleId;
+  logger.error(`Người dùng ${record.user_id} không có bản ghi staffs hoặc patients`);
+  throw new AppException('9901');
+}
+
 /** Bệnh nhân có bản ghi `patients`; nhân viên chỉ có `staffs`. */
-export function isPatient(record: UserRecord): boolean {
+export function isPatient(record: UserRecord): record is UserRecord & { patients: patients } {
   return record.patients !== null;
 }
 
@@ -257,8 +269,8 @@ export function toProfileData(record: UserRecord, roleId: number): ProfileData {
     role_id: roleId,
     gender: genderFromDb(record.gioi_tinh),
   };
+  if (!isPatient(record)) return base;
   const patient = record.patients;
-  if (!patient) return base;
   return {
     ...base,
     year_of_birth: yearFromDate(patient.ngay_sinh),
