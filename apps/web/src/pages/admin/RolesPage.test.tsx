@@ -1,7 +1,7 @@
 import { App } from 'antd';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { okResponse, renderApp, seedSession } from '../../test/helpers';
+import { errorResponse, okResponse, renderApp, seedSession } from '../../test/helpers';
 import { RolesPage } from './RolesPage';
 
 const ROLES = [
@@ -33,12 +33,14 @@ const ASSIGNED = [10, 11].map((id) => ({
 type Call = { method: string; url: string; body?: string };
 const BASE = 'http://localhost:3000/api/v1';
 
-function setup() {
+function setup(overrides: Record<string, (call: Call) => Response> = {}) {
   const calls: Call[] = [];
   const fetchMock = vi.fn((url: string, init: RequestInit) => {
     const call = { method: init.method ?? 'GET', url, body: init.body as string | undefined };
     calls.push(call);
     const key = `${call.method} ${url.replace(BASE, '')}`;
+    const override = overrides[key];
+    if (override) return Promise.resolve(override(call));
     if (key === 'GET /roles') return Promise.resolve(okResponse(ROLES));
     if (key === 'GET /permissions') return Promise.resolve(okResponse(PERMISSIONS));
     if (key === 'GET /role_permissions/role/2') return Promise.resolve(okResponse(ASSIGNED));
@@ -151,5 +153,29 @@ describe('RolesPage', () => {
     expect(JSON.parse(post.body!)).toEqual({ role_id: 2, permissions: [12] });
     const deletes = calls.filter((c) => c.method === 'DELETE');
     expect(deletes.map((c) => c.url)).toEqual([`${BASE}/role_permissions/2/10`]);
+  });
+
+  it('lưu phân quyền lỗi một phần thì báo rõ phần nào lỗi và vẫn làm mới danh sách', async () => {
+    const calls = setup({ 'DELETE /role_permissions/2/10': () => errorResponse(404, '2003') });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: 'Phân quyền' }));
+    await user.click(screen.getByLabelText('Chọn vai trò'));
+    const options = await screen.findAllByTitle('doctor');
+    await user.click(options[options.length - 1]!);
+    const manageUsers = await screen.findByRole('checkbox', { name: 'manage_users' });
+    await waitFor(() => expect(manageUsers).toBeChecked());
+
+    await user.click(manageUsers);
+    await user.click(screen.getByRole('checkbox', { name: 'manage_roles' }));
+    await user.click(screen.getByRole('button', { name: /Lưu phân quyền/ }));
+
+    expect(await screen.findByText(/Lưu một phần: không thu hồi được 1 quyền/)).toBeInTheDocument();
+    expect(screen.queryByText('Đã lưu phân quyền')).not.toBeInTheDocument();
+    expect(calls.some((c) => c.method === 'POST')).toBe(true);
+    await waitFor(() =>
+      expect(
+        calls.filter((c) => c.url === `${BASE}/role_permissions/role/2`).length,
+      ).toBeGreaterThan(1),
+    );
   });
 });

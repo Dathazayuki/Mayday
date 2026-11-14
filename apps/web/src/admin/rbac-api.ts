@@ -11,6 +11,7 @@ import type {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api';
 
+/** Tiền tố của mọi query vai trò (danh sách và kiểm tra admin): dùng để làm mới cả nhóm. */
 export const ROLES_KEY = ['roles'] as const;
 const PERMISSIONS_KEY = ['permissions'] as const;
 const ROLE_PERMISSIONS_KEY = ['role-permissions'] as const;
@@ -18,7 +19,7 @@ const ROLE_PERMISSIONS_KEY = ['role-permissions'] as const;
 export const fetchRoles = () => apiClient.get<RoleData[]>('/roles');
 
 export function useRoles() {
-  return useQuery({ queryKey: ROLES_KEY, queryFn: fetchRoles });
+  return useQuery({ queryKey: [...ROLES_KEY, 'list'], queryFn: fetchRoles });
 }
 
 export function usePermissions() {
@@ -61,6 +62,7 @@ export const useCreatePermission = () =>
     (body: CreatePermissionRequest) => apiClient.post<PermissionSummary>('/permissions', body),
     [PERMISSIONS_KEY],
   );
+
 export const useUpdatePermission = () =>
   useInvalidatingMutation(
     ({ id, changes }: { id: number; changes: UpdatePermissionRequest }) =>
@@ -74,22 +76,43 @@ export const useDeletePermission = () =>
     [PERMISSIONS_KEY, ROLE_PERMISSIONS_KEY],
   );
 
+/** Kết quả lưu phân quyền: số lệnh gán/thu hồi thất bại và lỗi đầu tiên (để mô tả cho người dùng). */
+export interface SaveOutcome {
+  failedAdd: number;
+  failedRemove: number;
+  firstError?: unknown;
+}
+
 /**
  * Lưu phân quyền của một vai trò: một POST cho mọi quyền mới chọn (nếu có) và một DELETE cho mỗi
- * quyền bị bỏ chọn.
+ * quyền bị bỏ chọn. Chờ đủ mọi lệnh (allSettled) rồi mới làm mới danh sách quyền đã gán, để không
+ * làm mới giữa chừng khi còn lệnh đang chạy; lệnh lỗi được báo qua SaveOutcome chứ không ném lỗi.
  */
 export function useSaveRolePermissions() {
   return useInvalidatingMutation(
-    ({ roleId, toAdd, toRemove }: { roleId: number; toAdd: number[]; toRemove: number[] }) => {
-      const requests: Promise<unknown>[] = [];
-      if (toAdd.length > 0) {
-        const body: SetRolePermissionsRequest = { role_id: roleId, permissions: toAdd };
-        requests.push(apiClient.post<object>('/role_permissions', body));
-      }
-      for (const permissionId of toRemove) {
-        requests.push(apiClient.delete<object>(`/role_permissions/${roleId}/${permissionId}`));
-      }
-      return Promise.all(requests);
+    async ({
+      roleId,
+      toAdd,
+      toRemove,
+    }: {
+      roleId: number;
+      toAdd: number[];
+      toRemove: number[];
+    }): Promise<SaveOutcome> => {
+      const body: SetRolePermissionsRequest = { role_id: roleId, permissions: toAdd };
+      const [added, ...removed] = await Promise.allSettled([
+        toAdd.length > 0 ? apiClient.post<object>('/role_permissions', body) : Promise.resolve(),
+        ...toRemove.map((permissionId) =>
+          apiClient.delete<object>(`/role_permissions/${roleId}/${permissionId}`),
+        ),
+      ]);
+      const failedRemove = removed.filter((r) => r.status === 'rejected');
+      const failures = added?.status === 'rejected' ? [added, ...failedRemove] : failedRemove;
+      return {
+        failedAdd: added?.status === 'rejected' ? toAdd.length : 0,
+        failedRemove: failedRemove.length,
+        firstError: failures[0]?.reason,
+      };
     },
     [ROLE_PERMISSIONS_KEY],
   );

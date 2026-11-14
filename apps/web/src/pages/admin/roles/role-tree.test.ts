@@ -22,6 +22,13 @@ describe('buildRoleTree', () => {
     expect(buildRoleTree([role(7, 99)]).map((n) => n.key)).toEqual([7]);
   });
 
+  it('vai trò nằm trong vòng lặp cha-con được coi là gốc, không biến mất', () => {
+    const tree = buildRoleTree([role(1, 2), role(2, 1), role(3, 1)]);
+    expect(tree.map((n) => n.key)).toEqual([1, 2]);
+    expect(tree[0]!.children.map((n) => n.key)).toEqual([3]);
+    expect(tree[1]!.children).toEqual([]);
+  });
+
   it('sắp xếp ổn định theo id tăng dần dù đầu vào lộn xộn', () => {
     const tree = buildRoleTree([role(3, 1), role(2, null), role(1, null), role(4, 1)]);
     expect(tree.map((n) => n.key)).toEqual([1, 2]);

@@ -1,4 +1,5 @@
-import { Button, Checkbox, Select, Space } from 'antd';
+import { describeError } from '@drmayday/shared';
+import { App, Button, Checkbox, Select, Space } from 'antd';
 import { useState } from 'react';
 import { QueryErrorAlert } from '../../../admin/QueryErrorAlert';
 import {
@@ -7,7 +8,6 @@ import {
   useRoles,
   useSaveRolePermissions,
 } from '../../../admin/rbac-api';
-import { useRunAction } from '../../../admin/use-run-action';
 import { diffPermissions } from './permission-diff';
 
 export function AssignmentTab() {
@@ -18,17 +18,38 @@ export function AssignmentTab() {
   const permissions = usePermissions();
   const assignment = useRolePermissions(roleId);
   const save = useSaveRolePermissions();
-  const run = useRunAction();
+  const { message } = App.useApp();
 
   const assigned = assignment.data?.map((p) => p.permission_id);
-  const selected = draft ?? assigned ?? [];
+  // Quyền vừa bị xoá ở tab khác không còn trong danh sách: bỏ khỏi lựa chọn để không gán lại.
+  const existing = new Set((permissions.data ?? []).map((p) => p.id));
+  const selected = (draft ?? assigned ?? []).filter((id) => existing.has(id));
   const { toAdd, toRemove } = diffPermissions(assigned ?? [], selected);
   const canSave = roleId !== undefined && toAdd.length + toRemove.length > 0;
 
   async function handleSave() {
     if (roleId === undefined) return;
-    const ok = await run(() => save.mutateAsync({ roleId, toAdd, toRemove }), 'Đã lưu phân quyền');
-    if (ok) setDraft(undefined);
+    try {
+      const { failedAdd, failedRemove, firstError } = await save.mutateAsync({
+        roleId,
+        toAdd,
+        toRemove,
+      });
+      if (failedAdd + failedRemove === 0) {
+        void message.success('Đã lưu phân quyền');
+      } else {
+        const parts = [
+          failedAdd > 0 && `không gán được ${failedAdd} quyền`,
+          failedRemove > 0 && `không thu hồi được ${failedRemove} quyền`,
+        ].filter(Boolean);
+        void message.error(`Lưu một phần: ${parts.join(' / ')}. ${describeError(firstError)}`);
+      }
+    } catch (err) {
+      void message.error(describeError(err));
+      return;
+    }
+    // Danh sách đã được làm mới: hiển thị lại đúng trạng thái thực tế trên máy chủ.
+    setDraft(undefined);
   }
 
   return (

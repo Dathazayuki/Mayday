@@ -1,3 +1,4 @@
+import type { RoleData } from '@drmayday/shared';
 import { Button, Form, Input, Select, Tree } from 'antd';
 import { useMemo } from 'react';
 import { EntityFormModal } from '../../../admin/EntityFormModal';
@@ -15,7 +16,7 @@ interface RoleFormValues {
 export function RolesTab() {
   const { data, error, isPending } = useRoles();
   const create = useCreateRole();
-  const modal = useEntityModal<RoleFormValues, never>(() => ({ name: '', description: '' }));
+  const modal = useEntityModal<RoleFormValues, RoleData>(() => ({ name: '', description: '' }));
   const tree = useMemo(() => buildRoleTree(data ?? []), [data]);
 
   return (
@@ -26,7 +27,8 @@ export function RolesTab() {
       </Button>
       {/* Chỉ dựng cây khi đã có dữ liệu để defaultExpandAll mở sẵn mọi nhánh. */}
       {!isPending && <Tree treeData={tree} defaultExpandAll selectable={false} />}
-      <EntityFormModal<RoleFormValues, never>
+      <EntityFormModal<RoleFormValues, RoleData>
+        createOnly
         modal={modal}
         formName="role"
         entityName="vai trò"
