@@ -2,9 +2,13 @@
 import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
+import { isDatabaseConnectionError } from '../common/all-exceptions.filter.js';
+import { Prisma } from '../generated/prisma/client.js';
+import type { PrismaService } from '../prisma/prisma.service.js';
 import { JwtAuthGuard, extractBearerToken } from './jwt-auth.guard.js';
-import type { JwtPayload } from './jwt-payload.js';
+import type { JwtPayload, VerifiedJwt } from './jwt-payload.js';
 import { Public } from './public.decorator.js';
+import type { TokenBlacklistRepository } from './token-blacklist.repository.js';
 
 class SampleController {
   secret() {
@@ -18,11 +22,21 @@ class SampleController {
 }
 
 const jwt = new JwtService({ secret: 'jwt-secret-cho-unit-test' });
-const guard = new JwtAuthGuard(jwt, new Reflector());
 const payload: JwtPayload = { sub: '12', role_id: '3', jti: 'jti-1' };
 
+function setup({ configured = true } = {}) {
+  const blacklist = { has: vi.fn<TokenBlacklistRepository['has']>().mockResolvedValue(false) };
+  const guard = new JwtAuthGuard(
+    jwt,
+    new Reflector(),
+    { configured } as PrismaService,
+    blacklist as unknown as TokenBlacklistRepository,
+  );
+  return { guard, blacklist };
+}
+
 function contextFor(handler: (...args: never[]) => unknown, authorization?: string) {
-  const request: { headers: Record<string, string | undefined>; user?: JwtPayload } = {
+  const request: { headers: Record<string, string | undefined>; user?: VerifiedJwt } = {
     headers: { authorization },
   };
   const context = {
@@ -31,6 +45,11 @@ function contextFor(handler: (...args: never[]) => unknown, authorization?: stri
     switchToHttp: () => ({ getRequest: () => request }),
   } as unknown as ExecutionContext;
   return { context, request };
+}
+
+async function contextWithValidToken() {
+  const token = await jwt.signAsync(payload, { expiresIn: 60 });
+  return contextFor(SampleController.prototype.secret, `Bearer ${token}`);
 }
 
 describe('extractBearerToken', () => {
@@ -48,30 +67,69 @@ describe('extractBearerToken', () => {
 
 describe('JwtAuthGuard', () => {
   it('cho qua route @Public() không cần token', async () => {
+    const { guard } = setup();
     const { context } = contextFor(SampleController.prototype.open);
     await expect(guard.canActivate(context)).resolves.toBe(true);
   });
 
   it('thiếu token → 3003', async () => {
+    const { guard } = setup();
     const { context } = contextFor(SampleController.prototype.secret);
     await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '3003' });
   });
 
   it('token sai → 3001', async () => {
+    const { guard } = setup();
     const { context } = contextFor(SampleController.prototype.secret, 'Bearer khong-phai-jwt');
     await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '3001' });
   });
 
   it('token hết hạn → 3002', async () => {
+    const { guard } = setup();
     const token = await jwt.signAsync(payload, { expiresIn: -10 });
     const { context } = contextFor(SampleController.prototype.secret, `Bearer ${token}`);
     await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '3002' });
   });
 
-  it('token hợp lệ → gắn request.user', async () => {
-    const token = await jwt.signAsync(payload);
-    const { context, request } = contextFor(SampleController.prototype.secret, `Bearer ${token}`);
+  it('token hợp lệ → gắn request.user là payload đã verify, có exp/iat', async () => {
+    const { guard, blacklist } = setup();
+    const { context, request } = await contextWithValidToken();
     await expect(guard.canActivate(context)).resolves.toBe(true);
-    expect(request.user).toMatchObject(payload);
+    expect(blacklist.has).toHaveBeenCalledWith('jti-1');
+    expect(request.user).toMatchObject({
+      ...payload,
+      exp: expect.any(Number),
+      iat: expect.any(Number),
+    });
+  });
+
+  it('jti nằm trong token_blacklist (đã đăng xuất) → 3001', async () => {
+    const { guard, blacklist } = setup();
+    blacklist.has.mockResolvedValue(true);
+    const { context, request } = await contextWithValidToken();
+    await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '3001' });
+    expect(request.user).toBeUndefined();
+  });
+
+  it('chưa cấu hình CSDL → không tra blacklist (không thể đăng xuất khi không có CSDL)', async () => {
+    const { guard, blacklist } = setup({ configured: false });
+    const { context } = await contextWithValidToken();
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(blacklist.has).not.toHaveBeenCalled();
+  });
+
+  it('lỗi kết nối khi tra blacklist được ném tiếp (filter trả 9902), không thành 3001', async () => {
+    const { guard, blacklist } = setup();
+    const connectionError = new Prisma.PrismaClientKnownRequestError(
+      "Can't reach database server",
+      {
+        code: 'P1001',
+        clientVersion: Prisma.prismaVersion.client,
+      },
+    );
+    blacklist.has.mockRejectedValue(connectionError);
+    const { context } = await contextWithValidToken();
+    await expect(guard.canActivate(context)).rejects.toBe(connectionError);
+    expect(isDatabaseConnectionError(connectionError)).toBe(true);
   });
 });
