@@ -38,6 +38,7 @@ import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { useRunAction } from '../../components/crud/use-run-action';
 import { DynamicForm } from '../../components/dynamic-form/DynamicForm';
 import { useTemplateDetail } from '../../templates/template-detail-api';
+import { Uas7Panel } from './Uas7Panel';
 
 const formatTime = (iso: string) => new Date(iso).toLocaleString('vi-VN');
 
@@ -226,6 +227,7 @@ function RecordBody({ record }: { record: MedicalRecordData }) {
     <>
       <SummaryCard record={record} />
       <HistoryCard patientId={record.patient_id} />
+      <Uas7Panel patientId={record.patient_id} />
       <QueryErrorAlert error={error} />
       {record.template_id === null && (
         <Alert type="info" showIcon title="Bệnh án chưa gắn mẫu phiếu" />
@@ -240,7 +242,7 @@ function RecordBody({ record }: { record: MedicalRecordData }) {
   );
 }
 
-/** Màn khám: tóm tắt, lịch sử của bệnh nhân, phiếu khám (DynamicForm) và các nút tiếp nhận/chốt/huỷ. */
+/** Màn khám: tóm tắt, lịch sử và điểm UAS7 của bệnh nhân, phiếu khám (DynamicForm) và các nút tiếp nhận/chốt/huỷ. */
 export function MedicalRecordDetailPage() {
   const id = Number(useParams().id);
   const { data, error, isPending } = useMedicalRecord(id);

@@ -132,6 +132,8 @@ function setup(status: string, overrides: Record<string, Handler> = {}) {
           );
         case 'GET /medical_records/patients/7/history':
           return Promise.resolve(okResponse(HISTORY));
+        case 'GET /uas7-scores/patient/7':
+          return Promise.resolve(okResponse([]));
         case 'GET /medical_records/101/answers':
           return Promise.resolve(okResponse(ANSWERS));
         case 'GET /templates/TMPL':
@@ -166,6 +168,12 @@ describe('MedicalRecordDetailPage', () => {
     expect(await screen.findByRole('radio', { name: 'Có' })).toBeChecked();
     // Câu hỏi con hiện vì câu trả lời đã lưu là YES.
     expect(screen.getByText('Mức độ ngứa?')).toBeInTheDocument();
+  });
+
+  it('hiện mục Điểm UAS7 của bệnh nhân', async () => {
+    setup('in_progress');
+    expect(await screen.findByText('Điểm UAS7')).toBeInTheDocument();
+    expect(await screen.findByText('Bệnh nhân chưa chấm điểm UAS7')).toBeInTheDocument();
   });
 
   it('nút "Tiếp nhận" chỉ hiện khi pending và gọi POST /accept', async () => {
