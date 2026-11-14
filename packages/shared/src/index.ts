@@ -4,3 +4,6 @@ export * from './api-client.js';
 export * from './phone.js';
 export * from './error-message.js';
 export * from './contracts/auth.js';
+export * from './options.js';
+export * from './validators.js';
+export * from './contracts/profile.js';
