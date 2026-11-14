@@ -26,6 +26,11 @@ export function notFound(): AppException {
   return new AppException('2003', undefined, { httpStatus: 404 });
 }
 
+/** Id tham chiếu (trong body hoặc query) không trỏ tới bản ghi nào → 2003 kèm tên trường. */
+export function invalidReference(field: string): AppException {
+  return new AppException('2003', { field });
+}
+
 /** Thao tác bị dữ liệu liên quan chặn (RESTRICT) hoặc trùng khoá → 2003 + HTTP 409 (spec giai đoạn 2, mục 3.1). */
 export function conflict(): AppException {
   return new AppException('2003', undefined, { httpStatus: 409 });

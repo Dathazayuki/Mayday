@@ -29,23 +29,21 @@ const ROLES = [
   { role_id: DOCTOR_ROLE_ID, name: 'doctor' },
 ] as roles[];
 
-// Cơ sở vật chất giả: chi nhánh 10 có khoa 20 (phòng 30); chi nhánh 11 có khoa 21 (phòng 31);
-// phòng 32 chưa thuộc khoa nào.
+// Cơ sở vật chất giả tối thiểu để chứng minh createStaff gọi FacilitiesService; các nhánh kiểm tra
+// nơi công tác nằm trong facilities.service.spec.ts. Chi nhánh 10 có khoa 20 (phòng 30); khoa 21 và
+// phòng 31 thuộc chi nhánh 11.
 const BRANCH_ID = 10;
 const DEPARTMENT_ID = 20;
 const ROOM_ID = 30;
-const OTHER_BRANCH_DEPARTMENT_ID = 21;
 const OTHER_DEPARTMENT_ROOM_ID = 31;
-const UNASSIGNED_ROOM_ID = 32;
 const BRANCHES = [{ id: BRANCH_ID }, { id: 11 }];
 const DEPARTMENTS = [
   { id: DEPARTMENT_ID, branch_id: BRANCH_ID },
-  { id: OTHER_BRANCH_DEPARTMENT_ID, branch_id: 11 },
+  { id: 21, branch_id: 11 },
 ];
 const ROOMS = [
   { id: ROOM_ID, department_id: DEPARTMENT_ID },
-  { id: OTHER_DEPARTMENT_ROOM_ID, department_id: OTHER_BRANCH_DEPARTMENT_ID },
-  { id: UNASSIGNED_ROOM_ID, department_id: null },
+  { id: OTHER_DEPARTMENT_ROOM_ID, department_id: 21 },
 ];
 
 function findIn<T extends { id: number }>(rows: T[]) {
@@ -90,7 +88,7 @@ function setup() {
       async (roleId) => ROLES.find((role) => role.role_id === roleId) ?? null,
     ),
   };
-  // FacilitiesService thật trên repository giả: kiểm tra đủ các nhánh nơi công tác của createStaff.
+  // FacilitiesService thật trên repository giả.
   const facilityRepo = {
     findBranch: vi.fn<FacilitiesRepository['findBranch']>(findIn(BRANCHES)),
     findDepartment: vi.fn<FacilitiesRepository['findDepartment']>(findIn(DEPARTMENTS)),
@@ -262,11 +260,7 @@ describe('AuthService', () => {
       ['vai trò không tồn tại', { role_id: 999 }, 'role_id'],
       ['vai trò là patient', { role_id: PATIENT_ROLE_ID }, 'role_id'],
       ['chi nhánh không tồn tại', { branch_id: 99 }, 'branch_id'],
-      ['khoa không tồn tại', { department_id: 99 }, 'department_id'],
-      ['khoa thuộc chi nhánh khác', { department_id: OTHER_BRANCH_DEPARTMENT_ID }, 'department_id'],
-      ['phòng không tồn tại', { room_id: 99 }, 'room_id'],
       ['phòng thuộc khoa khác', { room_id: OTHER_DEPARTMENT_ROOM_ID }, 'room_id'],
-      ['phòng chưa thuộc khoa nào', { room_id: UNASSIGNED_ROOM_ID }, 'room_id'],
     ])('%s → 2003 (data.field = %s), không tạo user', async (_name, override, field) => {
       const { service, users } = setup();
       await expect(service.createStaff({ ...dto, ...override })).rejects.toMatchObject({

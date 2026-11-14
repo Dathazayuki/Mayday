@@ -9,6 +9,7 @@ import type {
   ProfileData,
   SignupResponseData,
 } from '@drmayday/shared';
+import type { Placement } from '../facilities/placement.js';
 import type {
   Prisma,
   patients,
@@ -41,11 +42,8 @@ export interface NewPatient extends NewUser {
 }
 
 /** Vai trò và nơi công tác của nhân viên (bảng `staffs`). */
-export interface StaffAssignment {
+export interface StaffAssignment extends Placement {
   roleId: number;
-  branchId: number;
-  departmentId: number;
-  roomId: number | null;
 }
 
 export interface NewStaff extends NewUser, StaffAssignment {}

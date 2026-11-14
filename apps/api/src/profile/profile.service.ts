@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PATIENT_EDITABLE_FIELDS, type ProfileData } from '@drmayday/shared';
 import { AppException } from '../common/app.exception.js';
+import { requireChanges } from '../common/require-changes.js';
 import { isBlank } from '../common/text.js';
 import { requireRoleId } from '../users/require-role-id.js';
 import { isPatient, toProfileData, type UserRecord } from '../users/user-mapping.js';
@@ -23,7 +24,7 @@ export class ProfileService {
    * tại (3007) → nhân viên không gửi trường của bệnh nhân (2003); xong mới ghi. Trả hồ sơ sau khi ghi.
    */
   async update(userId: number, dto: UpdateProfileDto): Promise<ProfileData> {
-    if (Object.values(dto).every((value) => value === undefined)) throw new AppException('2001');
+    requireChanges(dto);
     // null lọt qua @IsOptional() của DTO; họ tên trống hay null đều không hợp lệ.
     if (dto.full_name === null || isBlank(dto.full_name)) {
       throw new AppException('2003', { field: 'full_name' });

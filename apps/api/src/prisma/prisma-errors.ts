@@ -14,6 +14,11 @@ export function isUniqueViolation(error: unknown, index: string): boolean {
   return driverError?.cause?.constraint?.index === index;
 }
 
+/** Lỗi khoá ngoại (P2003): xoá bản ghi còn được tham chiếu, hoặc ghi giá trị khoá không tồn tại. */
+export function isForeignKeyViolation(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003';
+}
+
 /** Mã Prisma của lỗi kết nối: không tới được server, hết thời gian, kết nối bị đóng. */
 const PRISMA_CONNECTION_CODES = new Set(['P1001', 'P1002', 'P1008', 'P1017']);
 

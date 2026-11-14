@@ -39,3 +39,9 @@ describe('CreateStaffDto', () => {
     expect(await codeFor({ ...valid, ...override })).toBe(code);
   });
 });
+
+describe('CreateStaffDto: id vượt INT tối đa', () => {
+  it('branch_id = 2147483648 → 2003', async () => {
+    expect(await codeFor({ ...valid, branch_id: 2147483648 })).toBe('2003');
+  });
+});

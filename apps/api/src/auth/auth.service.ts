@@ -7,7 +7,7 @@ import type {
   LoginResponseData,
   SignupResponseData,
 } from '@drmayday/shared';
-import { AppException, corruptData } from '../common/app.exception.js';
+import { AppException, corruptData, invalidReference } from '../common/app.exception.js';
 import type { Env } from '../config/env.js';
 import { FacilitiesService } from '../facilities/facilities.service.js';
 import type { RoleName } from '../roles/role-names.js';
@@ -97,7 +97,7 @@ export class AuthService {
    */
   async createStaff(dto: CreateStaffDto): Promise<CreateStaffResponseData> {
     const role = await this.roles.findById(dto.role_id);
-    if (!role || role.name === PATIENT_ROLE) throw new AppException('2003', { field: 'role_id' });
+    if (!role || role.name === PATIENT_ROLE) throw invalidReference('role_id');
     const assignment: StaffAssignment = {
       roleId: role.role_id,
       branchId: dto.branch_id,

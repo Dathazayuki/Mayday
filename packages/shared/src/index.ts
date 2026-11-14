@@ -7,3 +7,6 @@ export * from './contracts/auth.js';
 export * from './options.js';
 export * from './validators.js';
 export * from './contracts/profile.js';
+export * from './contracts/admin-users.js';
+export * from './contracts/rbac.js';
+export * from './contracts/facilities.js';
