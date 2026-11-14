@@ -1,25 +1,11 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
 import { UNAUTHENTICATED_EVENT } from './api';
-import { AuthProvider } from './auth/AuthContext';
 import { AppRoutes } from './routes';
+import { errorResponse, jsonResponse, okResponse, renderApp, seedSession } from './test/helpers';
 
 function renderAt(path: string) {
-  return render(
-    <AuthProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <AppRoutes />
-      </MemoryRouter>
-    </AuthProvider>,
-  );
-}
-
-function jsonResponse(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return renderApp(<AppRoutes />, path);
 }
 
 async function submitLogin(phone: string, password: string) {
@@ -34,6 +20,14 @@ describe('Định tuyến và đăng nhập', () => {
     renderAt('/medical-records');
     expect(screen.getByRole('button', { name: /Đăng nhập/ })).toBeInTheDocument();
   });
+
+  it.each(['/profile', '/change-password'])(
+    'chưa đăng nhập mà vào %s thì chuyển về trang đăng nhập',
+    (path) => {
+      renderAt(path);
+      expect(screen.getByRole('button', { name: /Đăng nhập/ })).toBeInTheDocument();
+    },
+  );
 
   it('báo lỗi ngay tại client khi số điện thoại sai định dạng, không gọi API', async () => {
     const fetchMock = vi.fn();
@@ -65,7 +59,12 @@ describe('Định tuyến và đăng nhập', () => {
         message: 'OK',
         data: {
           token: 'jwt-token',
-          user_info: { user_id: '1', full_name: 'Nguyễn Văn An', phone: '0912345678', role_id: '2' },
+          user_info: {
+            user_id: '1',
+            full_name: 'Nguyễn Văn An',
+            phone: '0912345678',
+            role_id: '2',
+          },
         },
       }),
     );
@@ -84,7 +83,12 @@ describe('Định tuyến và đăng nhập', () => {
     localStorage.setItem('drmayday.token', 'jwt-token');
     localStorage.setItem(
       'drmayday.user',
-      JSON.stringify({ user_id: '1', full_name: 'Nguyễn Văn An', phone: '0912345678', role_id: '2' }),
+      JSON.stringify({
+        user_id: '1',
+        full_name: 'Nguyễn Văn An',
+        phone: '0912345678',
+        role_id: '2',
+      }),
     );
     renderAt('/');
     expect(await screen.findByText('Nguyễn Văn An')).toBeInTheDocument();
@@ -95,5 +99,204 @@ describe('Định tuyến và đăng nhập', () => {
 
     expect(await screen.findByRole('button', { name: /Đăng nhập/ })).toBeInTheDocument();
     expect(localStorage.getItem('drmayday.token')).toBeNull();
+  });
+
+  it('menu người dùng có Hồ sơ cá nhân, Đổi mật khẩu và Đăng xuất (gọi API rồi về đăng nhập)', async () => {
+    seedSession();
+    // Chuông thông báo ở header tải danh sách phân trang nên /notifications phải trả mảng.
+    const fetchMock = vi.fn((url: string) =>
+      Promise.resolve(
+        url.includes('/notifications')
+          ? jsonResponse(200, { code: '1000', message: 'OK', data: [], total: 0 })
+          : okResponse(),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    renderAt('/');
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /Nguyễn Văn An/ }));
+    expect(await screen.findByText('Hồ sơ cá nhân')).toBeInTheDocument();
+    expect(screen.getByText('Đổi mật khẩu')).toBeInTheDocument();
+    await user.click(screen.getByText('Đăng xuất'));
+
+    expect(await screen.findByRole('button', { name: /Đăng nhập/ })).toBeInTheDocument();
+    const urls = fetchMock.mock.calls.map(([url]) => url as string);
+    expect(urls).toContain('http://localhost:3000/api/v1/auth/logout');
+  });
+
+  it('đang đăng xuất thì không cho bấm Đăng xuất lần nữa (không gọi API hai lần)', async () => {
+    seedSession();
+    const fetchMock = vi.fn((..._args: unknown[]) => new Promise<Response>(() => undefined)); // mọi lời gọi treo
+    vi.stubGlobal('fetch', fetchMock);
+    renderAt('/');
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /Nguyễn Văn An/ }));
+    await user.click(await screen.findByText('Đăng xuất'));
+    // Nút người dùng chuyển sang trạng thái loading nên không mở lại được menu để bấm lần hai.
+    const trigger = screen.getByRole('button', { name: /Nguyễn Văn An/ });
+    expect(trigger).toHaveClass('ant-btn-loading');
+    await user.click(trigger);
+    const logoutCalls = fetchMock.mock.calls.filter(([url]) =>
+      String(url).endsWith('/auth/logout'),
+    );
+    expect(logoutCalls).toHaveLength(1);
+  });
+
+  it('menu "Quản trị hệ thống" hiện với admin (GET /roles thành công)', async () => {
+    seedSession();
+    // Mỗi lời gọi phải trả Response mới: body của một Response chỉ đọc được một lần.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(okResponse([]))),
+    );
+    renderAt('/');
+    expect(await screen.findByText('Quản trị hệ thống')).toBeInTheDocument();
+    expect(screen.getByText('Cơ sở vật chất')).toBeInTheDocument();
+  });
+
+  it('menu "Quản trị hệ thống" ẩn khi không phải admin (3102), vẫn còn phiên', async () => {
+    seedSession();
+    const fetchMock = vi.fn(() => Promise.resolve(errorResponse(403, '3102')));
+    vi.stubGlobal('fetch', fetchMock);
+    renderAt('/');
+    expect(await screen.findByText('Khám và điều trị')).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(screen.queryByText('Quản trị hệ thống')).not.toBeInTheDocument();
+    expect(screen.getByText('Nguyễn Văn An')).toBeInTheDocument();
+  });
+
+  it('menu "Khám và điều trị" ẩn với bệnh nhân (hồ sơ có trường bệnh nhân)', async () => {
+    seedSession();
+    const fetchMock = vi.fn((url: string) =>
+      Promise.resolve(
+        String(url).endsWith('/profile')
+          ? okResponse({ user_id: 1, full_name: 'Nguyễn Văn An', year_of_birth: 1990 })
+          : errorResponse(403, '3102'),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    renderAt('/');
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText('Khám và điều trị')).not.toBeInTheDocument());
+  });
+
+  it('vào /medical-records hiện danh sách bệnh án thay vì trang "Sắp ra mắt"', async () => {
+    seedSession();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(okResponse([]))),
+    );
+    renderAt('/medical-records');
+    expect(await screen.findByText('Tất cả trạng thái')).toBeInTheDocument();
+  });
+
+  it('vào /patients hiện trang tìm bệnh nhân', async () => {
+    seedSession();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(okResponse([]))),
+    );
+    renderAt('/patients');
+    expect(await screen.findByRole('button', { name: 'Thêm bệnh nhân' })).toBeInTheDocument();
+  });
+
+  it('vào /medical-records/:id hiện màn khám của bệnh án', async () => {
+    seedSession();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          String(url).endsWith('/medical_records/5')
+            ? okResponse({
+                medical_record_id: 5,
+                patient_id: 7,
+                assigned_doctor_id: null,
+                created_by: 7,
+                template_id: null,
+                status: 'pending',
+                instructions: null,
+                completed_at: null,
+                created_at: '2026-11-15T08:00:00.000Z',
+                updated_at: '2026-11-15T08:00:00.000Z',
+              })
+            : okResponse([]),
+        ),
+      ),
+    );
+    renderAt('/medical-records/5');
+    expect(await screen.findByText('Bệnh án #5')).toBeInTheDocument();
+    expect(screen.getByText('Bệnh án chưa gắn mẫu phiếu')).toBeInTheDocument();
+  });
+
+  it('vào /admin/facilities hiện trang quản lý cơ sở vật chất', async () => {
+    seedSession();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(okResponse([]))),
+    );
+    renderAt('/admin/facilities');
+    expect(await screen.findByRole('tab', { name: 'Chi nhánh' })).toBeInTheDocument();
+  });
+  it('không phải admin vào /admin/facilities thì thấy 403, không có trang quản lý', async () => {
+    seedSession();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(errorResponse(403, '3102'))),
+    );
+    renderAt('/admin/facilities');
+    expect(await screen.findByText('Bạn không có quyền truy cập trang này')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Chi nhánh' })).not.toBeInTheDocument();
+  });
+
+  it('đang xác định vai trò thì /admin/facilities hiện spinner, chưa lộ trang và chưa báo 403', async () => {
+    seedSession();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined)),
+    );
+    const { container } = renderAt('/admin/facilities');
+    await screen.findByText('Nguyễn Văn An');
+    expect(container.querySelector('.ant-spin')).toBeInTheDocument();
+    expect(screen.queryByText('Bạn không có quyền truy cập trang này')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Chi nhánh' })).not.toBeInTheDocument();
+  });
+
+  it('vào /admin/templates/:code hiện trình thiết kế mẫu phiếu cho admin', async () => {
+    seedSession();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          String(url).endsWith('/templates/TMPL_URT')
+            ? okResponse({ code_template: 'TMPL_URT', name: 'Phiếu hô hấp', sections: [] })
+            : okResponse([]),
+        ),
+      ),
+    );
+    renderAt('/admin/templates/TMPL_URT');
+    expect(await screen.findByRole('button', { name: 'Thêm section' })).toBeInTheDocument();
+  });
+
+  it('không phải admin vào /admin/templates/:code thì thấy 403, không có trình thiết kế', async () => {
+    seedSession();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(errorResponse(403, '3102'))),
+    );
+    renderAt('/admin/templates/TMPL_URT');
+    expect(await screen.findByText('Bạn không có quyền truy cập trang này')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Thêm section' })).not.toBeInTheDocument();
+  });
+
+  it('vào /admin/templates hiện danh sách mẫu phiếu thay vì trang "Sắp ra mắt"', async () => {
+    seedSession();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(okResponse([]))),
+    );
+    renderAt('/admin/templates');
+    expect(await screen.findByRole('button', { name: 'Thêm mẫu phiếu' })).toBeInTheDocument();
   });
 });

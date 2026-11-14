@@ -11,8 +11,8 @@ export interface ApiResponse<T = unknown> {
   code: string;
   message: string;
   data?: T;
-  /** Chỉ API danh sách có phân trang: tổng số bản ghi, nằm ngoài data (Sheet GET /admin/users). */
-  total?: number;
+  /** Tổng số bản ghi, nằm ngoài data: number (GET /admin/users) hoặc string (upload-multiple, answer-images/bulk — MT-06). */
+  total?: number | string;
 }
 
 export interface PageResult<T> {

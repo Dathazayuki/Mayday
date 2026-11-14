@@ -39,9 +39,11 @@ describe('createApiClient', () => {
   });
 
   it('gửi body JSON và chấp nhận mã 1001', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(
-      jsonResponse(201, { code: '1001', message: 'Created successfully', data: { user_id: 7 } }),
-    );
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(201, { code: '1001', message: 'Created successfully', data: { user_id: 7 } }),
+      );
     const client = createApiClient({ baseUrl: 'http://api', fetchImpl });
 
     await expect(client.post('/auth/signup', { phone: '0912345678' })).resolves.toEqual({
@@ -224,6 +226,20 @@ describe('getPage', () => {
     const [url, init] = fetchImpl.mock.calls[0] as FetchCall;
     expect(url).toBe('http://api/api/v1/admin/users?page=2');
     expect(init.method).toBe('GET');
+  });
+
+  it('chuyển total dạng chuỗi của envelope thành số', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(200, { code: '1000', message: 'OK', data: [{ id: 1 }], total: '3' }),
+      );
+    const client = createApiClient({ baseUrl: 'http://api', fetchImpl });
+
+    await expect(client.getPage('/image-attachments/upload-multiple')).resolves.toEqual({
+      items: [{ id: 1 }],
+      total: 3,
+    });
   });
 
   it('trả items rỗng khi envelope thiếu data', async () => {
