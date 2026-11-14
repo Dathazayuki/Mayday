@@ -28,14 +28,16 @@ Tài liệu CSDL chứa khoảng 300 chỗ sửa ở chế độ theo dõi thay 
 
 | Mã | Vấn đề | Các nguồn nói gì | Đề xuất | Trạng thái |
 |---|---|---|---|---|
-| MT-01 | Tiền tố đường dẫn | Tên tab Sheet đa số dùng `/api/...`, riêng branches/departments/rooms `/:id`, permissions và POST medical_records dùng `/api/v1/...`. Ảnh slide signup/login ghi `/api/auth/...`. Phần chữ slide (bản cập nhật 17/10) và ví dụ trong bảng `api_endpoints` của CSDL đều dùng `/api/v1/...`. | Dùng `/api/v1` cho toàn bộ API. | Đề xuất |
+| MT-01 | Tiền tố đường dẫn | Tên tab Sheet đa số dùng `/api/...`, riêng branches/departments/rooms `/:id`, permissions và POST medical_records dùng `/api/v1/...`. Ảnh slide signup/login ghi `/api/auth/...`. Phần chữ slide (bản cập nhật 17/10) và ví dụ trong bảng `api_endpoints` của CSDL đều dùng `/api/v1/...`. | Dùng `/api/v1` cho toàn bộ API. | **Đã chốt** (2026-11-15) |
 | MT-02 | Đường dẫn tạo bệnh nhân | Sheet: `POST /api/doctor/patients/create`. Slide: `POST /api/v1/doctor/patients/`. | Theo Sheet: `POST /api/v1/doctor/patients/create`. Sheet là đặc tả chi tiết và có cặp `search`/`create` cùng kiểu. | Chờ chốt |
 | MT-03 | Đường dẫn đăng ký FCM token | Sheet: `POST /api/notifications/register_token`. Slide: `POST /api/v1/notifications/`. | Theo Sheet. | Chờ chốt |
 | MT-04 | Đường dẫn đánh dấu đã đọc | Sheet: `PUT /api/notifications/{id}`. Slide: `PUT /api/v1/notifications/:id/read`. Danh sách API cũ có thêm "đánh dấu tất cả đã đọc". | Theo slide `/:id/read`. Lý do: tách riêng hành động "đọc", để chỗ cho "đọc tất cả" sau này. | Chờ chốt |
-| MT-05 | HTTP status khi lỗi | Tài liệu không quy định trực tiếp. Slide nói "tự động từ chối (403 Forbidden)", bảng mã ghi "502 Bad Gateway" cho lỗi AI. | Dùng HTTP status thật kèm `code` trong body (bảng ánh xạ nằm trong thiết kế giai đoạn 0). | Đề xuất |
+| MT-05 | HTTP status khi lỗi | Tài liệu không quy định trực tiếp. Slide nói "tự động từ chối (403 Forbidden)", bảng mã ghi "502 Bad Gateway" cho lỗi AI. | Dùng HTTP status thật kèm `code` trong body (bảng ánh xạ trong [spec giai đoạn 0](superpowers/specs/2026-11-15-giai-doan-0-nen-tang-design.md)). | **Đã chốt** (2026-11-15) |
 | MT-06 | Kiểu dữ liệu ID trong response | Các tab không thống nhất: login trả `user_id`/`role_id` kiểu string; signup, profile, admin/users, medical_records dùng int; UAS7, tổn thương da, thông báo, ảnh dùng string. Slide UAS7 yêu cầu "toàn bộ kiểu dữ liệu response phải format thành string". | Theo đúng kiểu ghi ở từng tab Sheet. Đưa kiểu vào `packages/shared` để client không phải đoán. | Chờ chốt |
 | MT-07 | Mã thành công của API tạo mới | Đa số trả `1001`. Riêng `POST uas7-scores` trả `1000` kèm `data` là mảng; `POST role_permissions` trả `1000`; `GET departments`/`GET rooms` ghi "1001 hoặc 1000" với message "Created successfully". | API tạo mới trả `1001`, API khác trả `1000`. Riêng các trường hợp lệch trong Sheet thì hỏi lại trước khi code. | Chờ chốt |
-| MT-08 | Bảng mã phản hồi nào được dùng | Tab "3. response code" có hai bảng: bảng mã chi tiết (1000–9903) và bảng mã gộp theo bit (9992–9999, 1001–1010). Mọi test case trong slide dùng bảng mã chi tiết. | Dùng bảng mã chi tiết. | Đề xuất |
+| MT-08 | Bảng mã phản hồi nào được dùng | Tab "3. response code" có hai bảng: bảng mã chi tiết (1000–9903) và bảng mã gộp theo bit (9992–9999, 1001–1010). Mọi test case trong slide dùng bảng mã chi tiết. | Dùng bảng mã chi tiết. | **Đã chốt** (2026-11-15) |
+| MT-09 | Mã `1001` | Mọi test case tạo mới trong slide và output các tab Sheet dùng `1001 Created successfully`, nhưng bảng mã trong tab "3. response code" không có mã này. | Thêm `1001 Created successfully` vào catalog. | Đề xuất |
+| MT-58 | Mã cho route không tồn tại | Bảng mã không có mã "không tìm thấy đường dẫn". | Trả HTTP 404 với mã 2003 (Invalid parameter value). | Đề xuất |
 
 ## B. Nghiệp vụ và dữ liệu
 
