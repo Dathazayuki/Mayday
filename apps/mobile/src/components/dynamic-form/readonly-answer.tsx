@@ -22,6 +22,10 @@ export function ReadonlyAnswer({
   if (question.type_question === 'group_questions') {
     return <Text style={styles.group}>{question.question_text}</Text>;
   }
+  // Câu image_upload chỉ có ảnh (hiển thị bên dưới), không có giá trị chữ.
+  if (question.type_question === 'image_upload') {
+    return <Text style={styles.question}>{question.question_text}</Text>;
+  }
   return (
     <View style={styles.row}>
       <Text style={styles.question}>{question.question_text}</Text>

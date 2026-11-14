@@ -1,5 +1,7 @@
 import type {
   AnswerData,
+  AnswerInput,
+  AnswersCountData,
   ClassifyQuestion,
   ClassifyRequest,
   ClassifyResponseData,
@@ -49,4 +51,9 @@ export function cancelMedicalRecord(id: string): Promise<MedicalRecordStatusData
   return apiClient.patch<MedicalRecordStatusData>(`${BASE}/${encodeURIComponent(id)}/status`, {
     status: 'cancelled',
   });
+}
+
+/** Ghi câu trả lời tại chỗ (giữ answers.id); phần tử chỉ có question_id tạo câu trả lời rỗng (MT-93). */
+export function saveAnswers(id: string, answers: AnswerInput[]): Promise<AnswersCountData> {
+  return apiClient.put<AnswersCountData>(`${BASE}/${encodeURIComponent(id)}/answers`, { answers });
 }

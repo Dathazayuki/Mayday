@@ -21,3 +21,9 @@ export function formatDisplayDateTime(iso: string): string {
   const minutes = String(date.getMinutes()).padStart(2, '0');
   return `${day}/${month}/${date.getFullYear()} ${hours}:${minutes}`;
 }
+
+/** Đổi "YYYY-MM-DD HH:mm:ss" (occurred_at, taken_at của tổn thương da) thành "dd/MM/yyyy HH:mm". */
+export function formatDisplayLesionDateTime(value: string): string {
+  const [date, time = ''] = value.split(' ');
+  return `${formatDisplayDate(date)} ${time.slice(0, 5)}`.trim();
+}

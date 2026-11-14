@@ -2,9 +2,11 @@ import {
   answersToState,
   describeError,
   isPatientEditableStatus,
+  isPatientSection,
   type FormState,
   type LabResultRequestData,
   type MedicalRecordData,
+  type QuestionData,
   type TemplateDetailData,
 } from '@drmayday/shared';
 import { useLocalSearchParams } from 'expo-router';
@@ -12,8 +14,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { AuthGate } from '@/components/auth-gate';
 import { Banner } from '@/components/banner';
-import { LabResultsSection } from '@/components/labs/lab-results-section';
+import { AnswerImagesField } from '@/components/dynamic-form/answer-images-field';
 import { DynamicForm } from '@/components/dynamic-form/dynamic-form';
+import { LabResultsSection } from '@/components/labs/lab-results-section';
+import { RecordLesionsSection } from '@/components/lesions/record-lesions-section';
 import { FormScreen } from '@/components/form-screen';
 import { PrimaryButton } from '@/components/primary-button';
 import { RecordStatusBadge } from '@/components/record-status-badge';
@@ -25,26 +29,34 @@ import {
   fetchMedicalRecord,
   fetchTemplate,
 } from '@/lib/medical-records-api';
+import { createEmptyAnswer } from '@/lib/record-images';
 
 interface RecordDetail {
   record: MedicalRecordData;
   /** Mẫu phiếu; null khi bệnh án không còn gắn mẫu. */
   template: TemplateDetailData | null;
   state: FormState;
+  /** question_id → answers.id, để gắn ảnh vào câu trả lời. */
+  answerIds: Record<string, string>;
 }
 
 async function loadDetail(id: string): Promise<RecordDetail> {
   const record = await fetchMedicalRecord(id);
-  if (!record.template_id) return { record, template: null, state: {} };
+  if (!record.template_id) return { record, template: null, state: {}, answerIds: {} };
   const [template, answers] = await Promise.all([
     fetchTemplate(record.template_id),
     fetchAnswers(id),
   ]);
   const questions = template.sections.flatMap((section) => section.questions);
-  return { record, template, state: answersToState(questions, answers) };
+  return {
+    record,
+    template,
+    state: answersToState(questions, answers),
+    answerIds: Object.fromEntries(answers.map((a) => [a.question_id, String(a.id)])),
+  };
 }
 
-function RecordDetailView({ id }: { id: string }) {
+function RecordDetailView({ id, imagesFailed }: { id: string; imagesFailed: boolean }) {
   const [detail, setDetail] = useState<RecordDetail | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -93,7 +105,14 @@ function RecordDetailView({ id }: { id: string }) {
     );
   }
 
-  const { record, template, state } = detail;
+  const { record, template, state, answerIds } = detail;
+  const patientCanEdit = isPatientEditableStatus(record.status);
+
+  // Chỉ thêm/gỡ ảnh khi bệnh án còn sửa được và câu hỏi nằm trong section bệnh nhân được điền.
+  function canEditImages(question: QuestionData): boolean {
+    const section = template?.sections.find((item) => item.section_id === question.section_id);
+    return patientCanEdit && !!section && isPatientSection(section);
+  }
 
   function confirmCancel() {
     Alert.alert('Huỷ bệnh án?', 'Bệnh án đã huỷ sẽ không thể khôi phục.', [
@@ -118,6 +137,12 @@ function RecordDetailView({ id }: { id: string }) {
   return (
     <FormScreen>
       {formError && <Banner tone="error" message={formError} />}
+      {imagesFailed && (
+        <Banner
+          tone="error"
+          message="Bệnh án đã được tạo nhưng một số ảnh chưa tải lên được. Vui lòng thêm lại ảnh."
+        />
+      )}
       <View style={styles.header}>
         <RecordStatusBadge status={record.status} />
         <Text style={styles.date}>Tạo lúc {formatDisplayDateTime(record.created_at)}</Text>
@@ -128,13 +153,32 @@ function RecordDetailView({ id }: { id: string }) {
           <Text style={styles.instructionsText}>{record.instructions}</Text>
         </View>
       ) : null}
-      {template && <DynamicForm template={template} state={state} readOnly />}
+      {template && (
+        <DynamicForm
+          template={template}
+          state={state}
+          readOnly
+          renderImages={({ question, optionValue, title }) => (
+            <AnswerImagesField
+              mode="remote"
+              title={title}
+              optionValue={optionValue}
+              medicalRecordId={id}
+              questionId={question.question_id}
+              answerId={answerIds[question.question_id] ?? null}
+              ensureAnswerId={() => createEmptyAnswer(id, question.question_id)}
+              canEdit={canEditImages(question)}
+            />
+          )}
+        />
+      )}
+      <RecordLesionsSection medicalRecordId={id} />
       <LabResultsSection
         requests={labResults}
         error={labError}
         onRetry={() => void loadLabResults()}
       />
-      {isPatientEditableStatus(record.status) && (
+      {patientCanEdit && (
         <PrimaryButton
           title="Huỷ bệnh án"
           variant="danger"
@@ -147,10 +191,10 @@ function RecordDetailView({ id }: { id: string }) {
 }
 
 export default function RecordDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, imagesFailed } = useLocalSearchParams<{ id: string; imagesFailed?: string }>();
   return (
     <AuthGate require="signed-in">
-      <RecordDetailView id={id} />
+      <RecordDetailView id={id} imagesFailed={imagesFailed === '1'} />
     </AuthGate>
   );
 }
