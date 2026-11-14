@@ -18,3 +18,6 @@ export * from './contracts/medical-records.js';
 export * from './form-rules.js';
 export * from './contracts/uas7.js';
 export * from './uas7.js';
+export * from './contracts/prescriptions.js';
+export * from './contracts/labs.js';
+export * from './contracts/notifications.js';
