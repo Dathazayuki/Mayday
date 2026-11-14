@@ -1,8 +1,8 @@
-import { act, screen } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { UNAUTHENTICATED_EVENT } from './api';
 import { AppRoutes } from './routes';
-import { jsonResponse, okResponse, renderApp, seedSession } from './test/helpers';
+import { errorResponse, jsonResponse, okResponse, renderApp, seedSession } from './test/helpers';
 
 function renderAt(path: string) {
   return renderApp(<AppRoutes />, path);
@@ -59,7 +59,12 @@ describe('Định tuyến và đăng nhập', () => {
         message: 'OK',
         data: {
           token: 'jwt-token',
-          user_info: { user_id: '1', full_name: 'Nguyễn Văn An', phone: '0912345678', role_id: '2' },
+          user_info: {
+            user_id: '1',
+            full_name: 'Nguyễn Văn An',
+            phone: '0912345678',
+            role_id: '2',
+          },
         },
       }),
     );
@@ -78,7 +83,12 @@ describe('Định tuyến và đăng nhập', () => {
     localStorage.setItem('drmayday.token', 'jwt-token');
     localStorage.setItem(
       'drmayday.user',
-      JSON.stringify({ user_id: '1', full_name: 'Nguyễn Văn An', phone: '0912345678', role_id: '2' }),
+      JSON.stringify({
+        user_id: '1',
+        full_name: 'Nguyễn Văn An',
+        phone: '0912345678',
+        role_id: '2',
+      }),
     );
     renderAt('/');
     expect(await screen.findByText('Nguyễn Văn An')).toBeInTheDocument();
@@ -104,13 +114,13 @@ describe('Định tuyến và đăng nhập', () => {
     await user.click(screen.getByText('Đăng xuất'));
 
     expect(await screen.findByRole('button', { name: /Đăng nhập/ })).toBeInTheDocument();
-    const [url] = fetchMock.mock.calls[0] as [string];
-    expect(url).toBe('http://localhost:3000/api/v1/auth/logout');
+    const urls = fetchMock.mock.calls.map(([url]) => url as string);
+    expect(urls).toContain('http://localhost:3000/api/v1/auth/logout');
   });
 
   it('đang đăng xuất thì không cho bấm Đăng xuất lần nữa (không gọi API hai lần)', async () => {
     seedSession();
-    const fetchMock = vi.fn(() => new Promise<Response>(() => undefined)); // logout treo
+    const fetchMock = vi.fn((..._args: unknown[]) => new Promise<Response>(() => undefined)); // mọi lời gọi treo
     vi.stubGlobal('fetch', fetchMock);
     renderAt('/');
     const user = userEvent.setup();
@@ -121,6 +131,34 @@ describe('Định tuyến và đăng nhập', () => {
     const trigger = screen.getByRole('button', { name: /Nguyễn Văn An/ });
     expect(trigger).toHaveClass('ant-btn-loading');
     await user.click(trigger);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const logoutCalls = fetchMock.mock.calls.filter(([url]) =>
+      String(url).endsWith('/auth/logout'),
+    );
+    expect(logoutCalls).toHaveLength(1);
+  });
+  it('menu "Quản trị hệ thống" hiện với admin (GET /roles thành công)', async () => {
+    seedSession();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse([])));
+    renderAt('/');
+    expect(await screen.findByText('Quản trị hệ thống')).toBeInTheDocument();
+    expect(screen.getByText('Cơ sở vật chất')).toBeInTheDocument();
+  });
+
+  it('menu "Quản trị hệ thống" ẩn khi không phải admin (3102), vẫn còn phiên', async () => {
+    seedSession();
+    const fetchMock = vi.fn().mockResolvedValue(errorResponse(403, '3102'));
+    vi.stubGlobal('fetch', fetchMock);
+    renderAt('/');
+    expect(await screen.findByText('Khám và điều trị')).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(screen.queryByText('Quản trị hệ thống')).not.toBeInTheDocument();
+    expect(screen.getByText('Nguyễn Văn An')).toBeInTheDocument();
+  });
+
+  it('vào /admin/facilities hiện trang quản lý cơ sở vật chất', async () => {
+    seedSession();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse([])));
+    renderAt('/admin/facilities');
+    expect(await screen.findByRole('tab', { name: 'Chi nhánh' })).toBeInTheDocument();
   });
 });

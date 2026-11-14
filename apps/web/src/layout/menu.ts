@@ -6,11 +6,13 @@ export interface NavItem {
 export interface NavGroup {
   label: string;
   items: NavItem[];
+  /** Chỉ hiện khi useIsAdmin() là true. */
+  adminOnly?: boolean;
 }
 
 /**
  * Các phần nghiệp vụ theo SLIDE1: phân hệ Bác sĩ (khám và điều trị) và phân hệ Web Admin.
- * Giai đoạn 0 hiện đủ cho mọi tài khoản; lọc theo vai trò làm ở giai đoạn 2.
+ * Nhóm adminOnly chỉ hiện với admin (giai đoạn 2, xem useIsAdmin).
  */
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -22,6 +24,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: 'Quản trị hệ thống',
+    adminOnly: true,
     items: [
       { key: '/admin/users', label: 'Người dùng' },
       { key: '/admin/roles', label: 'Vai trò và quyền hạn' },

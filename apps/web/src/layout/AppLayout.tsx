@@ -2,6 +2,7 @@ import { DownOutlined, KeyOutlined, LogoutOutlined, UserOutlined } from '@ant-de
 import { Button, Dropdown, Layout, Menu, type MenuProps } from 'antd';
 import { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
+import { useIsAdmin } from '../admin/use-is-admin';
 import { useAuth } from '../auth/useAuth';
 import { NAV_GROUPS } from './menu';
 
@@ -9,11 +10,12 @@ export function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const isAdmin = useIsAdmin();
   const [loggingOut, setLoggingOut] = useState(false);
 
   const items: MenuProps['items'] = [
     { key: '/', label: 'Tổng quan' },
-    ...NAV_GROUPS.map((group) => ({
+    ...NAV_GROUPS.filter((group) => !group.adminOnly || isAdmin === true).map((group) => ({
       type: 'group' as const,
       key: group.label,
       label: group.label,
@@ -49,7 +51,12 @@ export function AppLayout() {
       </Layout.Sider>
       <Layout>
         <Layout.Header
-          style={{ background: '#fff', display: 'flex', justifyContent: 'flex-end', paddingInline: 16 }}
+          style={{
+            background: '#fff',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            paddingInline: 16,
+          }}
         >
           <Dropdown menu={userMenu} trigger={['click']}>
             <Button type="text" icon={<UserOutlined />} loading={loggingOut}>
