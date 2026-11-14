@@ -41,7 +41,7 @@ export function OptionPicker<T extends string>({
 
 const styles = StyleSheet.create({
   field: { gap: 6 },
-  label: { fontSize: 16, fontWeight: '600' },
+  label: { fontSize: 18, fontWeight: '600' },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   option: {
     minHeight: 56,

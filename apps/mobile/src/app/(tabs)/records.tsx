@@ -1,28 +1,38 @@
 import { describeError, type MedicalRecordHistoryItem } from '@drmayday/shared';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/auth/auth-context';
+import { AuthGate } from '@/components/auth-gate';
 import { Banner } from '@/components/banner';
 import { PrimaryButton } from '@/components/primary-button';
 import { RecordStatusBadge } from '@/components/record-status-badge';
 import { fetchHistory } from '@/lib/medical-records-api';
 
-export default function RecordsScreen() {
+function RecordsList() {
   const router = useRouter();
   const { user } = useAuth();
   const [records, setRecords] = useState<MedicalRecordHistoryItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Chỉ nhận kết quả của lần tải mới nhất, tránh phản hồi cũ về muộn ghi đè.
+  const latestRequest = useRef(0);
+
   const load = useCallback(async () => {
-    if (!user) return;
+    const patientId = Number(user?.user_id);
+    if (!Number.isInteger(patientId)) {
+      setError('Không xác định được tài khoản. Vui lòng đăng nhập lại.');
+      return;
+    }
+    const requestId = ++latestRequest.current;
     setError(null);
     try {
-      setRecords(await fetchHistory(Number(user.user_id)));
+      const history = await fetchHistory(patientId);
+      if (requestId === latestRequest.current) setRecords(history);
     } catch (e) {
-      setError(describeError(e));
+      if (requestId === latestRequest.current) setError(describeError(e));
     }
   }, [user]);
 
@@ -35,8 +45,11 @@ export default function RecordsScreen() {
 
   async function handleRefresh() {
     setRefreshing(true);
-    await load();
-    setRefreshing(false);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   return (
@@ -84,6 +97,15 @@ export default function RecordsScreen() {
   );
 }
 
+/** Tab đã nằm sau cổng đăng nhập của TabsLayout; AuthGate giữ cho màn này an toàn khi dùng riêng. */
+export default function RecordsScreen() {
+  return (
+    <AuthGate require="signed-in">
+      <RecordsList />
+    </AuthGate>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 24, gap: 16, backgroundColor: '#f0f5ff' },
   title: { fontSize: 26, fontWeight: '700' },
@@ -100,5 +122,5 @@ const styles = StyleSheet.create({
   },
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   itemTitle: { fontSize: 18, fontWeight: '700' },
-  itemDate: { fontSize: 16, color: '#595959' },
+  itemDate: { fontSize: 18, color: '#595959' },
 });

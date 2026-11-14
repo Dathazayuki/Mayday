@@ -1,13 +1,14 @@
 import {
   answersToState,
   describeError,
+  isPatientEditableStatus,
   type FormState,
   type MedicalRecordData,
   type TemplateDetailData,
 } from '@drmayday/shared';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { AuthGate } from '@/components/auth-gate';
 import { Banner } from '@/components/banner';
 import { DynamicForm } from '@/components/dynamic-form/dynamic-form';
@@ -20,7 +21,6 @@ import {
   fetchMedicalRecord,
   fetchTemplate,
 } from '@/lib/medical-records-api';
-import { isPatientEditable } from '@/lib/record-status';
 
 interface RecordDetail {
   record: MedicalRecordData;
@@ -79,6 +79,13 @@ function RecordDetailView({ id }: { id: string }) {
 
   const { record, template, state } = detail;
 
+  function confirmCancel() {
+    Alert.alert('Huỷ bệnh án?', 'Bệnh án đã huỷ sẽ không thể khôi phục.', [
+      { text: 'Không', style: 'cancel' },
+      { text: 'Huỷ', style: 'destructive', onPress: () => void handleCancel() },
+    ]);
+  }
+
   async function handleCancel() {
     setCancelling(true);
     setFormError(null);
@@ -106,11 +113,11 @@ function RecordDetailView({ id }: { id: string }) {
         </View>
       ) : null}
       {template && <DynamicForm template={template} state={state} readOnly />}
-      {isPatientEditable(record.status) && (
+      {isPatientEditableStatus(record.status) && (
         <PrimaryButton
           title="Huỷ bệnh án"
           variant="danger"
-          onPress={() => void handleCancel()}
+          onPress={confirmCancel}
           loading={cancelling}
         />
       )}
@@ -129,7 +136,7 @@ export default function RecordDetailScreen() {
 
 const styles = StyleSheet.create({
   header: { gap: 8, alignItems: 'flex-start' },
-  date: { fontSize: 16, color: '#595959' },
+  date: { fontSize: 18, color: '#595959' },
   instructions: {
     gap: 8,
     padding: 16,

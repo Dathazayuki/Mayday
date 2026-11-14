@@ -38,13 +38,15 @@ export function fetchHistory(patientId: number): Promise<MedicalRecordHistoryIte
 }
 
 export function fetchMedicalRecord(id: string): Promise<MedicalRecordData> {
-  return apiClient.get<MedicalRecordData>(`${BASE}/${id}`);
+  return apiClient.get<MedicalRecordData>(`${BASE}/${encodeURIComponent(id)}`);
 }
 
 export function fetchAnswers(id: string): Promise<AnswerData[]> {
-  return apiClient.get<AnswerData[]>(`${BASE}/${id}/answers`);
+  return apiClient.get<AnswerData[]>(`${BASE}/${encodeURIComponent(id)}/answers`);
 }
 
 export function cancelMedicalRecord(id: string): Promise<MedicalRecordStatusData> {
-  return apiClient.patch<MedicalRecordStatusData>(`${BASE}/${id}/status`, { status: 'cancelled' });
+  return apiClient.patch<MedicalRecordStatusData>(`${BASE}/${encodeURIComponent(id)}/status`, {
+    status: 'cancelled',
+  });
 }

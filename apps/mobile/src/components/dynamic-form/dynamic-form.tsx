@@ -1,5 +1,6 @@
 import {
   buildQuestionTree,
+  isPatientSection,
   isQuestionVisible,
   type AnswerValue,
   type FormState,
@@ -7,7 +8,6 @@ import {
   type TemplateDetailData,
 } from '@drmayday/shared';
 import { StyleSheet, Text, View } from 'react-native';
-import { isPatientSection } from '@/lib/dynamic-form';
 import { QuestionField } from './question-field';
 import { ReadonlyAnswer } from './readonly-answer';
 

@@ -32,7 +32,7 @@ export function ReadonlyAnswer({
 
 const styles = StyleSheet.create({
   row: { gap: 2 },
-  question: { fontSize: 16, color: '#595959' },
+  question: { fontSize: 18, color: '#595959' },
   answer: { fontSize: 18, fontWeight: '600' },
   group: { fontSize: 18, fontWeight: '700' },
 });

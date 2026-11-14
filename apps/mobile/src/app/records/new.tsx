@@ -1,6 +1,8 @@
 import {
+  classifyAnswersFromState,
   describeError,
   stateToAnswerInputs,
+  validateFormState,
   type AnswerValue,
   type ClassifyQuestion,
   type FormState,
@@ -8,14 +10,14 @@ import {
 } from '@drmayday/shared';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Text } from 'react-native';
+import { ActivityIndicator, BackHandler, StyleSheet, Text } from 'react-native';
 import { AuthGate } from '@/components/auth-gate';
 import { Banner } from '@/components/banner';
 import { DynamicForm } from '@/components/dynamic-form/dynamic-form';
+import { QuestionField } from '@/components/dynamic-form/question-field';
 import { FormScreen } from '@/components/form-screen';
 import { PrimaryButton } from '@/components/primary-button';
-import { QuestionField } from '@/components/dynamic-form/question-field';
-import { classifyToQuestion, validateFormState, visiblePatientQuestions } from '@/lib/dynamic-form';
+import { classifyToQuestion, visiblePatientQuestions } from '@/lib/dynamic-form';
 import {
   classify,
   createMedicalRecord,
@@ -23,10 +25,15 @@ import {
   fetchTemplate,
 } from '@/lib/medical-records-api';
 
+interface ClassifyStepProps {
+  state: FormState;
+  onStateChange: (state: FormState) => void;
+  onClassified: (template: TemplateDetailData) => void;
+}
+
 /** Bước 1: trả lời câu hỏi phân loại để chọn mẫu phiếu. */
-function ClassifyStep({ onClassified }: { onClassified: (template: TemplateDetailData) => void }) {
+function ClassifyStep({ state, onStateChange, onClassified }: ClassifyStepProps) {
   const [questions, setQuestions] = useState<ClassifyQuestion[] | null>(null);
-  const [state, setState] = useState<FormState>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -59,22 +66,20 @@ function ClassifyStep({ onClassified }: { onClassified: (template: TemplateDetai
     return <Banner tone="error" message="Phòng khám chưa cấu hình câu hỏi phân loại." />;
   }
 
+  const formQuestions = questions.map(classifyToQuestion);
+
   async function handleNext() {
     if (!questions) return;
-    const nextErrors: Record<string, string> = {};
-    const answers = questions.flatMap((question) => {
-      const value = state[question.question_id];
-      const values = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
-      if (values.length === 0) nextErrors[question.question_id] = 'Vui lòng trả lời câu hỏi này';
-      return values.map((option_value) => ({ question_id: question.question_id, option_value }));
-    });
+    const nextErrors = validateFormState(formQuestions, state);
     setErrors(nextErrors);
     setFormError(null);
     if (Object.keys(nextErrors).length > 0) return;
 
     setSubmitting(true);
     try {
-      const { template_id } = await classify({ answers });
+      const { template_id } = await classify({
+        answers: classifyAnswersFromState(questions, state),
+      });
       onClassified(await fetchTemplate(template_id));
     } catch (error) {
       setFormError(describeError(error));
@@ -85,17 +90,15 @@ function ClassifyStep({ onClassified }: { onClassified: (template: TemplateDetai
 
   return (
     <>
-      <Text style={{ fontSize: 18 }}>Vui lòng trả lời vài câu hỏi để chọn phiếu khám phù hợp.</Text>
+      <Text style={styles.intro}>Vui lòng trả lời vài câu hỏi để chọn phiếu khám phù hợp.</Text>
       {formError && <Banner tone="error" message={formError} />}
-      {questions.map((question) => (
+      {formQuestions.map((question) => (
         <QuestionField
           key={question.question_id}
-          question={classifyToQuestion(question)}
+          question={question}
           value={state[question.question_id]}
           error={errors[question.question_id]}
-          onChange={(value) =>
-            setState((current) => ({ ...current, [question.question_id]: value }))
-          }
+          onChange={(value) => onStateChange({ ...state, [question.question_id]: value })}
         />
       ))}
       <PrimaryButton title="Tiếp tục" onPress={() => void handleNext()} loading={submitting} />
@@ -104,7 +107,7 @@ function ClassifyStep({ onClassified }: { onClassified: (template: TemplateDetai
 }
 
 /** Bước 2: điền các section dành cho bệnh nhân rồi gửi bệnh án. */
-function TemplateStep({ template }: { template: TemplateDetailData }) {
+function TemplateStep({ template, onBack }: { template: TemplateDetailData; onBack: () => void }) {
   const router = useRouter();
   const [state, setState] = useState<FormState>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -140,22 +143,39 @@ function TemplateStep({ template }: { template: TemplateDetailData }) {
 
   return (
     <>
-      <Text style={{ fontSize: 20, fontWeight: '700' }}>{template.name}</Text>
+      <Text style={styles.templateName}>{template.name}</Text>
       {formError && <Banner tone="error" message={formError} />}
       <DynamicForm template={template} state={state} errors={errors} onChange={setAnswer} />
       <PrimaryButton title="Gửi bệnh án" onPress={() => void handleSubmit()} loading={submitting} />
+      <PrimaryButton title="Quay lại" variant="secondary" onPress={onBack} />
     </>
   );
 }
 
 function NewRecordFlow() {
   const [template, setTemplate] = useState<TemplateDetailData | null>(null);
+  const [classifyState, setClassifyState] = useState<FormState>({});
+
+  // Nút Back của Android ở bước 2 quay về bước 1 thay vì thoát khỏi màn hình.
+  useEffect(() => {
+    if (!template) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setTemplate(null);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [template]);
+
   return (
     <FormScreen>
       {template ? (
-        <TemplateStep template={template} />
+        <TemplateStep template={template} onBack={() => setTemplate(null)} />
       ) : (
-        <ClassifyStep onClassified={setTemplate} />
+        <ClassifyStep
+          state={classifyState}
+          onStateChange={setClassifyState}
+          onClassified={setTemplate}
+        />
       )}
     </FormScreen>
   );
@@ -168,3 +188,8 @@ export default function NewRecordScreen() {
     </AuthGate>
   );
 }
+
+const styles = StyleSheet.create({
+  intro: { fontSize: 18 },
+  templateName: { fontSize: 20, fontWeight: '700' },
+});

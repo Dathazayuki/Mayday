@@ -26,7 +26,7 @@ export function FormField({ label, error, style, ...inputProps }: FormFieldProps
 
 const styles = StyleSheet.create({
   field: { gap: 6 },
-  label: { fontSize: 16, fontWeight: '600' },
+  label: { fontSize: 18, fontWeight: '600' },
   input: {
     minHeight: 56,
     borderWidth: 1,
@@ -38,5 +38,5 @@ const styles = StyleSheet.create({
   },
   inputDisabled: { backgroundColor: '#f5f5f5', color: '#8c8c8c' },
   inputError: { borderColor: '#ff4d4f' },
-  error: { fontSize: 14, color: '#cf1322' },
+  error: { fontSize: 18, color: '#cf1322' },
 });

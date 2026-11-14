@@ -1,4 +1,4 @@
-import type { AnswerValue, QuestionData } from '@drmayday/shared';
+import { IMAGE_QUESTION_TYPES, type AnswerValue, type QuestionData } from '@drmayday/shared';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FormField } from '@/components/form-field';
 import { OptionPicker } from '@/components/option-picker';
@@ -16,6 +16,15 @@ export function QuestionField({ question, value, error, onChange }: QuestionFiel
     question.is_required === '1' ? `${question.question_text} *` : question.question_text;
   const help = question.help_text ? <Text style={styles.help}>{question.help_text}</Text> : null;
   const errorText = error ? <Text style={styles.error}>{error}</Text> : null;
+
+  if (IMAGE_QUESTION_TYPES.includes(question.type_question)) {
+    return (
+      <View style={styles.block}>
+        <Text style={styles.label}>{label}</Text>
+        <Text style={styles.placeholderBox}>Tải ảnh sẽ có ở giai đoạn 5</Text>
+      </View>
+    );
+  }
 
   switch (question.type_question) {
     case 'radio': {
@@ -72,12 +81,7 @@ export function QuestionField({ question, value, error, onChange }: QuestionFiel
     }
     case 'image_upload':
     case 'mix_text_image':
-      return (
-        <View style={styles.block}>
-          <Text style={styles.label}>{label}</Text>
-          <Text style={styles.placeholderBox}>Tải ảnh sẽ có ở giai đoạn 5</Text>
-        </View>
-      );
+      return null; // đã xử lý ở trên
     case 'group_questions':
       return <Text style={styles.group}>{question.question_text}</Text>;
     case 'number':
@@ -104,9 +108,9 @@ export function QuestionField({ question, value, error, onChange }: QuestionFiel
 
 const styles = StyleSheet.create({
   block: { gap: 6 },
-  label: { fontSize: 16, fontWeight: '600' },
-  help: { fontSize: 14, color: '#595959' },
-  error: { fontSize: 14, color: '#cf1322' },
+  label: { fontSize: 18, fontWeight: '600' },
+  help: { fontSize: 18, color: '#595959' },
+  error: { fontSize: 18, color: '#cf1322' },
   group: { fontSize: 18, fontWeight: '700' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
@@ -124,7 +128,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 18, color: '#262626' },
   chipTextChecked: { color: '#1d39c4', fontWeight: '700' },
   placeholderBox: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#595959',
     padding: 16,
     borderWidth: 1,

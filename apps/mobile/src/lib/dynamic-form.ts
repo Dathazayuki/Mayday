@@ -1,63 +1,18 @@
 import {
   collectVisibleQuestions,
+  isPatientSection,
   type ClassifyQuestion,
-  isValidIsoDate,
   type FormState,
   type QuestionData,
   type TemplateDetailData,
-  type TemplateSectionDetail,
 } from '@drmayday/shared';
 
-/** Kiểu câu hỏi chưa hỗ trợ ở giai đoạn này (tải ảnh làm ở giai đoạn 5). */
-export const IMAGE_QUESTION_TYPES: readonly string[] = ['image_upload', 'mix_text_image'];
-
-/** Section bệnh nhân được điền: filled_by là patient hoặc patdoc. */
-export function isPatientSection(section: TemplateSectionDetail): boolean {
-  return section.filled_by === 'patient' || section.filled_by === 'patdoc';
-}
-
-export function patientSections(template: TemplateDetailData): TemplateSectionDetail[] {
-  return template.sections.filter(isPatientSection);
-}
-
-function isEmpty(value: FormState[string]): boolean {
-  if (Array.isArray(value)) return value.length === 0;
-  return typeof value !== 'string' || value.trim() === '';
-}
-
-function validateQuestion(question: QuestionData, value: FormState[string]): string | null {
-  // Câu nhóm và câu tải ảnh chưa có ô nhập ở giai đoạn này nên không bắt buộc.
-  if (question.type_question === 'group_questions') return null;
-  if (IMAGE_QUESTION_TYPES.includes(question.type_question)) return null;
-  if (isEmpty(value)) return question.is_required === '1' ? 'Vui lòng trả lời câu hỏi này' : null;
-  if (question.type_question === 'number' && !Number.isFinite(Number(value))) {
-    return 'Vui lòng nhập một số';
-  }
-  if (question.type_question === 'date' && !isValidIsoDate(value)) {
-    return 'Ngày không đúng định dạng (VD: 2026-11-15)';
-  }
-  return null;
-}
-
-/** Lỗi theo question_id cho các câu đang hiển thị trong section bệnh nhân được điền. */
-export function validateFormState(
-  questions: readonly QuestionData[],
-  state: FormState,
-): Record<string, string> {
-  const errors: Record<string, string> = {};
-  for (const question of questions) {
-    const error = validateQuestion(question, state[question.question_id]);
-    if (error) errors[question.question_id] = error;
-  }
-  return errors;
-}
-
-/** Các câu đang hiển thị mà bệnh nhân phải điền. */
+/** Các câu đang hiển thị trong những section mà bệnh nhân được điền. */
 export function visiblePatientQuestions(
   template: TemplateDetailData,
   state: FormState,
 ): QuestionData[] {
-  const all = patientSections(template).flatMap((section) => section.questions);
+  const all = template.sections.filter(isPatientSection).flatMap((section) => section.questions);
   return collectVisibleQuestions(all, state);
 }
 
