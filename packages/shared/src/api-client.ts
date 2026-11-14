@@ -45,7 +45,11 @@ export interface ApiClient {
   delete<T>(path: string, options?: CallOptions): Promise<T>;
 }
 
-export function buildUrl(baseUrl: string, path: string, query?: Record<string, QueryValue>): string {
+export function buildUrl(
+  baseUrl: string,
+  path: string,
+  query?: Record<string, QueryValue>,
+): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const url = `${baseUrl.replace(/\/+$/, '')}${API_PREFIX}${normalizedPath}`;
   const params = new URLSearchParams();
@@ -151,7 +155,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       options?: CallOptions,
     ): Promise<PageResult<T>> {
       const envelope = await send<T[]>('GET', path, { query, ...options });
-      return { items: envelope.data ?? [], total: envelope.total ?? 0 };
+      return { items: envelope.data ?? [], total: Number(envelope.total ?? 0) };
     },
     post<T>(path: string, body?: unknown, options?: CallOptions) {
       return request<T>('POST', path, { body, ...options });
