@@ -1,13 +1,13 @@
 import {
   isPatientProfile,
   isValidIsoDate,
-  isValidVietnamPhone,
   isValidYearOfBirth,
   type Career,
   type Gender,
   type ProfileData,
   type UpdateProfileRequest,
 } from '@drmayday/shared';
+import { validateOptionalPhone } from './validation';
 
 /** Các trường chữ tự do của bệnh nhân, nhập như văn bản. */
 export const PROFILE_TEXT_FIELDS = [
@@ -62,10 +62,8 @@ export function validateProfileForm(values: ProfileFormValues): ProfileFormError
   if (insuranceDate && !isValidIsoDate(insuranceDate)) {
     errors.health_insurance_validate = 'Ngày không hợp lệ, nhập dạng YYYY-MM-DD (VD: 2027-12-31)';
   }
-  const kinPhone = values.next_of_kin_phone.trim();
-  if (kinPhone && !isValidVietnamPhone(kinPhone)) {
-    errors.next_of_kin_phone = 'Số điện thoại không đúng định dạng (VD: 0912345678)';
-  }
+  const kinPhoneError = validateOptionalPhone(values.next_of_kin_phone);
+  if (kinPhoneError) errors.next_of_kin_phone = kinPhoneError;
   return errors;
 }
 

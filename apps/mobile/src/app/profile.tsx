@@ -39,26 +39,27 @@ function ProfileForm() {
     setValues(toFormValues(data));
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    apiClient
-      .get<ProfileData>('/profile')
-      .then((data) => {
-        if (active) applyProfile(data);
-      })
-      .catch((error: unknown) => {
-        if (active) setFormError(describeError(error));
-      });
-    return () => {
-      active = false;
-    };
+  const loadProfile = useCallback(async () => {
+    setFormError(null);
+    try {
+      applyProfile(await apiClient.get<ProfileData>('/profile'));
+    } catch (error) {
+      setFormError(describeError(error));
+    }
   }, [applyProfile]);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
 
   if (!profile || !values) {
     return (
       <FormScreen>
         {formError ? (
-          <Banner tone="error" message={formError} />
+          <>
+            <Banner tone="error" message={formError} />
+            <PrimaryButton title="Thử lại" variant="secondary" onPress={() => void loadProfile()} />
+          </>
         ) : (
           <ActivityIndicator size="large" />
         )}
@@ -87,8 +88,9 @@ function ProfileForm() {
     try {
       const saved = await apiClient.put<ProfileData>('/profile', update);
       applyProfile(saved);
-      await updateUser({ full_name: saved.full_name });
       setNotice('Đã lưu hồ sơ');
+      // Hồ sơ đã lưu; lỗi ghi tên vào phiên chỉ làm lời chào chậm cập nhật.
+      await updateUser({ full_name: saved.full_name }).catch(() => undefined);
     } catch (error) {
       setFormError(describeError(error));
     } finally {
@@ -112,7 +114,7 @@ function ProfileForm() {
         label="Giới tính"
         options={GENDER_OPTIONS}
         value={values.gender}
-        onChange={(gender) => setValues({ ...values, gender })}
+        onChange={(gender) => setValues((current) => current && { ...current, gender })}
       />
       {isPatientProfile(profile) && (
         <>
@@ -129,7 +131,7 @@ function ProfileForm() {
             label="Nghề nghiệp"
             options={CAREER_OPTIONS}
             value={values.career}
-            onChange={(career) => setValues({ ...values, career })}
+            onChange={(career) => setValues((current) => current && { ...current, career })}
           />
           {PROFILE_TEXT_FIELDS.map(({ key, label }) => (
             <FormField key={key} label={label} value={values[key]} onChangeText={setText(key)} />

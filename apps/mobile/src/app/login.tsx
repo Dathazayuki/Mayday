@@ -1,4 +1,4 @@
-import { describeError, isValidVietnamPhone } from '@drmayday/shared';
+import { describeError } from '@drmayday/shared';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text } from 'react-native';
@@ -7,17 +7,12 @@ import { useAuth } from '@/auth/auth-context';
 import { Banner } from '@/components/banner';
 import { FormField } from '@/components/form-field';
 import { PrimaryButton } from '@/components/primary-button';
+import { validatePhone } from '@/lib/validation';
 
 const NOTICES: Record<string, string> = {
   signup: 'Đăng ký thành công, mời bạn đăng nhập',
   'password-changed': 'Đổi mật khẩu thành công, vui lòng đăng nhập lại',
 };
-
-function validatePhone(phone: string): string | null {
-  if (!phone) return 'Vui lòng nhập số điện thoại';
-  if (!isValidVietnamPhone(phone)) return 'Số điện thoại không đúng định dạng (VD: 0912345678)';
-  return null;
-}
 
 export default function LoginScreen() {
   const { status, login } = useAuth();

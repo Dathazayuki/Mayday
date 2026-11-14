@@ -1,5 +1,4 @@
 import { PASSWORD_MIN_LENGTH, describeError, type ChangePasswordRequest } from '@drmayday/shared';
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { useAuth } from '@/auth/auth-context';
 import { AuthGate } from '@/components/auth-gate';
@@ -7,35 +6,16 @@ import { Banner } from '@/components/banner';
 import { FormField } from '@/components/form-field';
 import { FormScreen } from '@/components/form-screen';
 import { PrimaryButton } from '@/components/primary-button';
+import { validateChangePassword, type FieldErrors } from '@/lib/validation';
 
-type ChangePasswordErrors = Partial<Record<keyof ChangePasswordRequest, string>>;
-
-function validate({
-  old_password,
-  new_password,
-  confirm_password,
-}: ChangePasswordRequest): ChangePasswordErrors {
-  const errors: ChangePasswordErrors = {};
-  if (!old_password) errors.old_password = 'Vui lòng nhập mật khẩu hiện tại';
-  if (!new_password) errors.new_password = 'Vui lòng nhập mật khẩu mới';
-  else if (new_password.length < PASSWORD_MIN_LENGTH) {
-    errors.new_password = `Mật khẩu mới tối thiểu ${PASSWORD_MIN_LENGTH} ký tự`;
-  }
-  if (!confirm_password) errors.confirm_password = 'Vui lòng nhập lại mật khẩu mới';
-  else if (confirm_password !== new_password) {
-    errors.confirm_password = 'Mật khẩu nhập lại không khớp';
-  }
-  return errors;
-}
-
-function ChangePasswordForm() {
-  const { changePassword } = useAuth();
+function ChangePasswordForm({ onChanged }: { onChanged: () => void }) {
+  const { changePassword, endSession } = useAuth();
   const [values, setValues] = useState<ChangePasswordRequest>({
     old_password: '',
     new_password: '',
     confirm_password: '',
   });
-  const [errors, setErrors] = useState<ChangePasswordErrors>({});
+  const [errors, setErrors] = useState<FieldErrors<keyof ChangePasswordRequest>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,7 +23,7 @@ function ChangePasswordForm() {
     setValues((current) => ({ ...current, [key]: text }));
 
   async function handleSubmit() {
-    const nextErrors = validate(values);
+    const nextErrors = validateChangePassword(values);
     setErrors(nextErrors);
     setFormError(null);
     if (Object.keys(nextErrors).length > 0) return;
@@ -51,7 +31,9 @@ function ChangePasswordForm() {
     setSubmitting(true);
     try {
       await changePassword(values);
-      router.replace({ pathname: '/login', params: { notice: 'password-changed' } });
+      // Báo trước cho khung bảo vệ để nó tự chuyển về /login kèm thông báo khi phiên bị xoá.
+      onChanged();
+      await endSession();
     } catch (error) {
       setFormError(describeError(error));
       setSubmitting(false);
@@ -96,9 +78,15 @@ function ChangePasswordForm() {
 }
 
 export default function ChangePasswordScreen() {
+  const [changed, setChanged] = useState(false);
   return (
-    <AuthGate require="signed-in">
-      <ChangePasswordForm />
+    <AuthGate
+      require="signed-in"
+      redirectHref={
+        changed ? { pathname: '/login', params: { notice: 'password-changed' } } : undefined
+      }
+    >
+      <ChangePasswordForm onChanged={() => setChanged(true)} />
     </AuthGate>
   );
 }

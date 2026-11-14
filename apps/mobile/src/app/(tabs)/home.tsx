@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/auth/auth-context';
@@ -6,6 +7,13 @@ import { PrimaryButton } from '@/components/primary-button';
 
 export default function HomeScreen() {
   const { user, logout } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await logout();
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Xin chào{user ? `, ${user.full_name}` : ''}</Text>
@@ -22,7 +30,12 @@ export default function HomeScreen() {
         variant="secondary"
         onPress={() => router.push('/change-password')}
       />
-      <PrimaryButton title="Đăng xuất" variant="danger" onPress={() => void logout()} />
+      <PrimaryButton
+        title="Đăng xuất"
+        variant="danger"
+        loading={loggingOut}
+        onPress={() => void handleLogout()}
+      />
     </SafeAreaView>
   );
 }

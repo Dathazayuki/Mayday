@@ -13,23 +13,21 @@ export function PrimaryButton({
   title,
   onPress,
   variant = 'primary',
-  loading,
+  loading = false,
 }: PrimaryButtonProps) {
+  const look = variants[variant];
   return (
     <Pressable
-      style={({ pressed }) => [
-        styles.button,
-        variant === 'primary' ? styles.primary : styles.outlined,
-        pressed && styles.pressed,
-      ]}
+      style={({ pressed }) => [styles.button, look.container, pressed && styles.pressed]}
       onPress={onPress}
       disabled={loading}
       accessibilityRole="button"
+      accessibilityState={{ disabled: loading, busy: loading }}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? '#fff' : '#2f54eb'} />
+        <ActivityIndicator color={look.textColor} />
       ) : (
-        <Text style={[styles.text, textStyles[variant]]}>{title}</Text>
+        <Text style={[styles.text, { color: look.textColor }]}>{title}</Text>
       )}
     </Pressable>
   );
@@ -37,14 +35,15 @@ export function PrimaryButton({
 
 const styles = StyleSheet.create({
   button: { minHeight: 56, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  primary: { backgroundColor: '#2f54eb' },
-  outlined: { borderWidth: 1, borderColor: '#d9d9d9', backgroundColor: '#fff' },
   pressed: { opacity: 0.85 },
   text: { fontSize: 18, fontWeight: '700' },
 });
 
-const textStyles = StyleSheet.create({
-  primary: { color: '#fff' },
-  secondary: { color: '#2f54eb' },
-  danger: { color: '#cf1322' },
-});
+const outlined = { borderWidth: 1, borderColor: '#d9d9d9', backgroundColor: '#fff' } as const;
+
+// Mỗi biến thể gồm kiểu khung và màu chữ (cũng là màu vòng quay khi đang tải).
+const variants = {
+  primary: { container: { backgroundColor: '#2f54eb' }, textColor: '#fff' },
+  secondary: { container: outlined, textColor: '#2f54eb' },
+  danger: { container: outlined, textColor: '#cf1322' },
+} as const;

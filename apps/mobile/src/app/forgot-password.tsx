@@ -1,4 +1,4 @@
-import { describeError, isValidVietnamPhone, type ForgotPasswordRequest } from '@drmayday/shared';
+import { describeError, type ForgotPasswordRequest } from '@drmayday/shared';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { AuthGate } from '@/components/auth-gate';
@@ -7,6 +7,7 @@ import { FormField } from '@/components/form-field';
 import { FormScreen } from '@/components/form-screen';
 import { PrimaryButton } from '@/components/primary-button';
 import { apiClient } from '@/lib/api';
+import { validatePhone } from '@/lib/validation';
 
 function ForgotPasswordForm() {
   const [phone, setPhone] = useState('');
@@ -16,11 +17,7 @@ function ForgotPasswordForm() {
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit() {
-    let nextPhoneError: string | null = null;
-    if (!phone) nextPhoneError = 'Vui lòng nhập số điện thoại';
-    else if (!isValidVietnamPhone(phone)) {
-      nextPhoneError = 'Số điện thoại không đúng định dạng (VD: 0912345678)';
-    }
+    const nextPhoneError = validatePhone(phone);
     setPhoneError(nextPhoneError);
     setFormError(null);
     if (nextPhoneError) return;

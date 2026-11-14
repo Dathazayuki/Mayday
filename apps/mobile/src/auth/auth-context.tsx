@@ -17,6 +17,9 @@ import {
 } from 'react';
 import { apiClient, subscribeUnauthenticated } from '@/lib/api';
 import { clearSession, loadSession, saveSession } from '@/lib/session-store';
+import { withTimeout } from '@/lib/with-timeout';
+
+const LOGOUT_TIMEOUT_MS = 5000;
 
 type AuthStatus = 'loading' | 'signed-in' | 'signed-out';
 
@@ -28,8 +31,10 @@ interface AuthContextValue {
   signup: (input: SignupRequest) => Promise<SignupResponseData>;
   /** Gọi API đăng xuất khi còn token, rồi xoá phiên dù API thành công hay lỗi. */
   logout: () => Promise<void>;
-  /** Server đã thu hồi token sau khi đổi mật khẩu nên chỉ cần xoá phiên trên máy. */
+  /** Chỉ gọi API; server thu hồi token nên màn gọi tiếp `endSession` để xoá phiên trên máy. */
   changePassword: (input: ChangePasswordRequest) => Promise<void>;
+  /** Xoá phiên trên máy, không gọi API. */
+  endSession: () => Promise<void>;
   /** Cập nhật thông tin hiển thị của người dùng trong phiên (VD: sau khi sửa họ tên). */
   updateUser: (patch: Partial<LoginUserInfo>) => Promise<void>;
 }
@@ -82,20 +87,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await apiClient.post('/auth/logout');
+      await withTimeout(apiClient.post('/auth/logout'), LOGOUT_TIMEOUT_MS);
     } catch {
-      // Lỗi mạng hay token hết hạn vẫn phải đăng xuất trên máy.
+      // Lỗi mạng, quá thời gian chờ hay token hết hạn vẫn phải đăng xuất trên máy.
     }
     await endSession();
   }, [endSession]);
 
-  const changePassword = useCallback(
-    async (input: ChangePasswordRequest) => {
-      await apiClient.put('/auth/change-password', input);
-      await endSession();
-    },
-    [endSession],
-  );
+  const changePassword = useCallback(async (input: ChangePasswordRequest) => {
+    await apiClient.put('/auth/change-password', input);
+  }, []);
 
   const updateUser = useCallback(async (patch: Partial<LoginUserInfo>) => {
     const session = await loadSession();
@@ -106,8 +107,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ status, user, login, signup, logout, changePassword, updateUser }),
-    [status, user, login, signup, logout, changePassword, updateUser],
+    () => ({ status, user, login, signup, logout, changePassword, endSession, updateUser }),
+    [status, user, login, signup, logout, changePassword, endSession, updateUser],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

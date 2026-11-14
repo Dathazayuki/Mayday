@@ -12,7 +12,12 @@ export function FormField({ label, error, style, ...inputProps }: FormFieldProps
       <TextInput
         accessibilityLabel={label}
         {...inputProps}
-        style={[styles.input, error ? styles.inputError : null, style]}
+        style={[
+          styles.input,
+          error ? styles.inputError : null,
+          inputProps.editable === false ? styles.inputDisabled : null,
+          style,
+        ]}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
@@ -31,6 +36,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     backgroundColor: '#fff',
   },
+  inputDisabled: { backgroundColor: '#f5f5f5', color: '#8c8c8c' },
   inputError: { borderColor: '#ff4d4f' },
   error: { fontSize: 14, color: '#cf1322' },
 });

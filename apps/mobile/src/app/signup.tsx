@@ -1,10 +1,4 @@
-import {
-  GENDER_OPTIONS,
-  PASSWORD_MIN_LENGTH,
-  describeError,
-  isValidVietnamPhone,
-  type Gender,
-} from '@drmayday/shared';
+import { GENDER_OPTIONS, PASSWORD_MIN_LENGTH, describeError, type Gender } from '@drmayday/shared';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { useAuth } from '@/auth/auth-context';
@@ -14,30 +8,7 @@ import { FormField } from '@/components/form-field';
 import { FormScreen } from '@/components/form-screen';
 import { OptionPicker } from '@/components/option-picker';
 import { PrimaryButton } from '@/components/primary-button';
-
-interface SignupValues {
-  fullName: string;
-  phone: string;
-  password: string;
-  confirmPassword: string;
-}
-type SignupErrors = Partial<Record<keyof SignupValues, string>>;
-
-function validate({ fullName, phone, password, confirmPassword }: SignupValues): SignupErrors {
-  const errors: SignupErrors = {};
-  if (!fullName.trim()) errors.fullName = 'Vui lòng nhập họ và tên';
-  if (!phone) errors.phone = 'Vui lòng nhập số điện thoại';
-  else if (!isValidVietnamPhone(phone)) {
-    errors.phone = 'Số điện thoại không đúng định dạng (VD: 0912345678)';
-  }
-  if (!password) errors.password = 'Vui lòng nhập mật khẩu';
-  else if (password.length < PASSWORD_MIN_LENGTH) {
-    errors.password = `Mật khẩu tối thiểu ${PASSWORD_MIN_LENGTH} ký tự`;
-  }
-  if (!confirmPassword) errors.confirmPassword = 'Vui lòng nhập lại mật khẩu';
-  else if (confirmPassword !== password) errors.confirmPassword = 'Mật khẩu nhập lại không khớp';
-  return errors;
-}
+import { validateSignup, type FieldErrors, type SignupValues } from '@/lib/validation';
 
 function SignupForm() {
   const { signup } = useAuth();
@@ -48,7 +19,7 @@ function SignupForm() {
     confirmPassword: '',
   });
   const [gender, setGender] = useState<Gender | null>(null);
-  const [errors, setErrors] = useState<SignupErrors>({});
+  const [errors, setErrors] = useState<FieldErrors<keyof SignupValues>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -56,7 +27,7 @@ function SignupForm() {
     setValues((current) => ({ ...current, [key]: text }));
 
   async function handleSubmit() {
-    const nextErrors = validate(values);
+    const nextErrors = validateSignup(values);
     setErrors(nextErrors);
     setFormError(null);
     if (Object.keys(nextErrors).length > 0) return;
