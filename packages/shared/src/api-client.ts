@@ -1,10 +1,21 @@
-import { API_PREFIX, ApiError, NETWORK_ERROR_CODE, type ApiResponse } from './api-types.js';
+import {
+  API_PREFIX,
+  ApiError,
+  DEFAULT_TIMEOUT_MS,
+  NETWORK_ERROR_CODE,
+  type ApiResponse,
+} from './api-types.js';
 import { SUCCESS_CODES, UNAUTHENTICATED_CODES } from './response-codes.js';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export type QueryValue = string | number | boolean | null | undefined;
 
-export interface RequestOptions {
+export interface CallOptions {
+  /** Thời gian chờ riêng cho lệnh gọi này (ms), ghi đè timeoutMs của client. */
+  timeoutMs?: number;
+}
+
+export interface RequestOptions extends CallOptions {
   query?: Record<string, QueryValue>;
   body?: unknown;
 }
@@ -15,15 +26,17 @@ export interface ApiClientOptions {
   /** Gọi khi server trả 3001/3002/3003 – client nên xoá phiên đăng nhập. */
   onUnauthenticated?: (error: ApiError) => void;
   fetchImpl?: typeof fetch;
+  /** Thời gian chờ mặc định cho mọi request (ms). */
+  timeoutMs?: number;
 }
 
 export interface ApiClient {
   request<T>(method: HttpMethod, path: string, options?: RequestOptions): Promise<T>;
-  get<T>(path: string, query?: Record<string, QueryValue>): Promise<T>;
-  post<T>(path: string, body?: unknown): Promise<T>;
-  put<T>(path: string, body?: unknown): Promise<T>;
-  patch<T>(path: string, body?: unknown): Promise<T>;
-  delete<T>(path: string): Promise<T>;
+  get<T>(path: string, query?: Record<string, QueryValue>, options?: CallOptions): Promise<T>;
+  post<T>(path: string, body?: unknown, options?: CallOptions): Promise<T>;
+  put<T>(path: string, body?: unknown, options?: CallOptions): Promise<T>;
+  patch<T>(path: string, body?: unknown, options?: CallOptions): Promise<T>;
+  delete<T>(path: string, options?: CallOptions): Promise<T>;
 }
 
 export function buildUrl(baseUrl: string, path: string, query?: Record<string, QueryValue>): string {
@@ -43,7 +56,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
   async function request<T>(
     method: HttpMethod,
     path: string,
-    { query, body }: RequestOptions = {},
+    { query, body, timeoutMs }: RequestOptions = {},
   ): Promise<T> {
     const headers: Record<string, string> = { Accept: 'application/json' };
     const token = await options.getToken?.();
@@ -57,22 +70,42 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       payload = JSON.stringify(body);
     }
 
-    let response: Response;
-    try {
-      response = await fetchImpl(buildUrl(options.baseUrl, path, query), {
-        method,
-        headers,
-        body: payload,
-      });
-    } catch (cause) {
-      throw new ApiError(NETWORK_ERROR_CODE, 'Network request failed', 0, cause);
-    }
+    // Hết giờ thì abort fetch; timer luôn được xoá ở finally (kể cả khi đọc body).
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(
+      () => {
+        timedOut = true;
+        controller.abort();
+      },
+      timeoutMs ?? options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    );
 
+    let response: Response;
     let envelope: Partial<ApiResponse<T>>;
     try {
-      envelope = (await response.json()) as Partial<ApiResponse<T>>;
-    } catch {
-      throw new ApiError('9901', 'Internal server error', response.status);
+      try {
+        response = await fetchImpl(buildUrl(options.baseUrl, path, query), {
+          method,
+          headers,
+          body: payload,
+          signal: controller.signal,
+        });
+      } catch (cause) {
+        throw timedOut
+          ? new ApiError(NETWORK_ERROR_CODE, 'Request timed out', 0)
+          : new ApiError(NETWORK_ERROR_CODE, 'Network request failed', 0, cause);
+      }
+
+      try {
+        envelope = (await response.json()) as Partial<ApiResponse<T>>;
+      } catch {
+        throw timedOut
+          ? new ApiError(NETWORK_ERROR_CODE, 'Request timed out', 0)
+          : new ApiError('9901', 'Internal server error', response.status);
+      }
+    } finally {
+      clearTimeout(timer);
     }
 
     const code = typeof envelope.code === 'string' ? envelope.code : '9901';
@@ -92,20 +125,20 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
 
   return {
     request,
-    get<T>(path: string, query?: Record<string, QueryValue>) {
-      return request<T>('GET', path, { query });
+    get<T>(path: string, query?: Record<string, QueryValue>, options?: CallOptions) {
+      return request<T>('GET', path, { query, ...options });
     },
-    post<T>(path: string, body?: unknown) {
-      return request<T>('POST', path, { body });
+    post<T>(path: string, body?: unknown, options?: CallOptions) {
+      return request<T>('POST', path, { body, ...options });
     },
-    put<T>(path: string, body?: unknown) {
-      return request<T>('PUT', path, { body });
+    put<T>(path: string, body?: unknown, options?: CallOptions) {
+      return request<T>('PUT', path, { body, ...options });
     },
-    patch<T>(path: string, body?: unknown) {
-      return request<T>('PATCH', path, { body });
+    patch<T>(path: string, body?: unknown, options?: CallOptions) {
+      return request<T>('PATCH', path, { body, ...options });
     },
-    delete<T>(path: string) {
-      return request<T>('DELETE', path);
+    delete<T>(path: string, options?: CallOptions) {
+      return request<T>('DELETE', path, { ...options });
     },
   };
 }
