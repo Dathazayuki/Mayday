@@ -1,16 +1,21 @@
-import { describeError, type RoomListItem } from '@drmayday/shared';
-import { Alert, Button, Form, Input, Modal, Select, Table } from 'antd';
+import type { RoomListItem } from '@drmayday/shared';
+import { Button, Form, Input, Select } from 'antd';
 import { useState } from 'react';
+import { EntityFormModal } from '../../../admin/EntityFormModal';
+import { EntityTable } from '../../../admin/EntityTable';
 import {
   toNumericId,
+  useBranches,
   useCreateRoom,
   useDeleteRoom,
   useDepartments,
   useRooms,
   useUpdateRoom,
 } from '../../../admin/facilities-api';
-import { RowActions } from './shared';
-import { useRunAction } from './use-run-action';
+import { QueryErrorAlert } from '../../../admin/QueryErrorAlert';
+import { RowActions } from '../../../admin/RowActions';
+import { useEntityModal } from '../../../admin/use-entity-modal';
+import { useRunAction } from '../../../admin/use-run-action';
 
 interface RoomFormValues {
   name: string;
@@ -18,88 +23,64 @@ interface RoomFormValues {
   department_id: number;
 }
 
-type Editing = null | 'new' | RoomListItem;
-
 export function RoomsTab() {
-  const [departmentFilter, setDepartmentFilter] = useState<number | undefined>();
-  const { data, error, isPending } = useRooms(departmentFilter);
+  const [selectedDepartment, setSelectedDepartment] = useState<number | undefined>();
   const departments = useDepartments();
+  const branches = useBranches();
+  // "Khoa – Chi nhánh": phân biệt các khoa trùng tên ở chi nhánh khác nhau.
+  const departmentLabel = (d: { name: string; branch_id: string }) => {
+    const branch = branches.data?.find((b) => b.id === d.branch_id)?.name;
+    return branch ? `${d.name} – ${branch}` : d.name;
+  };
+  const departmentOptions = (departments.data ?? []).map((d) => ({
+    value: toNumericId(d.id),
+    label: departmentLabel(d),
+  }));
+  // Khoa đang lọc bị xoá (không còn trong danh sách) thì bỏ lọc, tránh gọi API với id cũ.
+  const departmentFilter = departmentOptions.some((o) => o.value === selectedDepartment)
+    ? selectedDepartment
+    : undefined;
+
+  const { data, error, isPending } = useRooms(departmentFilter);
   const create = useCreateRoom();
   const update = useUpdateRoom();
   const remove = useDeleteRoom();
   const run = useRunAction();
-  const [form] = Form.useForm<RoomFormValues>();
-  const [editing, setEditing] = useState<Editing>(null);
-
-  const departmentOptions = (departments.data ?? []).map((d) => ({
-    value: toNumericId(d.id),
-    label: d.name,
+  const modal = useEntityModal<RoomFormValues, RoomListItem>((room) => ({
+    name: room?.name ?? '',
+    description: room?.description ?? '',
+    department_id:
+      room === null
+        ? departmentFilter
+        : room.department_id === null
+          ? undefined
+          : toNumericId(room.department_id),
   }));
-  const departmentName = (id: string | null) =>
-    id === null ? '' : (departments.data?.find((d) => d.id === id)?.name ?? id);
-
-  function open(target: Exclude<Editing, null>) {
-    setEditing(target);
-    form.setFieldsValue(
-      target === 'new'
-        ? { name: '', description: '', department_id: departmentFilter }
-        : {
-            name: target.name,
-            description: target.description ?? '',
-            department_id:
-              target.department_id === null ? undefined : toNumericId(target.department_id),
-          },
-    );
-  }
-
-  async function handleFinish(values: RoomFormValues) {
-    const name = values.name.trim();
-    const description = values.description?.trim() || undefined;
-    const ok =
-      editing === 'new'
-        ? await run(
-            () => create.mutateAsync({ name, description, department_id: values.department_id }),
-            'Đã thêm phòng',
-          )
-        : await run(
-            () =>
-              update.mutateAsync({
-                id: (editing as RoomListItem).id,
-                changes: {
-                  name,
-                  description: description ?? null,
-                  department_id: values.department_id,
-                },
-              }),
-            'Đã cập nhật phòng',
-          );
-    if (ok) setEditing(null);
-  }
+  const departmentName = (id: string | null) => {
+    const department = departments.data?.find((d) => d.id === id);
+    return department ? departmentLabel(department) : '';
+  };
 
   return (
     <>
-      {error && (
-        <Alert type="error" showIcon title={describeError(error)} style={{ marginBottom: 16 }} />
-      )}
+      <QueryErrorAlert error={error} />
       <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
         <Select
           allowClear
           placeholder="Tất cả khoa"
           aria-label="Lọc theo khoa"
-          style={{ minWidth: 240 }}
+          style={{ minWidth: 280 }}
           options={departmentOptions}
           value={departmentFilter}
-          onChange={(value: number | undefined) => setDepartmentFilter(value)}
+          onChange={(value: number | undefined) => setSelectedDepartment(value)}
         />
-        <Button type="primary" onClick={() => open('new')}>
+        <Button type="primary" onClick={modal.openCreate}>
           Thêm phòng
         </Button>
       </div>
-      <Table<RoomListItem>
-        rowKey="id"
+      <EntityTable<RoomListItem>
+        data={data}
         loading={isPending}
-        dataSource={data ?? []}
-        pagination={false}
         columns={[
           { title: 'Tên phòng', dataIndex: 'name' },
           {
@@ -112,49 +93,54 @@ export function RoomsTab() {
             title: 'Thao tác',
             render: (_, row) => (
               <RowActions
-                onEdit={() => open(row)}
+                onEdit={() => modal.openEdit(row)}
                 onDelete={() => void run(() => remove.mutateAsync(row.id), 'Đã xoá phòng')}
               />
             ),
           },
         ]}
       />
-      <Modal
-        title={editing === 'new' ? 'Thêm phòng' : 'Sửa phòng'}
-        open={editing !== null}
-        onCancel={() => setEditing(null)}
-        onOk={() => form.submit()}
-        okText="Lưu"
-        cancelText="Huỷ"
-        confirmLoading={create.isPending || update.isPending}
-        forceRender
+      <EntityFormModal<RoomFormValues, RoomListItem>
+        modal={modal}
+        formName="room"
+        entityName="phòng"
+        saving={create.isPending || update.isPending}
+        onCreate={(values) =>
+          create.mutateAsync({
+            name: values.name.trim(),
+            description: values.description?.trim() || undefined,
+            department_id: values.department_id,
+          })
+        }
+        onUpdate={(room, values) =>
+          update.mutateAsync({
+            id: room.id,
+            changes: {
+              name: values.name.trim(),
+              description: values.description?.trim() || null,
+              department_id: values.department_id,
+            },
+          })
+        }
       >
-        <Form<RoomFormValues>
-          name="room"
-          form={form}
-          layout="vertical"
-          onFinish={handleFinish}
-          requiredMark={false}
+        <Form.Item
+          label="Tên phòng"
+          name="name"
+          rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập tên phòng' }]}
         >
-          <Form.Item
-            label="Tên phòng"
-            name="name"
-            rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập tên phòng' }]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            label="Khoa"
-            name="department_id"
-            rules={[{ required: true, message: 'Vui lòng chọn khoa' }]}
-          >
-            <Select options={departmentOptions} />
-          </Form.Item>
-          <Form.Item label="Mô tả" name="description">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-        </Form>
-      </Modal>
+          <Input />
+        </Form.Item>
+        <Form.Item
+          label="Khoa"
+          name="department_id"
+          rules={[{ required: true, message: 'Vui lòng chọn khoa' }]}
+        >
+          <Select options={departmentOptions} />
+        </Form.Item>
+        <Form.Item label="Mô tả" name="description">
+          <Input.TextArea rows={3} />
+        </Form.Item>
+      </EntityFormModal>
     </>
   );
 }

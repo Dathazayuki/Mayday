@@ -1,6 +1,11 @@
+import type { ComponentType } from 'react';
+import { FacilitiesPage } from '../pages/admin/FacilitiesPage';
+
 export interface NavItem {
   key: string;
   label: string;
+  /** Trang thật của mục; chưa có thì route dùng ComingSoonPage. */
+  page?: ComponentType;
 }
 
 export interface NavGroup {
@@ -28,10 +33,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { key: '/admin/users', label: 'Người dùng' },
       { key: '/admin/roles', label: 'Vai trò và quyền hạn' },
-      { key: '/admin/facilities', label: 'Cơ sở vật chất' },
+      { key: '/admin/facilities', label: 'Cơ sở vật chất', page: FacilitiesPage },
       { key: '/admin/templates', label: 'Mẫu phiếu khám' },
     ],
   },
 ];
-
-export const ALL_NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items);

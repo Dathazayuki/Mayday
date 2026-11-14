@@ -136,6 +136,7 @@ describe('Định tuyến và đăng nhập', () => {
     );
     expect(logoutCalls).toHaveLength(1);
   });
+
   it('menu "Quản trị hệ thống" hiện với admin (GET /roles thành công)', async () => {
     seedSession();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse([])));
@@ -160,5 +161,25 @@ describe('Định tuyến và đăng nhập', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse([])));
     renderAt('/admin/facilities');
     expect(await screen.findByRole('tab', { name: 'Chi nhánh' })).toBeInTheDocument();
+  });
+  it('không phải admin vào /admin/facilities thì thấy 403, không có trang quản lý', async () => {
+    seedSession();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(errorResponse(403, '3102')));
+    renderAt('/admin/facilities');
+    expect(await screen.findByText('Bạn không có quyền truy cập trang này')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Chi nhánh' })).not.toBeInTheDocument();
+  });
+
+  it('đang xác định vai trò thì /admin/facilities hiện spinner, chưa lộ trang và chưa báo 403', async () => {
+    seedSession();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined)),
+    );
+    const { container } = renderAt('/admin/facilities');
+    await screen.findByText('Nguyễn Văn An');
+    expect(container.querySelector('.ant-spin')).toBeInTheDocument();
+    expect(screen.queryByText('Bạn không có quyền truy cập trang này')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Chi nhánh' })).not.toBeInTheDocument();
   });
 });

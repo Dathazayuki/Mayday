@@ -1,5 +1,6 @@
 import { Button, Popconfirm, Space } from 'antd';
 
+/** Cột thao tác chuẩn của bảng quản trị: Sửa và Xoá (Popconfirm). */
 export function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
   return (
     <Space>

@@ -1,6 +1,8 @@
-import { describeError, type DepartmentListItem } from '@drmayday/shared';
-import { Alert, Button, Form, Input, Modal, Select, Table } from 'antd';
+import type { DepartmentListItem } from '@drmayday/shared';
+import { Button, Form, Input, Select } from 'antd';
 import { useState } from 'react';
+import { EntityFormModal } from '../../../admin/EntityFormModal';
+import { EntityTable } from '../../../admin/EntityTable';
 import {
   toNumericId,
   useBranches,
@@ -9,8 +11,10 @@ import {
   useDepartments,
   useUpdateDepartment,
 } from '../../../admin/facilities-api';
-import { RowActions } from './shared';
-import { useRunAction } from './use-run-action';
+import { QueryErrorAlert } from '../../../admin/QueryErrorAlert';
+import { RowActions } from '../../../admin/RowActions';
+import { useEntityModal } from '../../../admin/use-entity-modal';
+import { useRunAction } from '../../../admin/use-run-action';
 
 interface DepartmentFormValues {
   name: string;
@@ -18,63 +22,33 @@ interface DepartmentFormValues {
   branch_id: number;
 }
 
-type Editing = null | 'new' | DepartmentListItem;
-
 export function DepartmentsTab() {
-  const [branchFilter, setBranchFilter] = useState<number | undefined>();
-  const { data, error, isPending } = useDepartments(branchFilter);
+  const [selectedBranch, setSelectedBranch] = useState<number | undefined>();
   const branches = useBranches();
-  const create = useCreateDepartment();
-  const update = useUpdateDepartment();
-  const remove = useDeleteDepartment();
-  const run = useRunAction();
-  const [form] = Form.useForm<DepartmentFormValues>();
-  const [editing, setEditing] = useState<Editing>(null);
-
   const branchOptions = (branches.data ?? []).map((b) => ({
     value: toNumericId(b.id),
     label: b.name,
   }));
+  // Chi nhánh đang lọc bị xoá (không còn trong danh sách) thì bỏ lọc, tránh gọi API với id cũ.
+  const branchFilter = branchOptions.some((o) => o.value === selectedBranch)
+    ? selectedBranch
+    : undefined;
+
+  const { data, error, isPending } = useDepartments(branchFilter);
+  const create = useCreateDepartment();
+  const update = useUpdateDepartment();
+  const remove = useDeleteDepartment();
+  const run = useRunAction();
+  const modal = useEntityModal<DepartmentFormValues, DepartmentListItem>((department) => ({
+    name: department?.name ?? '',
+    description: department?.description ?? '',
+    branch_id: department ? toNumericId(department.branch_id) : branchFilter,
+  }));
   const branchName = (id: string) => branches.data?.find((b) => b.id === id)?.name ?? id;
-
-  function open(target: Exclude<Editing, null>) {
-    setEditing(target);
-    form.setFieldsValue(
-      target === 'new'
-        ? { name: '', description: '', branch_id: branchFilter }
-        : {
-            name: target.name,
-            description: target.description ?? '',
-            branch_id: toNumericId(target.branch_id),
-          },
-    );
-  }
-
-  async function handleFinish(values: DepartmentFormValues) {
-    const name = values.name.trim();
-    const description = values.description?.trim() || undefined;
-    const ok =
-      editing === 'new'
-        ? await run(
-            () => create.mutateAsync({ name, description, branch_id: values.branch_id }),
-            'Đã thêm khoa',
-          )
-        : await run(
-            () =>
-              update.mutateAsync({
-                id: (editing as DepartmentListItem).id,
-                changes: { name, description: description ?? null, branch_id: values.branch_id },
-              }),
-            'Đã cập nhật khoa',
-          );
-    if (ok) setEditing(null);
-  }
 
   return (
     <>
-      {error && (
-        <Alert type="error" showIcon title={describeError(error)} style={{ marginBottom: 16 }} />
-      )}
+      <QueryErrorAlert error={error} />
       <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
         <Select
           allowClear
@@ -83,17 +57,15 @@ export function DepartmentsTab() {
           style={{ minWidth: 240 }}
           options={branchOptions}
           value={branchFilter}
-          onChange={(value: number | undefined) => setBranchFilter(value)}
+          onChange={(value: number | undefined) => setSelectedBranch(value)}
         />
-        <Button type="primary" onClick={() => open('new')}>
+        <Button type="primary" onClick={modal.openCreate}>
           Thêm khoa
         </Button>
       </div>
-      <Table<DepartmentListItem>
-        rowKey="id"
+      <EntityTable<DepartmentListItem>
+        data={data}
         loading={isPending}
-        dataSource={data ?? []}
-        pagination={false}
         columns={[
           { title: 'Tên khoa', dataIndex: 'name' },
           { title: 'Chi nhánh', dataIndex: 'branch_id', render: (id: string) => branchName(id) },
@@ -102,49 +74,54 @@ export function DepartmentsTab() {
             title: 'Thao tác',
             render: (_, row) => (
               <RowActions
-                onEdit={() => open(row)}
+                onEdit={() => modal.openEdit(row)}
                 onDelete={() => void run(() => remove.mutateAsync(row.id), 'Đã xoá khoa')}
               />
             ),
           },
         ]}
       />
-      <Modal
-        title={editing === 'new' ? 'Thêm khoa' : 'Sửa khoa'}
-        open={editing !== null}
-        onCancel={() => setEditing(null)}
-        onOk={() => form.submit()}
-        okText="Lưu"
-        cancelText="Huỷ"
-        confirmLoading={create.isPending || update.isPending}
-        forceRender
+      <EntityFormModal<DepartmentFormValues, DepartmentListItem>
+        modal={modal}
+        formName="department"
+        entityName="khoa"
+        saving={create.isPending || update.isPending}
+        onCreate={(values) =>
+          create.mutateAsync({
+            name: values.name.trim(),
+            description: values.description?.trim() || undefined,
+            branch_id: values.branch_id,
+          })
+        }
+        onUpdate={(department, values) =>
+          update.mutateAsync({
+            id: department.id,
+            changes: {
+              name: values.name.trim(),
+              description: values.description?.trim() || null,
+              branch_id: values.branch_id,
+            },
+          })
+        }
       >
-        <Form<DepartmentFormValues>
-          name="department"
-          form={form}
-          layout="vertical"
-          onFinish={handleFinish}
-          requiredMark={false}
+        <Form.Item
+          label="Tên khoa"
+          name="name"
+          rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập tên khoa' }]}
         >
-          <Form.Item
-            label="Tên khoa"
-            name="name"
-            rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập tên khoa' }]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            label="Chi nhánh"
-            name="branch_id"
-            rules={[{ required: true, message: 'Vui lòng chọn chi nhánh' }]}
-          >
-            <Select options={branchOptions} />
-          </Form.Item>
-          <Form.Item label="Mô tả" name="description">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-        </Form>
-      </Modal>
+          <Input />
+        </Form.Item>
+        <Form.Item
+          label="Chi nhánh"
+          name="branch_id"
+          rules={[{ required: true, message: 'Vui lòng chọn chi nhánh' }]}
+        >
+          <Select options={branchOptions} />
+        </Form.Item>
+        <Form.Item label="Mô tả" name="description">
+          <Input.TextArea rows={3} />
+        </Form.Item>
+      </EntityFormModal>
     </>
   );
 }
