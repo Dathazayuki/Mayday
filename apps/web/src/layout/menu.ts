@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import { FacilitiesPage } from '../pages/admin/FacilitiesPage';
+import { RolesPage } from '../pages/admin/RolesPage';
 
 export interface NavItem {
   key: string;
@@ -32,7 +33,7 @@ export const NAV_GROUPS: NavGroup[] = [
     adminOnly: true,
     items: [
       { key: '/admin/users', label: 'Người dùng' },
-      { key: '/admin/roles', label: 'Vai trò và quyền hạn' },
+      { key: '/admin/roles', label: 'Vai trò và quyền hạn', page: RolesPage },
       { key: '/admin/facilities', label: 'Cơ sở vật chất', page: FacilitiesPage },
       { key: '/admin/templates', label: 'Mẫu phiếu khám' },
     ],

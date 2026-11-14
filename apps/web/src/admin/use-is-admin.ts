@@ -1,6 +1,6 @@
-import { ApiError, type RoleData } from '@drmayday/shared';
+import { ApiError } from '@drmayday/shared';
 import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '../api';
+import { fetchRoles, ROLES_KEY } from './rbac-api';
 
 /** Mã "chỉ dành cho Admin" (3102). */
 const ADMIN_REQUIRED_CODE = '3102';
@@ -11,8 +11,8 @@ const ADMIN_REQUIRED_CODE = '3102';
  */
 export function useIsAdmin(): boolean | undefined {
   const { isSuccess, isError } = useQuery({
-    queryKey: ['roles', 'is-admin'],
-    queryFn: () => apiClient.get<RoleData[]>('/roles'),
+    queryKey: ROLES_KEY,
+    queryFn: fetchRoles,
     retry: (failureCount, error) =>
       !(error instanceof ApiError && error.code === ADMIN_REQUIRED_CODE) && failureCount < 1,
     staleTime: Infinity,

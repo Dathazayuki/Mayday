@@ -15,7 +15,7 @@ import {
 import { QueryErrorAlert } from '../../../admin/QueryErrorAlert';
 import { RowActions } from '../../../admin/RowActions';
 import { useEntityModal } from '../../../admin/use-entity-modal';
-import { useRunAction } from '../../../admin/use-run-action';
+import { useDeleteAction } from '../../../admin/use-run-action';
 
 interface RoomFormValues {
   name: string;
@@ -45,7 +45,7 @@ export function RoomsTab() {
   const create = useCreateRoom();
   const update = useUpdateRoom();
   const remove = useDeleteRoom();
-  const run = useRunAction();
+  const deleteRow = useDeleteAction('phòng');
   const modal = useEntityModal<RoomFormValues, RoomListItem>((room) => ({
     name: room?.name ?? '',
     description: room?.description ?? '',
@@ -94,7 +94,7 @@ export function RoomsTab() {
             render: (_, row) => (
               <RowActions
                 onEdit={() => modal.openEdit(row)}
-                onDelete={() => void run(() => remove.mutateAsync(row.id), 'Đã xoá phòng')}
+                onDelete={() => deleteRow(() => remove.mutateAsync(row.id))}
               />
             ),
           },

@@ -15,3 +15,9 @@ export function useRunAction() {
     }
   };
 }
+
+/** Xoá một bản ghi: dùng với RowActions.onDelete, báo "Đã xoá <tên đối tượng>" khi thành công. */
+export function useDeleteAction(entityLabel: string) {
+  const run = useRunAction();
+  return (remove: () => Promise<unknown>) => void run(remove, `Đã xoá ${entityLabel}`);
+}

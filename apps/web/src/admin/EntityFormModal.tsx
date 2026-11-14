@@ -11,7 +11,8 @@ interface EntityFormModalProps<TValues extends object, TItem> {
   entityName: string;
   saving: boolean;
   onCreate: (values: TValues) => Promise<unknown>;
-  onUpdate: (item: TItem, values: TValues) => Promise<unknown>;
+  /** Bỏ qua với đối tượng chỉ tạo được, không sửa được. */
+  onUpdate?: (item: TItem, values: TValues) => Promise<unknown>;
   /** Các Form.Item của đối tượng. */
   children: ReactNode;
 }
@@ -33,7 +34,8 @@ export function EntityFormModal<TValues extends object, TItem>({
     const ok =
       editing === 'new'
         ? await run(() => onCreate(values), `Đã thêm ${entityName}`)
-        : await run(() => onUpdate(editing as TItem, values), `Đã cập nhật ${entityName}`);
+        : onUpdate &&
+          (await run(() => onUpdate(editing as TItem, values), `Đã cập nhật ${entityName}`));
     if (ok) close();
   }
 

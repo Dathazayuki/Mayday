@@ -14,7 +14,7 @@ import {
 import { QueryErrorAlert } from '../../../admin/QueryErrorAlert';
 import { RowActions } from '../../../admin/RowActions';
 import { useEntityModal } from '../../../admin/use-entity-modal';
-import { useRunAction } from '../../../admin/use-run-action';
+import { useDeleteAction } from '../../../admin/use-run-action';
 
 interface DepartmentFormValues {
   name: string;
@@ -38,7 +38,7 @@ export function DepartmentsTab() {
   const create = useCreateDepartment();
   const update = useUpdateDepartment();
   const remove = useDeleteDepartment();
-  const run = useRunAction();
+  const deleteRow = useDeleteAction('khoa');
   const modal = useEntityModal<DepartmentFormValues, DepartmentListItem>((department) => ({
     name: department?.name ?? '',
     description: department?.description ?? '',
@@ -75,7 +75,7 @@ export function DepartmentsTab() {
             render: (_, row) => (
               <RowActions
                 onEdit={() => modal.openEdit(row)}
-                onDelete={() => void run(() => remove.mutateAsync(row.id), 'Đã xoá khoa')}
+                onDelete={() => deleteRow(() => remove.mutateAsync(row.id))}
               />
             ),
           },

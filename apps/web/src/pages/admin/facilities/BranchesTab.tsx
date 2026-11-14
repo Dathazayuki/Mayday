@@ -11,7 +11,7 @@ import {
 import { QueryErrorAlert } from '../../../admin/QueryErrorAlert';
 import { RowActions } from '../../../admin/RowActions';
 import { useEntityModal } from '../../../admin/use-entity-modal';
-import { useRunAction } from '../../../admin/use-run-action';
+import { useDeleteAction } from '../../../admin/use-run-action';
 
 interface BranchFormValues {
   name: string;
@@ -32,7 +32,7 @@ export function BranchesTab() {
   const create = useCreateBranch();
   const update = useUpdateBranch();
   const remove = useDeleteBranch();
-  const run = useRunAction();
+  const deleteRow = useDeleteAction('chi nhánh');
   const modal = useEntityModal<BranchFormValues, BranchListItem>((branch) => ({
     name: branch?.name ?? '',
     address: branch?.address ?? '',
@@ -57,7 +57,7 @@ export function BranchesTab() {
             render: (_, row) => (
               <RowActions
                 onEdit={() => modal.openEdit(row)}
-                onDelete={() => void run(() => remove.mutateAsync(row.id), 'Đã xoá chi nhánh')}
+                onDelete={() => deleteRow(() => remove.mutateAsync(row.id))}
               />
             ),
           },
