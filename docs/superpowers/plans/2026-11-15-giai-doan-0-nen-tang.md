@@ -10,6 +10,17 @@
 
 **Spec:** [docs/superpowers/specs/2026-11-15-giai-doan-0-nen-tang-design.md](../specs/2026-11-15-giai-doan-0-nen-tang-design.md)
 
+> **Ghi chú sau khi triển khai (2026-11-15).** Kế hoạch đã được thực hiện xong. Các điểm khác với nội dung dưới đây (spec đã cập nhật theo):
+> - **pnpm:** dùng `nodeLinker: isolated` trong `pnpm-workspace.yaml`. Dòng `node-linker=hoisted` trong `.npmrc` không có tác dụng với pnpm 11 nên đã bỏ `.npmrc`.
+> - **MinIO:** image `cgr.dev/chainguard/minio`, cổng 9100/9101.
+> - **Lỗi 4xx của Nest:** trả mã 2003 và giữ nguyên HTTP status gốc (MT-58).
+> - **class-validator:** tên ràng buộc đúng là `isIso8601`.
+> - **JWT_SECRET:** tối thiểu 32 ký tự; `.env.example` để trống.
+> - **PrismaService:** không ném lỗi khi khởi tạo.
+> - **Mobile:** xử lý lỗi SecureStore.
+> - **Web:** `useAuth` tách sang file riêng.
+> - **Lệnh gốc:** `test`/`typecheck` build `packages/shared` trước.
+
 ## Global Constraints
 
 - Mọi lệnh chạy từ thư mục gốc `c:/Users/Admin/Desktop/DR-May-day` trừ khi bước ghi khác. Shell: Git Bash.

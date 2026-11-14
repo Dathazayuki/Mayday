@@ -50,7 +50,7 @@ DR-May-day/
 Mỗi ứng dụng dùng tsconfig do template của nó sinh ra; không dùng `tsconfig.base.json` chung.
 
 - **Môi trường:** Node 22 LTS. pnpm (bật qua `corepack`), workspaces `apps/*` và `packages/*`.
-- **Cấu hình chung:** `.npmrc` có `node-linker=hoisted` (Expo yêu cầu). TypeScript strict. Lint theo công cụ của từng template (oxlint cho API, Web và shared). Prettier dùng chung một cấu hình ở thư mục gốc.
+- **Cấu hình chung:** `pnpm-workspace.yaml` đặt `nodeLinker: isolated`. Ban đầu định dùng `node-linker=hoisted` trong `.npmrc`, nhưng pnpm 11 không đọc cấu hình này từ `.npmrc`, và toàn bộ giai đoạn 0 đã được cài, kiểm thử với chế độ isolated (Expo export và expo-doctor đều đạt). TypeScript strict. Lint theo công cụ của từng template (oxlint cho API, Web và shared). Prettier dùng chung một cấu hình ở thư mục gốc.
 - **Dựng khung:** mỗi ứng dụng được tạo bằng **công cụ khởi tạo chính thức** (Nest CLI, `create-vite`, `create-expo-app`), dùng bản ổn định hiện hành. Sau đó mới chỉnh theo spec này. Lý do: các framework đã lên phiên bản mới (NestJS 12, Vite 8, React 19, Expo 58...), nên không dựng tay theo trí nhớ. Mỗi bước phải chạy được build/test thật.
 - **Script ở thư mục gốc:** `pnpm dev:api`, `pnpm dev:web`, `pnpm dev:mobile`, `pnpm test`, `pnpm lint`, `pnpm typecheck`, `pnpm build`.
 
@@ -125,6 +125,7 @@ Một unit test đọc bảng trong file tài liệu đó và kiểm tra **mọi
    - Chưa khai báo model nào. Model sẽ có khi chạy `prisma db pull` trên CSDL thật.
    - Kết nối "lười": app khởi động được kể cả khi không có hoặc không kết nối được CSDL, chỉ ghi cảnh báo.
    - Cấu hình làm theo tài liệu chính thức của Prisma bản hiện hành (generator, driver adapter nếu bản mới yêu cầu).
+   - `prisma` (CLI) là devDependency; `postinstall` chạy `prisma generate`. Cách đóng gói khi deploy (build trong môi trường có devDependencies rồi `pnpm deploy --prod`, hoặc cách khác) sẽ chốt khi có thông tin server từ nhóm DB (MT-57).
 8. **`GET /api/v1/health` (public):** trả `{ status: 'ok', db: 'up' | 'down' | 'not_configured', time }`.
 9. **Kiểm thử:**
    - Unit test cho interceptor, filter, cách đổi lỗi validation, guard.

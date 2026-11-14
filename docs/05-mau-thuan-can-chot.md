@@ -36,8 +36,8 @@ Tài liệu CSDL chứa khoảng 300 chỗ sửa ở chế độ theo dõi thay 
 | MT-06 | Kiểu dữ liệu ID trong response | Các tab không thống nhất: login trả `user_id`/`role_id` kiểu string; signup, profile, admin/users, medical_records dùng int; UAS7, tổn thương da, thông báo, ảnh dùng string. Slide UAS7 yêu cầu "toàn bộ kiểu dữ liệu response phải format thành string". | Theo đúng kiểu ghi ở từng tab Sheet. Đưa kiểu vào `packages/shared` để client không phải đoán. | Chờ chốt |
 | MT-07 | Mã thành công của API tạo mới | Đa số trả `1001`. Riêng `POST uas7-scores` trả `1000` kèm `data` là mảng; `POST role_permissions` trả `1000`; `GET departments`/`GET rooms` ghi "1001 hoặc 1000" với message "Created successfully". | API tạo mới trả `1001`, API khác trả `1000`. Riêng các trường hợp lệch trong Sheet thì hỏi lại trước khi code. | Chờ chốt |
 | MT-08 | Bảng mã phản hồi nào được dùng | Tab "3. response code" có hai bảng: bảng mã chi tiết (1000–9903) và bảng mã gộp theo bit (9992–9999, 1001–1010). Mọi test case trong slide dùng bảng mã chi tiết. | Dùng bảng mã chi tiết. | **Đã chốt** (2026-11-15) |
-| MT-09 | Mã `1001` | Mọi test case tạo mới trong slide và output các tab Sheet dùng `1001 Created successfully`, nhưng bảng mã trong tab "3. response code" không có mã này. | Thêm `1001 Created successfully` vào catalog. | Đề xuất |
-| MT-58 | Mã cho route không tồn tại | Bảng mã không có mã "không tìm thấy đường dẫn". | Trả HTTP 404 với mã 2003 (Invalid parameter value). | Đề xuất |
+| MT-09 | Mã `1001` | Mọi test case tạo mới trong slide và output các tab Sheet dùng `1001 Created successfully`, nhưng bảng mã trong tab "3. response code" không có mã này. | Thêm `1001 Created successfully` vào catalog. | Đề xuất (đã áp dụng ở giai đoạn 0) |
+| MT-58 | Mã cho route không tồn tại | Bảng mã không có mã "không tìm thấy đường dẫn". | Trả HTTP 404 với mã 2003 (Invalid parameter value). Giai đoạn 0 mở rộng: mọi lỗi 4xx khác của Nest (ngoài 401/403/413) đều trả mã 2003 và giữ nguyên HTTP status gốc. | Đề xuất (đã áp dụng ở giai đoạn 0) |
 
 ## B. Nghiệp vụ và dữ liệu
 
