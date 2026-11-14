@@ -32,6 +32,12 @@ class SampleController {
   create(@Body() body: SampleDto) {
     return body;
   }
+
+  @Public()
+  @Post('action')
+  action() {
+    return { done: true };
+  }
 }
 
 describe('Nền tảng API (e2e)', () => {
@@ -107,6 +113,11 @@ describe('Nền tảng API (e2e)', () => {
       message: 'Created successfully',
       data: { name: 'An', phone: '0912345678' },
     });
+  });
+
+  it('POST không gắn @ResponseCode → 200 / 1000', async () => {
+    const res = await request(app.getHttpServer()).post('/api/v1/e2e-sample/action').expect(200);
+    expect(res.body).toEqual({ code: '1000', message: 'OK', data: { done: true } });
   });
 
   it('route cần đăng nhập, thiếu token → 401 / 3003', async () => {
