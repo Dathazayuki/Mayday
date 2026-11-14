@@ -39,6 +39,8 @@ import { useRunAction } from '../../components/crud/use-run-action';
 import { DynamicForm } from '../../components/dynamic-form/DynamicForm';
 import { formatDateTime } from '../../lib/format-date';
 import { useTemplateDetail } from '../../templates/template-detail-api';
+import { LabPanel } from './LabPanel';
+import { PrescriptionPanel } from './PrescriptionPanel';
 import { Uas7Panel } from './Uas7Panel';
 
 function SummaryCard({ record }: { record: MedicalRecordData }) {
@@ -227,6 +229,8 @@ function RecordBody({ record }: { record: MedicalRecordData }) {
       <SummaryCard record={record} />
       <HistoryCard patientId={record.patient_id} />
       <Uas7Panel patientId={record.patient_id} />
+      <PrescriptionPanel record={record} />
+      <LabPanel record={record} />
       <QueryErrorAlert error={error} />
       {record.template_id === null && (
         <Alert type="info" showIcon title="Bệnh án chưa gắn mẫu phiếu" />

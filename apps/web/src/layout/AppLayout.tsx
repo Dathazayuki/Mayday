@@ -6,6 +6,7 @@ import { useIsAdmin } from '../admin/use-is-admin';
 import { useAuth } from '../auth/useAuth';
 import { useIsPatient } from '../profile/use-is-patient';
 import { NAV_GROUPS } from './menu';
+import { NotificationBell } from './NotificationBell';
 
 export function AppLayout() {
   const { user, logout } = useAuth();
@@ -66,9 +67,12 @@ export function AppLayout() {
             background: '#fff',
             display: 'flex',
             justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: 8,
             paddingInline: 16,
           }}
         >
+          <NotificationBell />
           <Dropdown menu={userMenu} trigger={['click']}>
             <Button type="text" icon={<UserOutlined />} loading={loggingOut}>
               {user?.full_name} <DownOutlined />

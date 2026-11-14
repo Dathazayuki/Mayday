@@ -103,7 +103,14 @@ describe('Định tuyến và đăng nhập', () => {
 
   it('menu người dùng có Hồ sơ cá nhân, Đổi mật khẩu và Đăng xuất (gọi API rồi về đăng nhập)', async () => {
     seedSession();
-    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    // Chuông thông báo ở header tải danh sách phân trang nên /notifications phải trả mảng.
+    const fetchMock = vi.fn((url: string) =>
+      Promise.resolve(
+        url.includes('/notifications')
+          ? jsonResponse(200, { code: '1000', message: 'OK', data: [], total: 0 })
+          : okResponse(),
+      ),
+    );
     vi.stubGlobal('fetch', fetchMock);
     renderAt('/');
     const user = userEvent.setup();
@@ -139,7 +146,10 @@ describe('Định tuyến và đăng nhập', () => {
 
   it('menu "Quản trị hệ thống" hiện với admin (GET /roles thành công)', async () => {
     seedSession();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse([])));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(okResponse([]))),
+    );
     renderAt('/');
     expect(await screen.findByText('Quản trị hệ thống')).toBeInTheDocument();
     expect(screen.getByText('Cơ sở vật chất')).toBeInTheDocument();
@@ -147,7 +157,7 @@ describe('Định tuyến và đăng nhập', () => {
 
   it('menu "Quản trị hệ thống" ẩn khi không phải admin (3102), vẫn còn phiên', async () => {
     seedSession();
-    const fetchMock = vi.fn().mockResolvedValue(errorResponse(403, '3102'));
+    const fetchMock = vi.fn(() => Promise.resolve(errorResponse(403, '3102')));
     vi.stubGlobal('fetch', fetchMock);
     renderAt('/');
     expect(await screen.findByText('Khám và điều trị')).toBeInTheDocument();
@@ -173,14 +183,20 @@ describe('Định tuyến và đăng nhập', () => {
 
   it('vào /medical-records hiện danh sách bệnh án thay vì trang "Sắp ra mắt"', async () => {
     seedSession();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse([])));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(okResponse([]))),
+    );
     renderAt('/medical-records');
     expect(await screen.findByText('Tất cả trạng thái')).toBeInTheDocument();
   });
 
   it('vào /patients hiện trang tìm bệnh nhân', async () => {
     seedSession();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse([])));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(okResponse([]))),
+    );
     renderAt('/patients');
     expect(await screen.findByRole('button', { name: 'Thêm bệnh nhân' })).toBeInTheDocument();
   });
@@ -215,13 +231,19 @@ describe('Định tuyến và đăng nhập', () => {
 
   it('vào /admin/facilities hiện trang quản lý cơ sở vật chất', async () => {
     seedSession();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse([])));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(okResponse([]))),
+    );
     renderAt('/admin/facilities');
     expect(await screen.findByRole('tab', { name: 'Chi nhánh' })).toBeInTheDocument();
   });
   it('không phải admin vào /admin/facilities thì thấy 403, không có trang quản lý', async () => {
     seedSession();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(errorResponse(403, '3102')));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(errorResponse(403, '3102'))),
+    );
     renderAt('/admin/facilities');
     expect(await screen.findByText('Bạn không có quyền truy cập trang này')).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Chi nhánh' })).not.toBeInTheDocument();
@@ -258,7 +280,10 @@ describe('Định tuyến và đăng nhập', () => {
 
   it('không phải admin vào /admin/templates/:code thì thấy 403, không có trình thiết kế', async () => {
     seedSession();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(errorResponse(403, '3102')));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(errorResponse(403, '3102'))),
+    );
     renderAt('/admin/templates/TMPL_URT');
     expect(await screen.findByText('Bạn không có quyền truy cập trang này')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Thêm section' })).not.toBeInTheDocument();
@@ -266,7 +291,10 @@ describe('Định tuyến và đăng nhập', () => {
 
   it('vào /admin/templates hiện danh sách mẫu phiếu thay vì trang "Sắp ra mắt"', async () => {
     seedSession();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse([])));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(okResponse([]))),
+    );
     renderAt('/admin/templates');
     expect(await screen.findByRole('button', { name: 'Thêm mẫu phiếu' })).toBeInTheDocument();
   });

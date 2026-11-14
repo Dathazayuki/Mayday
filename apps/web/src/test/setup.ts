@@ -1,5 +1,8 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
+
+// Khi chạy cả bộ test song song, lần render đầu của antd có thể mất hơn 1 giây mặc định của findBy*/waitFor.
+configure({ asyncUtilTimeout: 5000 });
 
 // Ant Design dùng matchMedia cho layout co giãn; jsdom không có sẵn.
 Object.defineProperty(window, 'matchMedia', {

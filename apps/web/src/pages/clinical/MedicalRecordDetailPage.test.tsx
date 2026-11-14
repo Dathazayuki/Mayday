@@ -132,6 +132,8 @@ function setup(status: string, overrides: Record<string, Handler> = {}) {
           );
         case 'GET /medical_records/patients/7/history':
           return Promise.resolve(okResponse(HISTORY));
+        case 'GET /lab-results/101':
+          return Promise.resolve(okResponse([]));
         case 'GET /uas7-scores/patient/7':
           return Promise.resolve(okResponse([]));
         case 'GET /medical_records/101/answers':
@@ -174,6 +176,13 @@ describe('MedicalRecordDetailPage', () => {
     setup('in_progress');
     expect(await screen.findByText('Điểm UAS7')).toBeInTheDocument();
     expect(await screen.findByText('Bệnh nhân chưa chấm điểm UAS7')).toBeInTheDocument();
+  });
+
+  it('hiện mục Đơn thuốc và Xét nghiệm với nút chỉ định khi đang khám', async () => {
+    setup('in_progress');
+    expect(await screen.findByRole('button', { name: 'Kê đơn' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chỉ định xét nghiệm' })).toBeInTheDocument();
+    expect(await screen.findByText('Chưa có chỉ định xét nghiệm')).toBeInTheDocument();
   });
 
   it('nút "Tiếp nhận" chỉ hiện khi pending và gọi POST /accept', async () => {
