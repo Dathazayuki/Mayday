@@ -1,0 +1,100 @@
+import { LIMIT_DEFAULT, PAGE_DEFAULT, type Flag, type TemplateSummary } from '@drmayday/shared';
+import { Button, Card, Select, Tag } from 'antd';
+import { useState } from 'react';
+import { useNavigate } from 'react-router';
+import { EntityTable } from '../../admin/EntityTable';
+import { QueryErrorAlert } from '../../admin/QueryErrorAlert';
+import { RowActions } from '../../admin/RowActions';
+import { useDeleteTemplate, useTemplates } from '../../admin/templates-api';
+import { useEntityModal } from '../../admin/use-entity-modal';
+import { useDeleteAction } from '../../admin/use-run-action';
+import { TemplateFormModal } from './templates/TemplateFormModal';
+import {
+  TEMPLATE_STATUS_OPTIONS,
+  toTemplateFormValues,
+  type TemplateFormValues,
+} from './templates/template-form';
+
+export function TemplatesPage() {
+  const navigate = useNavigate();
+  const [page, setPage] = useState(PAGE_DEFAULT);
+  const [limit, setLimit] = useState(LIMIT_DEFAULT);
+  const [statusFilter, setStatusFilter] = useState<Flag | undefined>();
+
+  const { data, error, isPending, isPlaceholderData } = useTemplates({
+    page,
+    limit,
+    is_active: statusFilter,
+  });
+  const remove = useDeleteTemplate();
+  const deleteRow = useDeleteAction('mẫu phiếu');
+  const modal = useEntityModal<TemplateFormValues, TemplateSummary>(toTemplateFormValues);
+
+  // Trang hiện tại không còn dòng nào (vừa xoá dòng cuối của trang cuối): lùi về trang cuối hợp lệ.
+  if (data && !isPlaceholderData && data.items.length === 0 && page > PAGE_DEFAULT) {
+    setPage(Math.max(PAGE_DEFAULT, Math.ceil(data.total / limit)));
+  }
+
+  return (
+    <Card title="Mẫu phiếu khám">
+      <QueryErrorAlert error={error} />
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <Select
+          allowClear
+          placeholder="Tất cả trạng thái"
+          aria-label="Lọc theo trạng thái"
+          style={{ minWidth: 200 }}
+          options={TEMPLATE_STATUS_OPTIONS}
+          value={statusFilter}
+          onChange={(value: Flag | undefined) => {
+            setStatusFilter(value);
+            setPage(PAGE_DEFAULT);
+          }}
+        />
+        <Button type="primary" onClick={modal.openCreate}>
+          Thêm mẫu phiếu
+        </Button>
+      </div>
+      <EntityTable<TemplateSummary>
+        rowKey="code_template"
+        data={data?.items}
+        loading={isPending || isPlaceholderData}
+        onRowClick={(row) => void navigate(`/admin/templates/${row.code_template}`)}
+        pagination={{
+          current: page,
+          pageSize: limit,
+          total: data?.total ?? 0,
+          showSizeChanger: true,
+          onChange: (nextPage, nextLimit) => {
+            setPage(nextPage);
+            setLimit(nextLimit);
+          },
+        }}
+        columns={[
+          { title: 'Mã', dataIndex: 'code_template' },
+          { title: 'Tên mẫu phiếu', dataIndex: 'name' },
+          { title: 'Phiên bản', dataIndex: 'version' },
+          {
+            title: 'Trạng thái',
+            dataIndex: 'is_active',
+            render: (active: Flag) =>
+              active === '1' ? <Tag color="green">Đang dùng</Tag> : <Tag>Ngừng dùng</Tag>,
+          },
+          {
+            title: 'Thao tác',
+            render: (_, row) => (
+              // Bấm nút không được mở trình thiết kế của dòng (sự kiện của Popconfirm cũng nổi bọt qua đây).
+              <span onClick={(event) => event.stopPropagation()}>
+                <RowActions
+                  onEdit={() => modal.openEdit(row)}
+                  onDelete={() => deleteRow(() => remove.mutateAsync(row.code_template))}
+                />
+              </span>
+            ),
+          },
+        ]}
+      />
+      <TemplateFormModal modal={modal} />
+    </Card>
+  );
+}

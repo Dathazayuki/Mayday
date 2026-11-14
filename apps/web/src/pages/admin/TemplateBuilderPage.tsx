@@ -1,0 +1,68 @@
+import type { TemplateSectionDetail } from '@drmayday/shared';
+import { Button, Card, Spin } from 'antd';
+import { useState } from 'react';
+import { Link, useParams } from 'react-router';
+import { QueryErrorAlert } from '../../admin/QueryErrorAlert';
+import { useDeleteQuestion, useDeleteSection, useTemplateDetail } from '../../admin/templates-api';
+import { useEntityModal } from '../../admin/use-entity-modal';
+import { useDeleteAction } from '../../admin/use-run-action';
+import { FormPreview } from './templates/FormPreview';
+import { nextOrder } from './templates/mapping';
+import { QuestionDrawer } from './templates/QuestionDrawer';
+import { useQuestionDrawerState } from './templates/question-drawer-state';
+import { SectionFormModal } from './templates/SectionFormModal';
+import { SectionList } from './templates/SectionList';
+import { toSectionFormValues, type SectionFormValues } from './templates/section-payload';
+
+/** Trình thiết kế mẫu phiếu (route /admin/templates/:code): section, câu hỏi dạng cây, xem trước. */
+export function TemplateBuilderPage() {
+  const { code = '' } = useParams();
+  const { data: template, error, isPending } = useTemplateDetail(code);
+  const [previewing, setPreviewing] = useState(false);
+
+  const removeSection = useDeleteSection();
+  const removeQuestion = useDeleteQuestion();
+  const deleteSection = useDeleteAction('section');
+  const deleteQuestion = useDeleteAction('câu hỏi');
+  const sections = template?.sections ?? [];
+  const sectionModal = useEntityModal<SectionFormValues, TemplateSectionDetail>((section) =>
+    toSectionFormValues(section, nextOrder(sections)),
+  );
+  const questionDrawer = useQuestionDrawerState();
+
+  if (isPending) return <Spin size="large" style={{ display: 'block', margin: '64px auto' }} />;
+
+  return (
+    <Card
+      title={template ? `${template.name} (${template.code_template})` : 'Thiết kế mẫu phiếu'}
+      extra={<Link to="/admin/templates">Quay lại danh sách</Link>}
+    >
+      <QueryErrorAlert error={error} />
+      {template && (
+        <>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+            <Button type="primary" onClick={sectionModal.openCreate}>
+              Thêm section
+            </Button>
+            <Button onClick={() => setPreviewing(true)}>Xem trước</Button>
+          </div>
+          <SectionList
+            sections={sections}
+            onEditSection={sectionModal.openEdit}
+            onDeleteSection={(section) =>
+              deleteSection(() => removeSection.mutateAsync(section.section_id))
+            }
+            onAddQuestion={questionDrawer.openCreate}
+            onEditQuestion={questionDrawer.openEdit}
+            onDeleteQuestion={(question) =>
+              deleteQuestion(() => removeQuestion.mutateAsync(question.question_id))
+            }
+          />
+          <SectionFormModal modal={sectionModal} templateCode={template.code_template} />
+          <QuestionDrawer drawer={questionDrawer} sections={sections} />
+          <FormPreview template={template} open={previewing} onClose={() => setPreviewing(false)} />
+        </>
+      )}
+    </Card>
+  );
+}

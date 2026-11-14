@@ -8,6 +8,7 @@ import { ComingSoonPage } from './pages/ComingSoonPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { TemplateBuilderPage } from './pages/admin/TemplateBuilderPage';
 
 function pageRoute(item: NavItem) {
   const Page = item.page;
@@ -34,6 +35,8 @@ export function AppRoutes() {
             {NAV_GROUPS.filter((group) => group.adminOnly).flatMap((group) =>
               group.items.map(pageRoute),
             )}
+            {/* Trình thiết kế của một mẫu phiếu: không nằm trong menu, vào từ danh sách mẫu phiếu. */}
+            <Route path="/admin/templates/:code" element={<TemplateBuilderPage />} />
           </Route>
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />

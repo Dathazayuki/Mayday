@@ -6,6 +6,7 @@ export function EntityTable<T extends object>({
   loading,
   columns,
   pagination = false,
+  onRowClick,
   rowKey = 'id' as keyof T & string,
 }: {
   data: T[] | undefined;
@@ -15,6 +16,8 @@ export function EntityTable<T extends object>({
   rowKey?: keyof T & string;
   /** Phân trang phía server do trang tự quản (current/pageSize/total/onChange). */
   pagination?: TableProps<T>['pagination'];
+  /** Bấm vào dòng; nút trong ô thao tác phải tự chặn nổi bọt sự kiện. */
+  onRowClick?: (row: T) => void;
 }) {
   return (
     <Table<T>
@@ -23,6 +26,11 @@ export function EntityTable<T extends object>({
       dataSource={data ?? []}
       pagination={pagination}
       columns={columns}
+      onRow={
+        onRowClick
+          ? (row) => ({ onClick: () => onRowClick(row), style: { cursor: 'pointer' } })
+          : undefined
+      }
     />
   );
 }

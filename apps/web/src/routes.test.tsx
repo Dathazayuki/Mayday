@@ -182,4 +182,35 @@ describe('Định tuyến và đăng nhập', () => {
     expect(screen.queryByText('Bạn không có quyền truy cập trang này')).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Chi nhánh' })).not.toBeInTheDocument();
   });
+
+  it('vào /admin/templates/:code hiện trình thiết kế mẫu phiếu cho admin', async () => {
+    seedSession();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          String(url).endsWith('/templates/TMPL_URT')
+            ? okResponse({ code_template: 'TMPL_URT', name: 'Phiếu hô hấp', sections: [] })
+            : okResponse([]),
+        ),
+      ),
+    );
+    renderAt('/admin/templates/TMPL_URT');
+    expect(await screen.findByRole('button', { name: 'Thêm section' })).toBeInTheDocument();
+  });
+
+  it('không phải admin vào /admin/templates/:code thì thấy 403, không có trình thiết kế', async () => {
+    seedSession();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(errorResponse(403, '3102')));
+    renderAt('/admin/templates/TMPL_URT');
+    expect(await screen.findByText('Bạn không có quyền truy cập trang này')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Thêm section' })).not.toBeInTheDocument();
+  });
+
+  it('vào /admin/templates hiện danh sách mẫu phiếu thay vì trang "Sắp ra mắt"', async () => {
+    seedSession();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse([])));
+    renderAt('/admin/templates');
+    expect(await screen.findByRole('button', { name: 'Thêm mẫu phiếu' })).toBeInTheDocument();
+  });
 });
