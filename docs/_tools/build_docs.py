@@ -382,7 +382,7 @@ def build_module(deck: int, by_gid: dict, assigned: dict, index: list) -> None:
         for gid in extras:
             out += [f'### {by_gid[gid][0]}', ''] + api_block(gid, by_gid, deck, None, rendered)
             index.append(dict(gid=gid, tab=by_gid[gid][0], name='', code='', deck=deck, slide=None, file=fname))
-    (API_DIR / f'{fname}.md').write_text('\n'.join(out), encoding='utf-8')
+    (API_DIR / f'{fname}.md').write_text('\n'.join(out), encoding='utf-8', newline='\n')
     print(f'02-api/{fname}.md')
 
 
@@ -422,7 +422,7 @@ def build_api_index(index: list) -> None:
     out += ['Tài liệu chi tiết từng phần:', '']
     out += [f'- [{f}]({f}.md)' for f in MODULES.values()]
     out += ['- [00-quy-uoc-va-ma-phan-hoi.md](00-quy-uoc-va-ma-phan-hoi.md)', '']
-    (API_DIR / 'README.md').write_text('\n'.join(out), encoding='utf-8')
+    (API_DIR / 'README.md').write_text('\n'.join(out), encoding='utf-8', newline='\n')
     print('02-api/README.md')
 
 
@@ -444,7 +444,7 @@ def build_response_codes(by_gid: dict) -> None:
     out += ['## Bảng mã gộp theo chuẩn cũ (bảng bên phải của tab)', '',
             'Ánh xạ các mã chi tiết vào bộ mã cũ (9992–9999, 1001–1010) theo vị trí bit.', '']
     out += md_table(right)
-    (API_DIR / '00-quy-uoc-va-ma-phan-hoi.md').write_text('\n'.join(out), encoding='utf-8')
+    (API_DIR / '00-quy-uoc-va-ma-phan-hoi.md').write_text('\n'.join(out), encoding='utf-8', newline='\n')
     print('02-api/00-quy-uoc-va-ma-phan-hoi.md')
 
 
@@ -465,7 +465,7 @@ def build_plan(by_gid: dict) -> None:
     for prefix, title in (('1. ', 'Phân phối API theo tuần'), ('2. ', 'API đã có trong đồ án cũ (datn_cuc_mai)')):
         ws = next(ws for name, ws in by_gid.values() if name.startswith(prefix))
         out += [f'## {title}', ''] + generic_sheet_table(ws)
-    (DOCS / '06-ke-hoach-tuan-va-api-cu.md').write_text('\n'.join(out), encoding='utf-8')
+    (DOCS / '06-ke-hoach-tuan-va-api-cu.md').write_text('\n'.join(out), encoding='utf-8', newline='\n')
     print('06-ke-hoach-tuan-va-api-cu.md')
 
 
@@ -484,7 +484,7 @@ def build_overview() -> None:
                     'Danh sách API đầy đủ: [02-api/README.md](02-api/README.md).', '']
             continue
         out += render_text_slide(1, sl, state)
-    (DOCS / '01-tong-quan-yeu-cau.md').write_text('\n'.join(out), encoding='utf-8')
+    (DOCS / '01-tong-quan-yeu-cau.md').write_text('\n'.join(out), encoding='utf-8', newline='\n')
     print('01-tong-quan-yeu-cau.md')
 
 
@@ -640,7 +640,7 @@ def build_word_docs() -> None:
         out = [f'# {title}', ''] + header([f'[Google Doc]({url})', f'bản chụp `docs/nguon/{src}`'],
                                           tracked_changes_summary(SRC / src))
         out += docx_to_md(SRC / src)
-        (DOCS / dest).write_text('\n'.join(out), encoding='utf-8')
+        (DOCS / dest).write_text('\n'.join(out), encoding='utf-8', newline='\n')
         print(dest)
 
 

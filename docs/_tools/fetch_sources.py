@@ -46,11 +46,11 @@ def main() -> None:
     SRC.mkdir(parents=True, exist_ok=True)
     download(f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=xlsx', SRC / 'api-sheet.xlsx')
     tabs = fetch_tab_names()
-    (SRC / 'api-sheet-tabs.json').write_text(json.dumps(tabs, ensure_ascii=False, indent=1), encoding='utf-8')
+    (SRC / 'api-sheet-tabs.json').write_text(json.dumps(tabs, ensure_ascii=False, indent=1), encoding='utf-8', newline='\n')
     print(f'api-sheet-tabs.json: {len(tabs)} tab')
     download(f'https://drive.google.com/uc?export=download&id={DB_DOC_ID}', SRC / 'co-so-du-lieu.docx')
     download(f'https://drive.google.com/uc?export=download&id={DICT_DOC_ID}', SRC / 'tu-dien-du-lieu-183-bien.docx')
-    (SRC / 'ngay-chup.txt').write_text(datetime.date.today().isoformat() + '\n', encoding='utf-8')
+    (SRC / 'ngay-chup.txt').write_text(datetime.date.today().isoformat() + '\n', encoding='utf-8', newline='\n')
 
 
 if __name__ == '__main__':
