@@ -1,7 +1,7 @@
 import { LogoutOutlined } from '@ant-design/icons';
 import { Button, Layout, Menu, Space, Typography, type MenuProps } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router';
-import { useAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/useAuth';
 import { NAV_GROUPS } from './menu';
 
 export function AppLayout() {

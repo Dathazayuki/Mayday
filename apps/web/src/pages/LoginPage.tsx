@@ -2,7 +2,7 @@ import { describeError, isValidVietnamPhone, type LoginRequest } from '@drmayday
 import { Alert, Button, Card, Form, Input, Typography } from 'antd';
 import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router';
-import { useAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/useAuth';
 
 export function LoginPage() {
   const { login, isAuthenticated } = useAuth();

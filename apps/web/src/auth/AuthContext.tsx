@@ -1,24 +1,8 @@
-import type { LoginRequest, LoginResponseData, LoginUserInfo } from '@drmayday/shared';
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+import type { LoginRequest, LoginResponseData } from '@drmayday/shared';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { apiClient, UNAUTHENTICATED_EVENT } from '../api';
 import { authStorage, type StoredSession } from './auth-storage';
-
-interface AuthContextValue {
-  user: LoginUserInfo | null;
-  isAuthenticated: boolean;
-  login: (input: LoginRequest) => Promise<void>;
-  logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
+import { AuthContext } from './useAuth';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<StoredSession | null>(() => authStorage.load());
@@ -47,10 +31,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth(): AuthContextValue {
-  const value = useContext(AuthContext);
-  if (!value) throw new Error('useAuth phải được dùng bên trong AuthProvider');
-  return value;
 }
