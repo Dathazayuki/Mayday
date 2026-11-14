@@ -13,20 +13,25 @@ export type DatabaseStatus = 'up' | 'down' | 'not_configured';
 @Injectable()
 export class PrismaService implements OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
-  readonly client: PrismaClient | null;
+  readonly client: PrismaClient | null = null;
+  private readonly configured: boolean;
 
   constructor(config: ConfigService<Env, true>) {
     const url = config.get('DATABASE_URL', { infer: true });
-    if (url) {
-      this.client = new PrismaClient({ adapter: new PrismaMariaDb(url) });
-    } else {
-      this.client = null;
+    this.configured = Boolean(url);
+    if (!url) {
       this.logger.warn('Chưa cấu hình DATABASE_URL — API chạy không có CSDL.');
+      return;
+    }
+    try {
+      this.client = new PrismaClient({ adapter: new PrismaMariaDb(url) });
+    } catch (error) {
+      this.logger.warn(`DATABASE_URL không hợp lệ: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   async status(): Promise<DatabaseStatus> {
-    if (!this.client) return 'not_configured';
+    if (!this.client) return this.configured ? 'down' : 'not_configured';
     try {
       await this.client.$queryRaw`SELECT 1`;
       return 'up';

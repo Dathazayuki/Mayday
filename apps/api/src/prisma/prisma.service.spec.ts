@@ -22,4 +22,10 @@ describe('PrismaService', () => {
     await expect(service.status()).resolves.toBe('down');
     await service.onModuleDestroy();
   });
+
+  it('không làm sập ứng dụng khi DATABASE_URL sai định dạng → down', async () => {
+    const service = new PrismaService(configWith({ DATABASE_URL: 'day-khong-phai-url' }));
+    await expect(service.status()).resolves.toBe('down');
+    await service.onModuleDestroy();
+  });
 });
