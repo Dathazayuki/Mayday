@@ -1,4 +1,11 @@
-import type { LoginRequest, LoginResponseData, LoginUserInfo } from '@drmayday/shared';
+import type {
+  ChangePasswordRequest,
+  LoginRequest,
+  LoginResponseData,
+  LoginUserInfo,
+  SignupRequest,
+  SignupResponseData,
+} from '@drmayday/shared';
 import {
   createContext,
   useCallback,
@@ -17,7 +24,14 @@ interface AuthContextValue {
   status: AuthStatus;
   user: LoginUserInfo | null;
   login: (input: LoginRequest) => Promise<void>;
+  /** Đăng ký tài khoản bệnh nhân, không tự đăng nhập. */
+  signup: (input: SignupRequest) => Promise<SignupResponseData>;
+  /** Gọi API đăng xuất khi còn token, rồi xoá phiên dù API thành công hay lỗi. */
   logout: () => Promise<void>;
+  /** Server đã thu hồi token sau khi đổi mật khẩu nên chỉ cần xoá phiên trên máy. */
+  changePassword: (input: ChangePasswordRequest) => Promise<void>;
+  /** Cập nhật thông tin hiển thị của người dùng trong phiên (VD: sau khi sửa họ tên). */
+  updateUser: (patch: Partial<LoginUserInfo>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -45,14 +59,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Giai đoạn 0 chỉ xoá phiên trên máy; giai đoạn 1 gọi thêm POST /auth/logout.
-  const logout = useCallback(async () => {
+  // Chỉ xoá phiên trên máy, không gọi API (tránh vòng lặp khi API trả 3001 cho chính lệnh logout).
+  const endSession = useCallback(async () => {
     await clearSession();
     setUser(null);
     setStatus('signed-out');
   }, []);
 
-  useEffect(() => subscribeUnauthenticated(() => void logout()), [logout]);
+  useEffect(() => subscribeUnauthenticated(() => void endSession()), [endSession]);
 
   const login = useCallback(async (input: LoginRequest) => {
     const data = await apiClient.post<LoginResponseData>('/auth/login', input);
@@ -61,7 +75,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('signed-in');
   }, []);
 
-  const value = useMemo(() => ({ status, user, login, logout }), [status, user, login, logout]);
+  const signup = useCallback(
+    (input: SignupRequest) => apiClient.post<SignupResponseData>('/auth/signup', input),
+    [],
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      await apiClient.post('/auth/logout');
+    } catch {
+      // Lỗi mạng hay token hết hạn vẫn phải đăng xuất trên máy.
+    }
+    await endSession();
+  }, [endSession]);
+
+  const changePassword = useCallback(
+    async (input: ChangePasswordRequest) => {
+      await apiClient.put('/auth/change-password', input);
+      await endSession();
+    },
+    [endSession],
+  );
+
+  const updateUser = useCallback(async (patch: Partial<LoginUserInfo>) => {
+    const session = await loadSession();
+    if (!session) return;
+    const nextUser = { ...session.user, ...patch };
+    await saveSession({ token: session.token, user: nextUser });
+    setUser(nextUser);
+  }, []);
+
+  const value = useMemo(
+    () => ({ status, user, login, signup, logout, changePassword, updateUser }),
+    [status, user, login, signup, logout, changePassword, updateUser],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

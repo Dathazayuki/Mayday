@@ -1,6 +1,8 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { router } from 'expo-router';
+import { StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/auth/auth-context';
+import { PrimaryButton } from '@/components/primary-button';
 
 export default function HomeScreen() {
   const { user, logout } = useAuth();
@@ -10,9 +12,17 @@ export default function HomeScreen() {
       <Text style={styles.subtitle}>
         Tự ghi nhận tình trạng tổn thương da, chấm điểm UAS7 hằng ngày và theo dõi bệnh án của bạn.
       </Text>
-      <Pressable style={styles.button} onPress={() => void logout()} accessibilityRole="button">
-        <Text style={styles.buttonText}>Đăng xuất</Text>
-      </Pressable>
+      <PrimaryButton
+        title="Hồ sơ cá nhân"
+        variant="secondary"
+        onPress={() => router.push('/profile')}
+      />
+      <PrimaryButton
+        title="Đổi mật khẩu"
+        variant="secondary"
+        onPress={() => router.push('/change-password')}
+      />
+      <PrimaryButton title="Đăng xuất" variant="danger" onPress={() => void logout()} />
     </SafeAreaView>
   );
 }
@@ -21,13 +31,4 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 24, gap: 16, backgroundColor: '#fff' },
   title: { fontSize: 26, fontWeight: '700' },
   subtitle: { fontSize: 17, color: '#595959', lineHeight: 24 },
-  button: {
-    minHeight: 56,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d9d9d9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonText: { fontSize: 18, fontWeight: '600', color: '#cf1322' },
 });
