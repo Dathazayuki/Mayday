@@ -18,6 +18,7 @@ const FORMAT_CONSTRAINTS: Record<string, Code> = {
   isEmail: '2005',
   isDateString: '2006',
   isIso8601: '2006',
+  isIsoDate: '2006',
 };
 
 function firstLeaf(

@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
-import { Injectable, Logger } from '@nestjs/common';
+import { createHash, randomInt, randomUUID } from 'node:crypto';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type {
   CreateStaffResponseData,
@@ -18,15 +18,34 @@ import {
   type StaffAssignment,
 } from '../users/user-mapping.js';
 import { UsersRepository } from '../users/users.repository.js';
+import type { ChangePasswordDto } from './dto/change-password.dto.js';
 import type { CreateStaffDto } from './dto/create-staff.dto.js';
+import type { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { SignupDto } from './dto/signup.dto.js';
-import type { JwtPayload } from './jwt-payload.js';
+import type { JwtPayload, VerifiedJwt } from './jwt-payload.js';
+import { OTP_SENDER, type OtpSender } from './otp-sender.js';
 import { PasswordService } from './password.service.js';
 import { TokenBlacklistRepository } from './token-blacklist.repository.js';
 
 /** Vai trò của tài khoản tự đăng ký; create-staff không được tạo tài khoản vai trò này. */
 const PATIENT_ROLE: RoleName = 'patient';
+
+/** OTP khôi phục mật khẩu: 6 chữ số, hết hạn sau 10 phút (bảng mã 3005 "Sau 10 phút"). */
+const OTP_DIGITS = 6;
+const OTP_TTL_MS = 10 * 60 * 1000;
+
+/** OTP ngẫu nhiên an toàn (crypto), đệm 0 ở đầu cho đủ OTP_DIGITS chữ số. */
+function generateOtp(): string {
+  return randomInt(0, 10 ** OTP_DIGITS)
+    .toString()
+    .padStart(OTP_DIGITS, '0');
+}
+
+/** `users.reset_token` chỉ lưu SHA-256 (hex) của OTP, không lưu OTP gốc. */
+function hashOtp(otp: string): string {
+  return createHash('sha256').update(otp).digest('hex');
+}
 
 @Injectable()
 export class AuthService {
@@ -39,6 +58,7 @@ export class AuthService {
     private readonly passwords: PasswordService,
     private readonly blacklist: TokenBlacklistRepository,
     private readonly jwt: JwtService,
+    @Inject(OTP_SENDER) private readonly otpSender: OtpSender,
   ) {}
 
   /** Tạo tài khoản bệnh nhân (users + patients). Trùng số điện thoại → 3006. */
@@ -114,6 +134,41 @@ export class AuthService {
     const userId = Number(payload.sub);
     await this.users.deleteFcmTokens(userId);
     await this.blacklist.add({ jti: payload.jti, userId, expiresAt: new Date(payload.exp * 1000) });
+  }
+
+  /**
+   * Cấp OTP khôi phục mật khẩu (reset-password chờ MT-16). Không có số điện thoại → 3007. Lưu mã
+   * băm trước rồi mới gửi, để OTP đã tới tay người dùng luôn có bản ghi để đối chiếu.
+   */
+  async forgotPassword(dto: ForgotPasswordDto): Promise<void> {
+    const user = await this.users.findByPhone(dto.phone);
+    if (!user) throw new AppException('3007');
+
+    const otp = generateOtp();
+    await this.users.setResetToken(user.user_id, hashOtp(otp), new Date(Date.now() + OTP_TTL_MS));
+    await this.otpSender.send(dto.phone, otp);
+  }
+
+  /**
+   * Kiểm tra theo thứ tự: confirm_password khớp new_password (2003) → người dùng tồn tại (3007) →
+   * mật khẩu cũ (3009). Thành công thì thu hồi token hiện tại rồi mới ghi mật khẩu mới: nếu ghi lỗi,
+   * người dùng chỉ phải đăng nhập lại bằng mật khẩu cũ. Làm ngược lại, lỗi khi thu hồi sẽ để mật
+   * khẩu đã đổi trong khi client báo thất bại.
+   */
+  async changePassword(jwt: VerifiedJwt, dto: ChangePasswordDto): Promise<void> {
+    if (dto.confirm_password !== dto.new_password) {
+      throw new AppException('2003', { field: 'confirm_password' });
+    }
+    const userId = Number(jwt.sub);
+    const user = await this.users.findById(userId);
+    if (!user) throw new AppException('3007');
+    if (!(await this.passwords.verify(dto.old_password, user.password_hash))) {
+      throw new AppException('3009');
+    }
+
+    const passwordHash = await this.passwords.hash(dto.new_password);
+    await this.blacklist.add({ jti: jwt.jti, userId, expiresAt: new Date(jwt.exp * 1000) });
+    await this.users.updatePasswordHash(userId, passwordHash);
   }
 
   /** Dữ liệu trong CSDL không nhất quán: ghi log để xử lý, client nhận 9901. */

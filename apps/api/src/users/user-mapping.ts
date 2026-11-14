@@ -5,8 +5,11 @@ import type {
   LoginUserInfo,
   PatientEditableField,
   PatientProfileFields,
+  ProfileBase,
+  ProfileData,
   SignupResponseData,
 } from '@drmayday/shared';
+import { isBlank } from '../common/is-optional-or-blank.decorator.js';
 import type {
   Prisma,
   patients,
@@ -48,7 +51,10 @@ export interface StaffAssignment {
 
 export interface NewStaff extends NewUser, StaffAssignment {}
 
-/** Giá trị hồ sơ ghi vào CSDL (PUT profile), theo tên trường của Sheet; null = xoá giá trị. */
+/**
+ * Giá trị hồ sơ ghi vào CSDL (PUT profile), theo tên trường của Sheet; null hoặc chuỗi trống = xoá
+ * giá trị. Chuỗi trống có thể tới ở mọi trường trừ full_name (UpdateProfileDto cho qua).
+ */
 export type ProfileWrite = { full_name: string; gender: Gender | null } & {
   [K in PatientEditableField]: PatientProfileFields[K];
 };
@@ -133,10 +139,16 @@ function dateFromIso(isoDay: string): Date {
   return new Date(`${isoDay}T00:00:00.000Z`);
 }
 
-/** undefined = không đổi, null = xoá; giá trị khác đổi bằng `convert`. */
-function change<T, R>(value: T, convert: (value: NonNullable<T>) => R) {
-  if (value === undefined || value === null) return value as Extract<T, null | undefined>;
+/** undefined = không đổi; null hoặc chuỗi trống (sau trim) = xoá; giá trị khác đổi bằng `convert`. */
+function change<T, R>(value: T | null | undefined, convert: (value: T) => R): R | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || isBlank(value)) return null;
   return convert(value);
+}
+
+/** Cột chữ tự do: bỏ khoảng trắng hai đầu. */
+function trimText(text: string): string {
+  return text.trim();
 }
 
 // ---- Ghi ----
@@ -151,27 +163,30 @@ export function newUserToDb({ fullName, phone, passwordHash, gender }: NewUser) 
   } satisfies Prisma.usersCreateInput;
 }
 
-/** `currentBirthDate`: `patients.ngay_sinh` đang lưu, cho quy tắc năm sinh (MT-13). */
+/**
+ * `currentBirthDate`: `patients.ngay_sinh` đang lưu, cho quy tắc năm sinh (MT-13). full_name không
+ * xoá được: ProfileService đã chặn giá trị trống (2003).
+ */
 export function profileUpdateToDb(
   changes: Partial<ProfileWrite>,
   currentBirthDate: Date | null,
 ): ProfileColumns {
   const user = {
-    ho_ten: change(changes.full_name, normalizeFullName),
+    ho_ten: changes.full_name === undefined ? undefined : normalizeFullName(changes.full_name),
     gioi_tinh: change(changes.gender, genderToDb),
   };
   const patient = {
     ngay_sinh: change(changes.year_of_birth, (year) => dateForYear(year, currentBirthDate)),
     nghe_nghiep: change(changes.career, careerToDb),
-    dan_toc: changes.ethnic,
-    dia_chi_so_nha_thon_pho: changes.hamlet_address,
-    dia_chi_xa_phuong: changes.commune_address,
-    dia_chi_tinh_tp: changes.city_address,
-    noi_lam_viec: changes.work_place,
-    bhyt_so_the: changes.health_insurance_number,
+    dan_toc: change(changes.ethnic, trimText),
+    dia_chi_so_nha_thon_pho: change(changes.hamlet_address, trimText),
+    dia_chi_xa_phuong: change(changes.commune_address, trimText),
+    dia_chi_tinh_tp: change(changes.city_address, trimText),
+    noi_lam_viec: change(changes.work_place, trimText),
+    bhyt_so_the: change(changes.health_insurance_number, trimText),
     bhyt_gia_tri_den: change(changes.health_insurance_validate, dateFromIso),
-    nguoi_nha_ho_ten_dia_chi: changes.next_of_kin_name,
-    nguoi_nha_so_dien_thoai: changes.next_of_kin_phone,
+    nguoi_nha_ho_ten_dia_chi: change(changes.next_of_kin_name, trimText),
+    nguoi_nha_so_dien_thoai: change(changes.next_of_kin_phone, trimText),
   };
   const hasPatientChanges = Object.values(patient).some((value) => value !== undefined);
   return hasPatientChanges ? { user, patient } : { user };
@@ -182,6 +197,11 @@ export function profileUpdateToDb(
 /** role_id nằm ở bảng subtype `staffs` hoặc `patients` (MT-62); không có cả hai → null. */
 export function roleIdOf(record: UserRecord): number | null {
   return record.staffs?.role_id ?? record.patients?.role_id ?? null;
+}
+
+/** Bệnh nhân có bản ghi `patients`; nhân viên chỉ có `staffs`. */
+export function isPatient(record: UserRecord): boolean {
+  return record.patients !== null;
 }
 
 /** data của signup (1001): ID và is_active kiểu int (MT-06). */
@@ -222,5 +242,36 @@ export function toLoginUserInfo(record: UserRecord, roleId: number): LoginUserIn
     full_name: record.ho_ten,
     phone: record.so_dien_thoai,
     role_id: String(roleId),
+  };
+}
+
+/**
+ * data của GET/PUT profile: ID kiểu int (MT-06). Bệnh nhân có đủ trường của tab Sheet (chưa có giá
+ * trị → null); nhân viên chỉ có 5 trường chung vì tab ghi "dưới đây là của bệnh nhân".
+ */
+export function toProfileData(record: UserRecord, roleId: number): ProfileData {
+  const base: ProfileBase = {
+    user_id: record.user_id,
+    full_name: record.ho_ten,
+    phone: record.so_dien_thoai,
+    role_id: roleId,
+    gender: genderFromDb(record.gioi_tinh),
+  };
+  const patient = record.patients;
+  if (!patient) return base;
+  return {
+    ...base,
+    year_of_birth: yearFromDate(patient.ngay_sinh),
+    career: careerFromDb(patient.nghe_nghiep),
+    ethnic: patient.dan_toc,
+    hamlet_address: patient.dia_chi_so_nha_thon_pho,
+    commune_address: patient.dia_chi_xa_phuong,
+    city_address: patient.dia_chi_tinh_tp,
+    work_place: patient.noi_lam_viec,
+    health_insurance_number: patient.bhyt_so_the,
+    health_insurance_validate: isoDate(patient.bhyt_gia_tri_den),
+    next_of_kin_name: patient.nguoi_nha_ho_ten_dia_chi,
+    next_of_kin_phone: patient.nguoi_nha_so_dien_thoai,
+    first_visit: isoDateTime(patient.thoi_diem_kham_lan_dau),
   };
 }

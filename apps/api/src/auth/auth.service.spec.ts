@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto';
 import { Logger } from '@nestjs/common';
 import type { JwtService } from '@nestjs/jwt';
-import type { CreateStaffRequest, SignupRequest } from '@drmayday/shared';
+import type { ChangePasswordRequest, CreateStaffRequest, SignupRequest } from '@drmayday/shared';
 import type { FacilitiesRepository } from '../facilities/facilities.repository.js';
 import { FacilitiesService } from '../facilities/facilities.service.js';
 import type { patients, roles, staffs } from '../generated/prisma/client.js';
@@ -9,10 +10,13 @@ import { newUserToDb } from '../users/user-mapping.js';
 import { userRecord } from '../users/user-record.fixture.js';
 import type { UsersRepository } from '../users/users.repository.js';
 import { AuthService } from './auth.service.js';
+import type { VerifiedJwt } from './jwt-payload.js';
+import type { OtpSender } from './otp-sender.js';
 import type { PasswordService } from './password.service.js';
 import type { TokenBlacklistRepository } from './token-blacklist.repository.js';
 
 const PATIENT_ROLE_ID = 2;
+const TEN_MINUTES_MS = 10 * 60 * 1000;
 const DOCTOR_ROLE_ID = 6;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -71,6 +75,9 @@ function setup() {
         }),
     ),
     deleteFcmTokens: vi.fn<UsersRepository['deleteFcmTokens']>().mockResolvedValue(undefined),
+    findById: vi.fn<UsersRepository['findById']>().mockResolvedValue(userRecord()),
+    setResetToken: vi.fn<UsersRepository['setResetToken']>().mockResolvedValue(undefined),
+    updatePasswordHash: vi.fn<UsersRepository['updatePasswordHash']>().mockResolvedValue(undefined),
   };
   const roleRepo = {
     findByName: vi
@@ -95,6 +102,7 @@ function setup() {
   const jwt = {
     signAsync: vi.fn<(payload: object) => Promise<string>>().mockResolvedValue('signed-token'),
   };
+  const otpSender = { send: vi.fn<OtpSender['send']>().mockResolvedValue(undefined) };
   const service = new AuthService(
     users as unknown as UsersRepository,
     roleRepo as unknown as RolesRepository,
@@ -102,11 +110,14 @@ function setup() {
     passwords as unknown as PasswordService,
     blacklist as unknown as TokenBlacklistRepository,
     jwt as unknown as JwtService,
+    otpSender,
   );
   // Lỗi 9901 được ghi log; chặn log để output test gọn và kiểm tra nội dung.
   const logError = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-  return { service, users, roleRepo, facilityRepo, blacklist, jwt, logError };
+  return { service, users, roleRepo, facilityRepo, passwords, blacklist, jwt, otpSender, logError };
 }
+
+const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 
 describe('AuthService', () => {
   afterEach(() => {
@@ -324,6 +335,101 @@ describe('AuthService', () => {
         service.logout({ sub: '7', role_id: '2', jti: 'jti-1', exp: 1_800_000_000 }),
       ).rejects.toThrow('mất kết nối');
       expect(blacklist.add).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('forgotPassword', () => {
+    const dto = { phone: '0912345678' };
+
+    it('số điện thoại chưa đăng ký → 3007, không lưu token, không gửi OTP', async () => {
+      const { service, users, otpSender } = setup();
+      users.findByPhone.mockResolvedValue(null);
+      await expect(service.forgotPassword(dto)).rejects.toMatchObject({ code: '3007' });
+      expect(users.setResetToken).not.toHaveBeenCalled();
+      expect(otpSender.send).not.toHaveBeenCalled();
+    });
+
+    it('gửi OTP 6 chữ số đúng 1 lần; lưu SHA-256 của OTP đó, hết hạn sau 10 phút', async () => {
+      const { service, users, otpSender } = setup();
+      users.findByPhone.mockResolvedValue(userRecord());
+      const before = Date.now();
+      await service.forgotPassword(dto);
+      const after = Date.now();
+
+      expect(otpSender.send).toHaveBeenCalledOnce();
+      const [phone, otp] = otpSender.send.mock.calls[0]!;
+      expect(phone).toBe('0912345678');
+      expect(otp).toMatch(/^\d{6}$/);
+
+      expect(users.setResetToken).toHaveBeenCalledOnce();
+      const [userId, tokenHash, expiresAt] = users.setResetToken.mock.calls[0]!;
+      expect(userId).toBe(7);
+      expect(tokenHash).toBe(sha256(otp));
+      expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + TEN_MINUTES_MS);
+      expect(expiresAt.getTime()).toBeLessThanOrEqual(after + TEN_MINUTES_MS);
+    });
+
+    it('lưu token trước rồi mới gửi OTP (OTP đã gửi luôn kiểm tra được)', async () => {
+      const { service, users, otpSender } = setup();
+      users.findByPhone.mockResolvedValue(userRecord());
+      await service.forgotPassword(dto);
+      const [saveOrder] = users.setResetToken.mock.invocationCallOrder;
+      const [sendOrder] = otpSender.send.mock.invocationCallOrder;
+      expect(saveOrder).toBeLessThan(sendOrder!);
+    });
+  });
+
+  describe('changePassword', () => {
+    const jwt: VerifiedJwt = { sub: '7', role_id: '2', jti: 'jti-1', exp: 1_800_000_000, iat: 0 };
+    const dto: ChangePasswordRequest = {
+      old_password: 'matkhau',
+      new_password: 'matkhau-moi',
+      confirm_password: 'matkhau-moi',
+    };
+
+    it('confirm_password khác new_password → 2003, kiểm tra trước cả mật khẩu cũ', async () => {
+      const { service, users, passwords } = setup();
+      await expect(
+        service.changePassword(jwt, { ...dto, old_password: 'sai', confirm_password: 'khac' }),
+      ).rejects.toMatchObject({ code: '2003', data: { field: 'confirm_password' } });
+      expect(users.findById).not.toHaveBeenCalled();
+      expect(passwords.verify).not.toHaveBeenCalled();
+      expect(users.updatePasswordHash).not.toHaveBeenCalled();
+    });
+
+    it('người dùng không còn tồn tại → 3007', async () => {
+      const { service, users } = setup();
+      users.findById.mockResolvedValue(null);
+      await expect(service.changePassword(jwt, dto)).rejects.toMatchObject({ code: '3007' });
+      expect(users.updatePasswordHash).not.toHaveBeenCalled();
+    });
+
+    it('sai mật khẩu cũ → 3009, không đổi mật khẩu, không thu hồi token', async () => {
+      const { service, users, blacklist } = setup();
+      await expect(
+        service.changePassword(jwt, { ...dto, old_password: 'sai-mat-khau' }),
+      ).rejects.toMatchObject({ code: '3009' });
+      expect(users.updatePasswordHash).not.toHaveBeenCalled();
+      expect(blacklist.add).not.toHaveBeenCalled();
+    });
+
+    it('thành công: lưu hash của mật khẩu mới và thu hồi token hiện tại tới lúc hết hạn', async () => {
+      const { service, users, blacklist } = setup();
+      await service.changePassword(jwt, dto);
+      expect(users.findById).toHaveBeenCalledWith(7);
+      expect(users.updatePasswordHash).toHaveBeenCalledWith(7, 'hash-cua-matkhau-moi');
+      expect(blacklist.add).toHaveBeenCalledWith({
+        jti: 'jti-1',
+        userId: 7,
+        expiresAt: new Date(1_800_000_000_000),
+      });
+    });
+
+    it('thu hồi token lỗi → không đổi mật khẩu (client đăng nhập lại bằng mật khẩu cũ được)', async () => {
+      const { service, users, blacklist } = setup();
+      blacklist.add.mockRejectedValue(new Error('mất kết nối'));
+      await expect(service.changePassword(jwt, dto)).rejects.toThrow('mất kết nối');
+      expect(users.updatePasswordHash).not.toHaveBeenCalled();
     });
   });
 });
