@@ -1,5 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEmail, IsInt, IsOptional, IsString, validate } from 'class-validator';
+import { IsEmail, IsISO8601, IsInt, IsOptional, IsString, validate } from 'class-validator';
 import { AppException } from './app.exception.js';
 import { IsVietnamPhone } from './is-vietnam-phone.decorator.js';
 import { codeForValidationError, validationErrorsToException } from './validation.js';
@@ -18,6 +18,10 @@ class SampleDto {
   @IsOptional()
   @IsInt()
   age?: number;
+
+  @IsOptional()
+  @IsISO8601()
+  visitDate?: string;
 }
 
 async function firstCode(input: Record<string, unknown>) {
@@ -44,6 +48,10 @@ describe('đổi lỗi validation sang mã phản hồi', () => {
 
   it('sai định dạng email → 2005', async () => {
     expect(await firstCode({ name: 'An', phone: '0912345678', email: 'khong-phai-email' })).toBe('2005');
+  });
+
+  it('sai định dạng ngày → 2006', async () => {
+    expect(await firstCode({ name: 'An', phone: '0912345678', visitDate: '15/11/2026' })).toBe('2006');
   });
 
   it('validationErrorsToException trả AppException kèm tên trường', async () => {
