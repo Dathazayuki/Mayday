@@ -1,5 +1,5 @@
 import { LAB_REQUEST_STATUS_LABELS, type LabResultRequestData } from '@drmayday/shared';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Banner } from '@/components/banner';
 import { PrimaryButton } from '@/components/primary-button';
 import { formatDisplayDateTime } from '@/lib/local-date';
@@ -16,6 +16,7 @@ export function LabResultsSection({ requests, error, onRetry }: LabResultsSectio
   return (
     <View style={styles.section}>
       <Text style={styles.title}>Kết quả xét nghiệm</Text>
+      {!requests && !error && <ActivityIndicator size="large" />}
       {error && (
         <>
           <Banner tone="error" message={error} />

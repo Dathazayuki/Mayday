@@ -8,7 +8,7 @@ import {
   type TemplateDetailData,
 } from '@drmayday/shared';
 import { useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { AuthGate } from '@/components/auth-gate';
 import { Banner } from '@/components/banner';
@@ -18,6 +18,7 @@ import { FormScreen } from '@/components/form-screen';
 import { PrimaryButton } from '@/components/primary-button';
 import { RecordStatusBadge } from '@/components/record-status-badge';
 import { fetchLabResults } from '@/lib/labs-api';
+import { formatDisplayDateTime } from '@/lib/local-date';
 import {
   cancelMedicalRecord,
   fetchAnswers,
@@ -43,10 +44,6 @@ async function loadDetail(id: string): Promise<RecordDetail> {
   return { record, template, state: answersToState(questions, answers) };
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('vi-VN');
-}
-
 function RecordDetailView({ id }: { id: string }) {
   const [detail, setDetail] = useState<RecordDetail | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -55,28 +52,31 @@ function RecordDetailView({ id }: { id: string }) {
   const [labError, setLabError] = useState<string | null>(null);
 
   // Kết quả xét nghiệm tải riêng: lỗi ở đây chỉ hiện trong mục của nó.
+  const latestLabRequest = useRef(0);
   const loadLabResults = useCallback(async () => {
+    const requestId = ++latestLabRequest.current;
     setLabError(null);
     try {
-      setLabResults(await fetchLabResults(id));
+      const results = await fetchLabResults(id);
+      if (requestId === latestLabRequest.current) setLabResults(results);
     } catch (error) {
-      setLabError(describeError(error));
+      if (requestId === latestLabRequest.current) setLabError(describeError(error));
     }
   }, [id]);
 
   const load = useCallback(async () => {
     setFormError(null);
-    void loadLabResults();
     try {
       setDetail(await loadDetail(id));
     } catch (error) {
       setFormError(describeError(error));
     }
-  }, [id, loadLabResults]);
+  }, [id]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadLabResults();
+  }, [load, loadLabResults]);
 
   if (!detail) {
     return (
@@ -120,7 +120,7 @@ function RecordDetailView({ id }: { id: string }) {
       {formError && <Banner tone="error" message={formError} />}
       <View style={styles.header}>
         <RecordStatusBadge status={record.status} />
-        <Text style={styles.date}>Tạo lúc {formatDate(record.created_at)}</Text>
+        <Text style={styles.date}>Tạo lúc {formatDisplayDateTime(record.created_at)}</Text>
       </View>
       {record.instructions ? (
         <View style={styles.instructions}>

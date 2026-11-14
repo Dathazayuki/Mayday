@@ -28,7 +28,12 @@ export function NotificationItem({ notification, onPress, onDelete }: Notificati
           {formatDisplayDateTime(notification.created_at)}
         </Text>
       </Pressable>
-      <Pressable style={styles.delete} accessibilityRole="button" onPress={onDelete}>
+      <Pressable
+        style={styles.delete}
+        accessibilityRole="button"
+        accessibilityLabel={`Xoá thông báo: ${notification.title}`}
+        onPress={onDelete}
+      >
         <Text style={styles.deleteText}>Xoá</Text>
       </Pressable>
     </View>

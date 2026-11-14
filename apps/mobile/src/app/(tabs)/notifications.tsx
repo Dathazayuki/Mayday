@@ -17,27 +17,38 @@ function NotificationsList() {
   const router = useRouter();
   const [items, setItems] = useState<NotificationData[] | null>(null);
   const [total, setTotal] = useState(0);
+  // Lỗi tải/làm mới danh sách; lỗi tải thêm và lỗi thao tác tách riêng để không che danh sách.
   const [error, setError] = useState<string | null>(null);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
   // Chỉ nhận kết quả của lần tải mới nhất, tránh phản hồi cũ về muộn ghi đè.
   const latestRequest = useRef(0);
   const nextPage = useRef(1);
+  // Đang có lần làm mới chờ phản hồi: không cho tải thêm để trang 1 không bị bỏ.
+  const resetting = useRef(false);
 
   /** reset=true tải lại từ trang đầu; ngược lại nối thêm trang kế tiếp. */
   const load = useCallback(async (reset: boolean) => {
     const requestId = ++latestRequest.current;
     const page = reset ? 1 : nextPage.current;
+    resetting.current = reset;
     setError(null);
+    setMoreError(null);
     try {
       const result = await fetchNotifications(page, LIMIT_DEFAULT);
       if (requestId !== latestRequest.current) return;
+      resetting.current = false;
       nextPage.current = page + 1;
       setTotal(result.total);
       setItems((current) => (reset || !current ? result.items : [...current, ...result.items]));
     } catch (e) {
-      if (requestId === latestRequest.current) setError(describeError(e));
+      if (requestId !== latestRequest.current) return;
+      resetting.current = false;
+      if (reset) setError(describeError(e));
+      else setMoreError(describeError(e));
     }
   }, []);
 
@@ -58,7 +69,7 @@ function NotificationsList() {
   }
 
   async function handleEndReached() {
-    if (!items || items.length >= total || loadingMore || refreshing) return;
+    if (!items || items.length >= total || loadingMore || resetting.current) return;
     setLoadingMore(true);
     try {
       await load(false);
@@ -77,16 +88,18 @@ function NotificationsList() {
   async function handlePress(notification: NotificationData) {
     // reference_id của đơn thuốc/xét nghiệm là id của chính chúng, không phải bệnh án,
     // nên chỉ thông báo loại medical_record mới mở được màn bệnh án.
+    const unread = isUnread(notification);
+    if (unread) setRead(notification.id, '1');
     if (notification.type === 'medical_record' && notification.reference_id) {
       router.push({ pathname: '/records/[id]', params: { id: notification.reference_id } });
     }
-    if (!isUnread(notification)) return;
-    setRead(notification.id, '1');
+    if (!unread) return;
+    setActionError(null);
     try {
       await markNotificationRead(notification.id);
     } catch (e) {
       setRead(notification.id, '0');
-      setError(describeError(e));
+      setActionError(describeError(e));
     }
   }
 
@@ -98,13 +111,14 @@ function NotificationsList() {
   }
 
   async function handleDelete(id: string) {
-    setError(null);
+    setActionError(null);
     try {
       await deleteNotification(id);
       setItems((current) => current?.filter((item) => item.id !== id) ?? null);
-      setTotal((current) => Math.max(0, current - 1));
+      // Các phần tử phía sau dồn lên nên trang kế tiếp đã lệch: tải lại từ trang đầu cho đúng.
+      void load(true);
     } catch (e) {
-      setError(describeError(e));
+      setActionError(describeError(e));
     }
   }
 
@@ -112,6 +126,7 @@ function NotificationsList() {
     <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Thông báo</Text>
       {error && <Banner tone="error" message={error} />}
+      {actionError && <Banner tone="error" message={actionError} />}
       {!items ? (
         error ? (
           <PrimaryButton title="Thử lại" variant="secondary" onPress={() => void load(true)} />
@@ -128,7 +143,20 @@ function NotificationsList() {
           onEndReachedThreshold={0.5}
           contentContainerStyle={styles.list}
           ListEmptyComponent={<Text style={styles.empty}>Bạn chưa có thông báo nào</Text>}
-          ListFooterComponent={loadingMore ? <ActivityIndicator size="large" /> : undefined}
+          ListFooterComponent={
+            moreError ? (
+              <>
+                <Banner tone="error" message={moreError} />
+                <PrimaryButton
+                  title="Thử lại"
+                  variant="secondary"
+                  onPress={() => void handleEndReached()}
+                />
+              </>
+            ) : loadingMore ? (
+              <ActivityIndicator size="large" />
+            ) : undefined
+          }
           renderItem={({ item }) => (
             <NotificationItem
               notification={item}
