@@ -10,7 +10,7 @@ import {
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { Prisma, PrismaClient } from '../generated/prisma/client.js';
 import { AllExceptionsFilter } from './all-exceptions.filter.js';
-import { AppException } from './app.exception.js';
+import { AppException, conflict, notFound } from './app.exception.js';
 
 const clientVersion = Prisma.prismaVersion.client;
 
@@ -47,6 +47,8 @@ describe('AllExceptionsFilter', () => {
 
   it.each([
     ['AppException 4001', new AppException('4001'), 404, '4001', 'Medical record not found'],
+    ['notFound(): 2003 + 404', notFound(), 404, '2003', 'Invalid parameter value'],
+    ['conflict(): 2003 + 409', conflict(), 409, '2003', 'Invalid parameter value'],
     ['route không tồn tại', new NotFoundException(), 404, '2003', 'Invalid parameter value'],
     ['400 khác của Nest', new BadRequestException(), 400, '2003', 'Invalid parameter value'],
     ['401 của Nest', new UnauthorizedException(), 401, '3003', 'User not authenticated'],

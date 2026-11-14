@@ -40,7 +40,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
   }
 
   private resolve(exception: unknown): { code: Code; data?: unknown; httpStatus?: number } {
-    if (exception instanceof AppException) return { code: exception.code, data: exception.data };
+    if (exception instanceof AppException) {
+      return { code: exception.code, data: exception.data, httpStatus: exception.httpStatus };
+    }
     if (isJsonParseError(exception)) return { code: '2007' };
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
