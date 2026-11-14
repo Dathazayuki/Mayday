@@ -1,5 +1,7 @@
 # Tài liệu chuẩn dự án DrMayDay
 
+> Hướng dẫn cài đặt và chạy code: [README ở thư mục gốc](../README.md).
+
 Hệ thống quản lý khám bệnh và theo dõi bệnh mề đay (DrMayDay). Thư mục `docs/` là **tài liệu chuẩn** của dự án. Toàn bộ nội dung được tổng hợp và đối chiếu từ tài liệu gốc, bản chụp ngày **2026-11-14**.
 
 ## Quy tắc sử dụng
