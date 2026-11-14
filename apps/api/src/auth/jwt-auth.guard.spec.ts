@@ -4,7 +4,6 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { isDatabaseConnectionError } from '../common/all-exceptions.filter.js';
 import { Prisma } from '../generated/prisma/client.js';
-import type { PrismaService } from '../prisma/prisma.service.js';
 import { JwtAuthGuard, extractBearerToken } from './jwt-auth.guard.js';
 import type { JwtPayload, VerifiedJwt } from './jwt-payload.js';
 import { Public } from './public.decorator.js';
@@ -24,12 +23,11 @@ class SampleController {
 const jwt = new JwtService({ secret: 'jwt-secret-cho-unit-test' });
 const payload: JwtPayload = { sub: '12', role_id: '3', jti: 'jti-1' };
 
-function setup({ configured = true } = {}) {
+function setup() {
   const blacklist = { has: vi.fn<TokenBlacklistRepository['has']>().mockResolvedValue(false) };
   const guard = new JwtAuthGuard(
     jwt,
     new Reflector(),
-    { configured } as PrismaService,
     blacklist as unknown as TokenBlacklistRepository,
   );
   return { guard, blacklist };
@@ -109,13 +107,6 @@ describe('JwtAuthGuard', () => {
     const { context, request } = await contextWithValidToken();
     await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '3001' });
     expect(request.user).toBeUndefined();
-  });
-
-  it('chưa cấu hình CSDL → không tra blacklist (không thể đăng xuất khi không có CSDL)', async () => {
-    const { guard, blacklist } = setup({ configured: false });
-    const { context } = await contextWithValidToken();
-    await expect(guard.canActivate(context)).resolves.toBe(true);
-    expect(blacklist.has).not.toHaveBeenCalled();
   });
 
   it('lỗi kết nối khi tra blacklist được ném tiếp (filter trả 9902), không thành 3001', async () => {

@@ -1,0 +1,17 @@
+/**
+ * Tên vai trò trong bảng `roles`: admin, patient và cây 7 cấp của tài liệu CSDL (MT-63).
+ * Vai trò cha đứng trước vai trò con (prisma/seed.ts tạo theo thứ tự này).
+ */
+export const ROLE_NAMES = [
+  'admin',
+  'patient',
+  'director',
+  'chief_of_branch',
+  'chief_of_department',
+  'doctor',
+  'chief_of_nurse',
+  'nurse',
+  'technician',
+] as const;
+
+export type RoleName = (typeof ROLE_NAMES)[number];

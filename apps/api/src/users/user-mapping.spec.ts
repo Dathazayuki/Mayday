@@ -8,11 +8,15 @@ import {
   genderToDb,
   isoDate,
   isoDateTime,
+  newUserToDb,
   normalizeFullName,
+  profileUpdateToDb,
   roleIdOf,
+  toLoginUserInfo,
+  toSignupData,
   yearFromDate,
+  type UserRecord,
 } from './user-mapping.js';
-import type { UserRecord } from './users.repository.js';
 
 describe('gender API ↔ CSDL (MT-59)', () => {
   it.each<[Gender, users_gioi_tinh]>([
@@ -98,5 +102,111 @@ describe('roleIdOf', () => {
 
   it('không có bản ghi subtype → null', () => {
     expect(roleIdOf(subtypes(null, null))).toBeNull();
+  });
+});
+
+describe('ghi users khi tạo tài khoản', () => {
+  it('newUserToDb: họ tên in hoa, gender theo enum CSDL', () => {
+    expect(
+      newUserToDb({
+        fullName: '  nguyễn văn a ',
+        phone: '0912345678',
+        passwordHash: 'hash',
+        gender: 'female',
+      }),
+    ).toEqual({
+      ho_ten: 'NGUYỄN VĂN A',
+      so_dien_thoai: '0912345678',
+      password_hash: 'hash',
+      gioi_tinh: 'Nu',
+    });
+  });
+
+  it('newUserToDb: không có gender → null', () => {
+    expect(
+      newUserToDb({ fullName: 'An', phone: '0912345678', passwordHash: 'hash', gender: null }),
+    ).toMatchObject({ gioi_tinh: null });
+  });
+});
+
+describe('profileUpdateToDb (PUT profile)', () => {
+  const birthDate = new Date('1990-05-06T00:00:00.000Z');
+
+  it('chỉ có trường của users → không có phần patients', () => {
+    expect(profileUpdateToDb({ full_name: ' trần b ', gender: null }, birthDate)).toEqual({
+      user: { ho_ten: 'TRẦN B', gioi_tinh: null },
+    });
+  });
+
+  it('ánh xạ đủ trường bệnh nhân sang cột CSDL; null xoá giá trị, trường vắng giữ nguyên', () => {
+    const { user, patient } = profileUpdateToDb(
+      {
+        year_of_birth: 1991,
+        career: 'Hoc sinh - Sinh vien',
+        ethnic: 'Kinh',
+        hamlet_address: 'Thôn 1',
+        commune_address: 'Xã A',
+        city_address: 'Hà Nội',
+        work_place: null,
+        health_insurance_number: 'HS4010123456789',
+        health_insurance_validate: '2027-03-31',
+        next_of_kin_name: 'Nguyễn Văn B, Thôn 1',
+        next_of_kin_phone: '0987654321',
+      },
+      birthDate,
+    );
+    expect(user).toEqual({ ho_ten: undefined, gioi_tinh: undefined });
+    expect(patient).toEqual({
+      ngay_sinh: new Date('1991-01-01T00:00:00.000Z'),
+      nghe_nghiep: 'Hoc_sinh___Sinh_vien',
+      dan_toc: 'Kinh',
+      dia_chi_so_nha_thon_pho: 'Thôn 1',
+      dia_chi_xa_phuong: 'Xã A',
+      dia_chi_tinh_tp: 'Hà Nội',
+      noi_lam_viec: null,
+      bhyt_so_the: 'HS4010123456789',
+      bhyt_gia_tri_den: new Date('2027-03-31T00:00:00.000Z'),
+      nguoi_nha_ho_ten_dia_chi: 'Nguyễn Văn B, Thôn 1',
+      nguoi_nha_so_dien_thoai: '0987654321',
+    });
+  });
+
+  it('year_of_birth trùng năm đang lưu → không ghi ngay_sinh (MT-13); null → xoá', () => {
+    expect(profileUpdateToDb({ year_of_birth: 1990 }, birthDate).patient).toBeUndefined();
+    expect(profileUpdateToDb({ year_of_birth: null }, birthDate).patient).toMatchObject({
+      ngay_sinh: null,
+    });
+  });
+});
+
+describe('UserRecord → data trả về', () => {
+  const record = {
+    user_id: 7,
+    ho_ten: 'NGUYỄN VĂN A',
+    so_dien_thoai: '0912345678',
+    gioi_tinh: 'Khac',
+    is_active: true,
+    created_at: new Date('2026-11-15T01:02:03.000Z'),
+  } as UserRecord;
+
+  it('toSignupData: ID và is_active kiểu int, created_at ISO (MT-06)', () => {
+    expect(toSignupData(record, 2)).toEqual({
+      user_id: 7,
+      full_name: 'NGUYỄN VĂN A',
+      phone: '0912345678',
+      gender: 'other',
+      role_id: 2,
+      is_active: 1,
+      created_at: '2026-11-15T01:02:03.000Z',
+    });
+  });
+
+  it('toLoginUserInfo: mọi trường kiểu string (MT-06)', () => {
+    expect(toLoginUserInfo(record, 2)).toEqual({
+      user_id: '7',
+      full_name: 'NGUYỄN VĂN A',
+      phone: '0912345678',
+      role_id: '2',
+    });
   });
 });

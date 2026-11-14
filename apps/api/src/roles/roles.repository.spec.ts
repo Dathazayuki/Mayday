@@ -23,8 +23,8 @@ describe('RolesRepository (cache tên ↔ id)', () => {
 
   it('không nhớ vai trò không tồn tại', async () => {
     const { repo, findUnique } = setup();
-    await expect(repo.findByName('khong-co')).resolves.toBeNull();
-    await expect(repo.findByName('khong-co')).resolves.toBeNull();
+    await expect(repo.findByName('doctor')).resolves.toBeNull();
+    await expect(repo.findByName('doctor')).resolves.toBeNull();
     expect(findUnique).toHaveBeenCalledTimes(2);
   });
 

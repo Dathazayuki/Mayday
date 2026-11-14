@@ -17,7 +17,7 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
   });
 
   beforeEach(async () => {
-    await resetData(prisma);
+    await resetData(app);
   });
 
   afterAll(async () => {
@@ -122,7 +122,7 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
       },
     });
 
-    const restored = await resetData(prisma);
+    const restored = await resetData(app);
 
     const childCounts = await prisma.$transaction([
       prisma.users.count(),

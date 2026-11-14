@@ -3,7 +3,6 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import { AppException } from '../common/app.exception.js';
-import { PrismaService } from '../prisma/prisma.service.js';
 import type { VerifiedJwt } from './jwt-payload.js';
 import { IS_PUBLIC_KEY } from './public.decorator.js';
 import { TokenBlacklistRepository } from './token-blacklist.repository.js';
@@ -25,7 +24,6 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwt: JwtService,
     private readonly reflector: Reflector,
-    private readonly prisma: PrismaService,
     private readonly blacklist: TokenBlacklistRepository,
   ) {}
 
@@ -48,8 +46,8 @@ export class JwtAuthGuard implements CanActivate {
       throw new AppException(expired ? '3002' : '3001');
     }
 
-    // Chưa cấu hình CSDL thì không thể đăng xuất, nên bỏ qua. Lỗi CSDL ném tiếp → filter trả 9902.
-    if (this.prisma.configured && (await this.blacklist.has(user.jti))) {
+    // Lỗi CSDL khi tra blacklist được ném tiếp → AllExceptionsFilter trả 9902.
+    if (await this.blacklist.has(user.jti)) {
       throw new AppException('3001');
     }
     request.user = user;

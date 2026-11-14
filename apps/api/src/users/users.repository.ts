@@ -1,45 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import type {
-  Prisma,
-  patients,
-  staffs,
-  users,
-  users_gioi_tinh,
-} from '../generated/prisma/client.js';
+import { AppException } from '../common/app.exception.js';
+import type { Prisma } from '../generated/prisma/client.js';
+import { isUniqueViolation } from '../prisma/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-
-/** Người dùng kèm bản ghi subtype: nhân viên có `staffs`, bệnh nhân có `patients`. */
-export type UserRecord = users & { staffs: staffs | null; patients: patients | null };
-
-/** Dữ liệu tạo users, đã ở dạng ghi vào CSDL (họ tên đã chuẩn hoá, gender đã ánh xạ). */
-export interface NewUser {
-  fullName: string;
-  phone: string;
-  passwordHash: string;
-  gender: users_gioi_tinh | null;
-}
-
-export interface NewPatient extends NewUser {
-  patientRoleId: number;
-}
-
-export interface NewStaff extends NewUser {
-  roleId: number;
-  branchId: number;
-  departmentId: number;
-  roomId: number | null;
-}
-
-export interface ProfileUpdate {
-  user?: Prisma.usersUpdateInput;
-  patient?: Prisma.patientsUpdateInput;
-}
+import {
+  newUserToDb,
+  profileUpdateToDb,
+  type NewPatient,
+  type NewStaff,
+  type ProfileWrite,
+  type UserRecord,
+} from './user-mapping.js';
 
 const WITH_SUBTYPES = { staffs: true, patients: true } satisfies Prisma.usersInclude;
 
-function userColumns({ fullName, phone, passwordHash, gender }: NewUser) {
-  return { ho_ten: fullName, so_dien_thoai: phone, password_hash: passwordHash, gioi_tinh: gender };
-}
+/** Tên index mặc định của Prisma cho `users.so_dien_thoai @unique` (kiểm lại khi có schema thật, MT-57). */
+const PHONE_UNIQUE_INDEX = 'users_so_dien_thoai_key';
 
 /** Bảng `users`, hai bảng subtype `staffs`/`patients` và `user_fcm_tokens` của người dùng. */
 @Injectable()
@@ -65,29 +41,24 @@ export class UsersRepository {
     return user !== null;
   }
 
-  /** Nested create: users và patients được ghi trong cùng một transaction. */
   createPatient({ patientRoleId, ...user }: NewPatient): Promise<UserRecord> {
-    return this.prisma.db.users.create({
-      data: { ...userColumns(user), patients: { create: { role_id: patientRoleId } } },
-      include: WITH_SUBTYPES,
+    return this.createUser({
+      ...newUserToDb(user),
+      patients: { create: { role_id: patientRoleId } },
     });
   }
 
-  /** Nested create: users và staffs được ghi trong cùng một transaction. */
   createStaff({ roleId, branchId, departmentId, roomId, ...user }: NewStaff): Promise<UserRecord> {
-    return this.prisma.db.users.create({
-      data: {
-        ...userColumns(user),
-        staffs: {
-          create: {
-            role_id: roleId,
-            branch_id: branchId,
-            department_id: departmentId,
-            room_id: roomId,
-          },
+    return this.createUser({
+      ...newUserToDb(user),
+      staffs: {
+        create: {
+          role_id: roleId,
+          branch_id: branchId,
+          department_id: departmentId,
+          room_id: roomId,
         },
       },
-      include: WITH_SUBTYPES,
     });
   }
 
@@ -105,17 +76,37 @@ export class UsersRepository {
     });
   }
 
-  /** Nested update: users và patients được ghi trong cùng một transaction. */
-  updateProfile(userId: number, { user, patient }: ProfileUpdate): Promise<UserRecord> {
-    return this.prisma.db.users.update({
-      where: { user_id: userId },
-      data: { ...user, patients: patient ? { update: patient } : undefined },
-      include: WITH_SUBTYPES,
+  /** Đọc ngày sinh đang lưu (quy tắc năm sinh, MT-13) rồi ghi users + patients trong một transaction. */
+  updateProfile(userId: number, changes: Partial<ProfileWrite>): Promise<UserRecord> {
+    return this.prisma.db.$transaction(async (tx) => {
+      const current = await tx.patients.findUnique({
+        where: { user_id: userId },
+        select: { ngay_sinh: true },
+      });
+      const { user, patient } = profileUpdateToDb(changes, current?.ngay_sinh ?? null);
+      return tx.users.update({
+        where: { user_id: userId },
+        data: { ...user, patients: patient && { update: patient } },
+        include: WITH_SUBTYPES,
+      });
     });
   }
 
   /** Đăng xuất xoá mọi FCM token của người dùng: request không cho biết thiết bị nào (MT-60). */
   async deleteFcmTokens(userId: number): Promise<void> {
     await this.prisma.db.user_fcm_tokens.deleteMany({ where: { user_id: userId } });
+  }
+
+  /**
+   * Nested create: users và bản ghi subtype được ghi trong cùng một transaction. Hai request
+   * cùng số điện thoại đều qua được phoneExists thì request sau vấp khoá unique → 3006.
+   */
+  private async createUser(data: Prisma.usersCreateInput): Promise<UserRecord> {
+    try {
+      return await this.prisma.db.users.create({ data, include: WITH_SUBTYPES });
+    } catch (error) {
+      if (isUniqueViolation(error, PHONE_UNIQUE_INDEX)) throw new AppException('3006');
+      throw error;
+    }
   }
 }

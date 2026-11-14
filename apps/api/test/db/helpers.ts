@@ -4,7 +4,8 @@ import type { App } from 'supertest/types.js';
 import { seedBase, type SeedResult } from '../../prisma/seed.js';
 import { AppModule } from '../../src/app.module.js';
 import { configureApp } from '../../src/app.setup.js';
-import type { PrismaClient } from '../../src/generated/prisma/client.js';
+import { PrismaService } from '../../src/prisma/prisma.service.js';
+import { RolesRepository } from '../../src/roles/roles.repository.js';
 
 /** App đầy đủ như main.ts, kết nối CSDL test (test-db.mjs đặt DATABASE_URL = TEST_DATABASE_URL). */
 export async function createTestApp(): Promise<INestApplication<App>> {
@@ -15,8 +16,12 @@ export async function createTestApp(): Promise<INestApplication<App>> {
   return app;
 }
 
-/** Xoá dữ liệu mọi bảng giai đoạn 1 (bảng con trước bảng cha), rồi seed lại vai trò và cơ sở vật chất. */
-export async function resetData(prisma: PrismaClient): Promise<SeedResult> {
+/**
+ * Xoá dữ liệu mọi bảng giai đoạn 1 (bảng con trước bảng cha), seed lại vai trò và cơ sở vật chất,
+ * rồi xoá cache trong bộ nhớ của app (role_id đổi sau mỗi lần seed lại).
+ */
+export async function resetData(app: INestApplication): Promise<SeedResult> {
+  const prisma = app.get(PrismaService).db;
   await prisma.$transaction([
     prisma.token_blacklist.deleteMany(),
     prisma.user_fcm_tokens.deleteMany(),
@@ -30,5 +35,7 @@ export async function resetData(prisma: PrismaClient): Promise<SeedResult> {
     prisma.roles.updateMany({ data: { parent_role_id: null } }),
     prisma.roles.deleteMany(),
   ]);
-  return seedBase(prisma);
+  const seed = await seedBase(prisma);
+  app.get(RolesRepository).clearCache();
+  return seed;
 }

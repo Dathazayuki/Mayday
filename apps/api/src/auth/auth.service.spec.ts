@@ -3,7 +3,8 @@ import type { JwtService } from '@nestjs/jwt';
 import type { SignupRequest } from '@drmayday/shared';
 import type { patients, roles, staffs } from '../generated/prisma/client.js';
 import type { RolesRepository } from '../roles/roles.repository.js';
-import type { UserRecord, UsersRepository } from '../users/users.repository.js';
+import { newUserToDb, type UserRecord } from '../users/user-mapping.js';
+import type { UsersRepository } from '../users/users.repository.js';
 import { AuthService } from './auth.service.js';
 import type { PasswordService } from './password.service.js';
 import type { TokenBlacklistRepository } from './token-blacklist.repository.js';
@@ -34,13 +35,10 @@ function setup() {
   const users = {
     findByPhone: vi.fn<UsersRepository['findByPhone']>(),
     phoneExists: vi.fn<UsersRepository['phoneExists']>().mockResolvedValue(false),
-    // Trả lại đúng dữ liệu được ghi, như CSDL thật.
+    // Như repository thật: ghi cột qua user-mapping rồi trả lại bản ghi.
     createPatient: vi.fn<UsersRepository['createPatient']>(async (input) =>
       userRecord({
-        ho_ten: input.fullName,
-        so_dien_thoai: input.phone,
-        password_hash: input.passwordHash,
-        gioi_tinh: input.gender,
+        ...newUserToDb(input),
         patients: { user_id: 7, role_id: input.patientRoleId } as patients,
       }),
     ),
@@ -92,15 +90,15 @@ describe('AuthService', () => {
       expect(users.createPatient).not.toHaveBeenCalled();
     });
 
-    it('tạo bệnh nhân với vai trò patient: họ tên in hoa, mật khẩu đã băm, gender dạng CSDL', async () => {
+    it('tạo bệnh nhân với vai trò patient, mật khẩu đã băm (repository lo ánh xạ cột)', async () => {
       const { service, users, roleRepo } = setup();
       await service.signup(dto);
       expect(roleRepo.findByName).toHaveBeenCalledWith('patient');
       expect(users.createPatient).toHaveBeenCalledWith({
-        fullName: 'NGUYỄN VĂN A',
+        fullName: '  nguyễn văn a ',
         phone: '0912345678',
         passwordHash: 'hash-cua-matkhau',
-        gender: 'Nam',
+        gender: 'male',
         patientRoleId: PATIENT_ROLE_ID,
       });
     });
@@ -190,15 +188,27 @@ describe('AuthService', () => {
   });
 
   describe('logout', () => {
-    it('đưa jti vào blacklist tới lúc token hết hạn, xoá FCM token của người dùng (MT-60)', async () => {
+    it('xoá FCM token của người dùng (MT-60) rồi mới đưa jti vào blacklist tới lúc token hết hạn', async () => {
       const { service, blacklist, users } = setup();
       await service.logout({ sub: '7', role_id: '2', jti: 'jti-1', exp: 1_800_000_000 });
+      expect(users.deleteFcmTokens).toHaveBeenCalledWith(7);
       expect(blacklist.add).toHaveBeenCalledWith({
         jti: 'jti-1',
         userId: 7,
         expiresAt: new Date(1_800_000_000_000),
       });
-      expect(users.deleteFcmTokens).toHaveBeenCalledWith(7);
+      const [deleteOrder] = users.deleteFcmTokens.mock.invocationCallOrder;
+      const [blacklistOrder] = blacklist.add.mock.invocationCallOrder;
+      expect(deleteOrder).toBeLessThan(blacklistOrder!);
+    });
+
+    it('xoá FCM token lỗi → không thu hồi token (client đăng xuất lại được)', async () => {
+      const { service, blacklist, users } = setup();
+      users.deleteFcmTokens.mockRejectedValue(new Error('mất kết nối'));
+      await expect(
+        service.logout({ sub: '7', role_id: '2', jti: 'jti-1', exp: 1_800_000_000 }),
+      ).rejects.toThrow('mất kết nối');
+      expect(blacklist.add).not.toHaveBeenCalled();
     });
   });
 });

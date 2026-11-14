@@ -6,7 +6,6 @@ import type { SeedResult } from '../../prisma/seed.js';
 import type { VerifiedJwt } from '../../src/auth/jwt-payload.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
-import { RolesRepository } from '../../src/roles/roles.repository.js';
 import { createTestApp, resetData } from './helpers.js';
 
 const PHONE = '0912345678';
@@ -40,9 +39,7 @@ describe('Xác thực: signup, login, logout (MySQL thật)', () => {
   });
 
   beforeEach(async () => {
-    seed = await resetData(prisma);
-    // Seed lại thì role_id đổi: bỏ cache vai trò của app.
-    app.get(RolesRepository).clearCache();
+    seed = await resetData(app);
   });
 
   afterAll(async () => {
@@ -81,6 +78,13 @@ describe('Xác thực: signup, login, logout (MySQL thật)', () => {
         patients: { role_id: seed.roles.patient },
       });
       expect(user.password_hash).toMatch(/^\$2/);
+    });
+
+    it('hai request đăng ký cùng số đồng thời → một 1001, một 3006', async () => {
+      const responses = await Promise.all([signup(), signup()]);
+      const codes = responses.map((res) => `${res.status} ${res.body.code}`).sort();
+      expect(codes).toEqual(['201 1001', '409 3006']);
+      expect(await prisma.users.count()).toBe(1);
     });
 
     it('số điện thoại đã đăng ký → 409 / 3006', async () => {

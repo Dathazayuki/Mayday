@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { isUniqueViolation } from '../prisma/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+
+/** Tên index mặc định của Prisma cho `token_blacklist.jti @unique` (kiểm lại khi có schema thật, MT-57). */
+const JTI_UNIQUE_INDEX = 'token_blacklist_jti_key';
 
 export interface BlacklistEntry {
   jti: string;
@@ -13,13 +17,20 @@ export interface BlacklistEntry {
 export class TokenBlacklistRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Idempotent: jti đã bị thu hồi (hai lần đăng xuất đồng thời) thì bỏ qua. */
   async add({ jti, userId, expiresAt }: BlacklistEntry): Promise<void> {
-    await this.prisma.db.token_blacklist.create({
-      data: { jti, user_id: userId, expires_at: expiresAt },
-    });
+    try {
+      await this.prisma.db.token_blacklist.create({
+        data: { jti, user_id: userId, expires_at: expiresAt },
+      });
+    } catch (error) {
+      if (!isUniqueViolation(error, JTI_UNIQUE_INDEX)) throw error;
+    }
   }
 
+  /** Chưa cấu hình CSDL thì không thể đăng xuất, nên không có token nào bị thu hồi. */
   async has(jti: string): Promise<boolean> {
+    if (!this.prisma.configured) return false;
     const entry = await this.prisma.db.token_blacklist.findUnique({
       where: { jti },
       select: { invalid_token_id: true },

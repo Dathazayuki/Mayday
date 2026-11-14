@@ -1,37 +1,34 @@
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
-import bcrypt from 'bcryptjs';
 import { config } from 'dotenv';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PasswordService } from '../src/auth/password.service.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
+import { ROLE_NAMES, type RoleName } from '../src/roles/role-names.js';
 
 /**
  * Seed dữ liệu dev (idempotent, chạy lại không nhân đôi). Vai trò admin/patient theo ví dụ của bảng roles;
  * cây 7 cấp theo thứ tự liệt kê trong docs/03-co-so-du-lieu.md, quan hệ cha–con tạm thời (MT-63).
  */
-const ROLE_SEEDS = [
-  { name: 'admin', description: 'Quản trị viên', parent: null },
-  { name: 'patient', description: 'Bệnh nhân', parent: null },
-  { name: 'director', description: 'Giám đốc bệnh viện', parent: null },
-  { name: 'chief_of_branch', description: 'Phó giám đốc / Trưởng chi nhánh', parent: 'director' },
-  {
-    name: 'chief_of_department',
+const ROLE_SEEDS: Record<RoleName, { description: string; parent: RoleName | null }> = {
+  admin: { description: 'Quản trị viên', parent: null },
+  patient: { description: 'Bệnh nhân', parent: null },
+  director: { description: 'Giám đốc bệnh viện', parent: null },
+  chief_of_branch: { description: 'Phó giám đốc / Trưởng chi nhánh', parent: 'director' },
+  chief_of_department: {
     description: 'Phó trưởng chi nhánh / Trưởng khoa',
     parent: 'chief_of_branch',
   },
-  { name: 'doctor', description: 'Bác sĩ', parent: 'chief_of_department' },
-  { name: 'chief_of_nurse', description: 'Điều dưỡng trưởng', parent: 'doctor' },
-  { name: 'nurse', description: 'Điều dưỡng', parent: 'chief_of_nurse' },
-  { name: 'technician', description: 'Kĩ thuật viên', parent: 'nurse' },
-] as const;
-
-export type RoleName = (typeof ROLE_SEEDS)[number]['name'];
+  doctor: { description: 'Bác sĩ', parent: 'chief_of_department' },
+  chief_of_nurse: { description: 'Điều dưỡng trưởng', parent: 'doctor' },
+  nurse: { description: 'Điều dưỡng', parent: 'chief_of_nurse' },
+  technician: { description: 'Kĩ thuật viên', parent: 'nurse' },
+};
 
 const BRANCH_NAME = 'Cơ sở chính (dữ liệu dev)';
 const DEPARTMENT_NAME = 'Khoa Da liễu (dữ liệu dev)';
 const ROOM_NAME = 'Phòng khám 1 (dữ liệu dev)';
 const ADMIN_FULL_NAME = 'QUẢN TRỊ VIÊN';
-const BCRYPT_COST = 10;
 
 export interface SeedOptions {
   adminPhone?: string;
@@ -46,9 +43,10 @@ export interface SeedResult {
 }
 
 export async function seedBase(prisma: PrismaClient, opts: SeedOptions = {}): Promise<SeedResult> {
-  // Vai trò cha luôn đứng trước vai trò con trong ROLE_SEEDS.
+  // ROLE_NAMES liệt kê vai trò cha trước vai trò con.
   const roles = {} as Record<RoleName, number>;
-  for (const { name, description, parent } of ROLE_SEEDS) {
+  for (const name of ROLE_NAMES) {
+    const { description, parent } = ROLE_SEEDS[name];
     const data = { description, parent_role_id: parent ? roles[parent] : null };
     const role = await prisma.roles.upsert({
       where: { name },
@@ -74,7 +72,7 @@ export async function seedBase(prisma: PrismaClient, opts: SeedOptions = {}): Pr
   if (opts.adminPhone && opts.adminPassword) {
     const adminData = {
       ho_ten: ADMIN_FULL_NAME,
-      password_hash: await bcrypt.hash(opts.adminPassword, BCRYPT_COST),
+      password_hash: await new PasswordService().hash(opts.adminPassword),
     };
     const admin = await prisma.users.upsert({
       where: { so_dien_thoai: opts.adminPhone },

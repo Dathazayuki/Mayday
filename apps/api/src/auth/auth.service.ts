@@ -3,8 +3,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type { LoginResponseData, SignupResponseData } from '@drmayday/shared';
 import { AppException } from '../common/app.exception.js';
+import type { RoleName } from '../roles/role-names.js';
 import { RolesRepository } from '../roles/roles.repository.js';
-import { genderFromDb, genderToDb, normalizeFullName, roleIdOf } from '../users/user-mapping.js';
+import { roleIdOf, toLoginUserInfo, toSignupData } from '../users/user-mapping.js';
 import { UsersRepository } from '../users/users.repository.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { SignupDto } from './dto/signup.dto.js';
@@ -12,8 +13,8 @@ import type { JwtPayload } from './jwt-payload.js';
 import { PasswordService } from './password.service.js';
 import { TokenBlacklistRepository } from './token-blacklist.repository.js';
 
-/** Vai trò của tài khoản tự đăng ký (tên theo seed). */
-const PATIENT_ROLE = 'patient';
+/** Vai trò của tài khoản tự đăng ký. */
+const SIGNUP_ROLE: RoleName = 'patient';
 
 @Injectable()
 export class AuthService {
@@ -30,27 +31,17 @@ export class AuthService {
   /** Tạo tài khoản bệnh nhân (users + patients). Trùng số điện thoại → 3006. */
   async signup(dto: SignupDto): Promise<SignupResponseData> {
     if (await this.users.phoneExists(dto.phone)) throw new AppException('3006');
-    const patientRole = await this.roles.findByName(PATIENT_ROLE);
-    if (!patientRole) {
-      throw this.corruptData(`Bảng roles chưa có vai trò "${PATIENT_ROLE}" (chưa seed?)`);
-    }
+    const role = await this.roles.findByName(SIGNUP_ROLE);
+    if (!role) throw this.corruptData(`Bảng roles chưa có vai trò "${SIGNUP_ROLE}" (chưa seed?)`);
 
     const user = await this.users.createPatient({
-      fullName: normalizeFullName(dto.full_name),
+      fullName: dto.full_name,
       phone: dto.phone,
       passwordHash: await this.passwords.hash(dto.password),
-      gender: dto.gender ? genderToDb(dto.gender) : null,
-      patientRoleId: patientRole.role_id,
+      gender: dto.gender ?? null,
+      patientRoleId: role.role_id,
     });
-    return {
-      user_id: user.user_id,
-      full_name: user.ho_ten,
-      phone: user.so_dien_thoai,
-      gender: genderFromDb(user.gioi_tinh),
-      role_id: patientRole.role_id,
-      is_active: user.is_active ? 1 : 0,
-      created_at: user.created_at.toISOString(),
-    };
+    return toSignupData(user, role.role_id);
   }
 
   /** Kiểm tra theo thứ tự: tồn tại (3007) → is_active (3101, MT-61) → mật khẩu (3008). */
@@ -66,28 +57,24 @@ export class AuthService {
       throw this.corruptData(`Người dùng ${user.user_id} không có bản ghi staffs hoặc patients`);
     }
 
-    // Login trả mọi trường kiểu string (MT-06).
     const payload: JwtPayload = {
       sub: String(user.user_id),
       role_id: String(roleId),
       jti: randomUUID(),
     };
-    return {
-      token: await this.jwt.signAsync(payload),
-      user_info: {
-        user_id: payload.sub,
-        full_name: user.ho_ten,
-        phone: user.so_dien_thoai,
-        role_id: payload.role_id,
-      },
-    };
+    return { token: await this.jwt.signAsync(payload), user_info: toLoginUserInfo(user, roleId) };
   }
 
-  /** Thu hồi token hiện tại tới lúc nó hết hạn, xoá mọi FCM token của người dùng (MT-60). */
+  /**
+   * Xoá mọi FCM token của người dùng (MT-60) rồi thu hồi token hiện tại tới lúc nó hết hạn.
+   * Thu hồi là bước cuối: bước nào lỗi thì token vẫn dùng được để client gọi lại logout (cả hai
+   * bước đều idempotent). Làm ngược lại, lỗi khi xoá FCM sẽ để thiết bị tiếp tục nhận thông báo
+   * mà không đăng xuất lại được.
+   */
   async logout(payload: JwtPayload & { exp: number }): Promise<void> {
     const userId = Number(payload.sub);
-    await this.blacklist.add({ jti: payload.jti, userId, expiresAt: new Date(payload.exp * 1000) });
     await this.users.deleteFcmTokens(userId);
+    await this.blacklist.add({ jti: payload.jti, userId, expiresAt: new Date(payload.exp * 1000) });
   }
 
   /** Dữ liệu trong CSDL không nhất quán: ghi log để xử lý, client nhận 9901. */
