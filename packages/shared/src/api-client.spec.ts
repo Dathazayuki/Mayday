@@ -114,3 +114,174 @@ describe('createApiClient', () => {
     await expect(client.get('/health')).rejects.toMatchObject({ code: '9901', httpStatus: 502 });
   });
 });
+
+describe('timeout của request', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** fetch không bao giờ trả về, chỉ reject khi signal bị abort. */
+  function hangingFetch(): typeof fetch {
+    return vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('The operation was aborted.', 'AbortError'));
+          });
+        }),
+    ) as unknown as typeof fetch;
+  }
+
+  it('hết giờ theo timeoutMs của lệnh gọi và trả NETWORK_ERROR', async () => {
+    vi.useFakeTimers();
+    const client = createApiClient({ baseUrl: 'http://api', fetchImpl: hangingFetch() });
+
+    let settled = false;
+    const result = client
+      .post('/auth/logout', undefined, { timeoutMs: 5000 })
+      .catch((e: unknown) => e)
+      .finally(() => {
+        settled = true;
+      });
+
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(result).resolves.toMatchObject({
+      code: NETWORK_ERROR_CODE,
+      message: 'Request timed out',
+      httpStatus: 0,
+    });
+  });
+
+  it('dùng timeoutMs của client khi lệnh gọi không truyền timeout', async () => {
+    vi.useFakeTimers();
+    const client = createApiClient({
+      baseUrl: 'http://api',
+      fetchImpl: hangingFetch(),
+      timeoutMs: 1000,
+    });
+
+    let settled = false;
+    const result = client
+      .get('/profile')
+      .catch((e: unknown) => e)
+      .finally(() => {
+        settled = true;
+      });
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(result).resolves.toMatchObject({ code: NETWORK_ERROR_CODE });
+  });
+
+  it('xoá timer sau khi nhận response thành công', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { code: '1000', message: 'OK', data: { id: 1 } }));
+    const client = createApiClient({ baseUrl: 'http://api', fetchImpl });
+
+    await expect(client.get('/profile')).resolves.toEqual({ id: 1 });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('truyền AbortSignal cho fetchImpl', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { code: '1000', message: 'OK', data: null }));
+    const client = createApiClient({ baseUrl: 'http://api', fetchImpl });
+
+    await client.get('/profile');
+
+    const [, init] = fetchImpl.mock.calls[0] as FetchCall;
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+});
+
+describe('getPage', () => {
+  it('trả items và total, ghép query vào URL', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        code: '1000',
+        message: 'OK',
+        data: [{ user_id: 1 }, { user_id: 2 }],
+        total: 41,
+      }),
+    );
+    const client = createApiClient({ baseUrl: 'http://api', fetchImpl });
+
+    await expect(client.getPage<{ user_id: number }>('/admin/users', { page: 2 })).resolves.toEqual(
+      {
+        items: [{ user_id: 1 }, { user_id: 2 }],
+        total: 41,
+      },
+    );
+
+    const [url, init] = fetchImpl.mock.calls[0] as FetchCall;
+    expect(url).toBe('http://api/api/v1/admin/users?page=2');
+    expect(init.method).toBe('GET');
+  });
+
+  it('trả items rỗng khi envelope thiếu data', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { code: '1000', message: 'OK', total: 0 }));
+    const client = createApiClient({ baseUrl: 'http://api', fetchImpl });
+
+    await expect(client.getPage('/admin/users')).resolves.toEqual({ items: [], total: 0 });
+  });
+
+  it('trả total bằng 0 khi envelope thiếu total', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { code: '1000', message: 'OK', data: [{ id: 1 }] }));
+    const client = createApiClient({ baseUrl: 'http://api', fetchImpl });
+
+    await expect(client.getPage('/admin/users')).resolves.toEqual({
+      items: [{ id: 1 }],
+      total: 0,
+    });
+  });
+
+  it('ném ApiError khi mã lỗi và gọi onUnauthenticated với mã 3001', async () => {
+    const onUnauthenticated = vi.fn();
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(401, { code: '3001', message: 'Token missing' }));
+    const client = createApiClient({ baseUrl: 'http://api', fetchImpl, onUnauthenticated });
+
+    await expect(client.getPage('/admin/users')).rejects.toMatchObject({
+      code: '3001',
+      httpStatus: 401,
+    });
+    expect(onUnauthenticated).toHaveBeenCalledTimes(1);
+  });
+
+  it('áp dụng timeoutMs của lệnh gọi', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('The operation was aborted.', 'AbortError'));
+          });
+        }),
+    ) as unknown as typeof fetch;
+    const client = createApiClient({ baseUrl: 'http://api', fetchImpl });
+
+    const result = client
+      .getPage('/admin/users', undefined, { timeoutMs: 3000 })
+      .catch((e: unknown) => e);
+
+    await vi.advanceTimersByTimeAsync(3000);
+    await expect(result).resolves.toMatchObject({
+      code: NETWORK_ERROR_CODE,
+      message: 'Request timed out',
+    });
+    vi.useRealTimers();
+  });
+});
