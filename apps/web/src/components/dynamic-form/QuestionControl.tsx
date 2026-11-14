@@ -1,8 +1,5 @@
 import { isValidIsoDate, type FormState, type QuestionData } from '@drmayday/shared';
-import { Button, Checkbox, Input, InputNumber, Radio, Typography } from 'antd';
-
-/** Chỗ giữ cho câu hỏi ảnh: phần tải ảnh được thêm ở giai đoạn 5. */
-export const IMAGE_PLACEHOLDER_TEXT = 'Tải ảnh sẽ có ở giai đoạn 5';
+import { Checkbox, Input, InputNumber, Radio, Typography } from 'antd';
 
 type Value = FormState[string];
 
@@ -72,27 +69,10 @@ export function QuestionControl({ question, inputId, value, disabled, onChange }
         </>
       );
     }
+    // Ảnh của câu hỏi hiển thị bằng AnswerImages (web chỉ xem), nên câu image_upload không có ô nhập.
     case 'image_upload':
-      return (
-        <Button id={inputId} disabled>
-          {IMAGE_PLACEHOLDER_TEXT}
-        </Button>
-      );
+      return null;
     case 'mix_text_image':
-      return (
-        <>
-          <Input
-            id={inputId}
-            disabled={disabled}
-            placeholder={placeholder}
-            value={text}
-            onChange={(e) => onChange(e.target.value)}
-          />
-          <Button disabled style={{ marginTop: 8 }}>
-            {IMAGE_PLACEHOLDER_TEXT}
-          </Button>
-        </>
-      );
     case 'text':
       return (
         <Input

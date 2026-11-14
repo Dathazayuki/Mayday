@@ -2,6 +2,7 @@ import {
   buildQuestionTree,
   FILLED_BY_VALUES,
   isQuestionVisible,
+  questionAcceptsImages,
   type FilledBy,
   type FormState,
   type QuestionNode,
@@ -9,6 +10,7 @@ import {
   type TemplateSectionDetail,
 } from '@drmayday/shared';
 import { Card } from 'antd';
+import { AnswerImages } from './AnswerImages';
 import { QuestionControl } from './QuestionControl';
 
 export interface DynamicFormProps {
@@ -19,6 +21,8 @@ export interface DynamicFormProps {
   readOnly?: boolean;
   /** Các `filled_by` được sửa; section thuộc giá trị khác chỉ đọc. Mặc định: tất cả. */
   editableFilledBy?: readonly FilledBy[];
+  /** answer_id theo question_id: câu có ảnh và đã có câu trả lời thì hiện ảnh (chỉ xem). */
+  answerIdByQuestion?: Record<string, number>;
 }
 
 /** Section không khai `filled_by` không bị hạn chế theo người điền. */
@@ -30,11 +34,13 @@ function QuestionTree({
   nodes,
   value,
   disabled,
+  answerIdByQuestion,
   onAnswer,
 }: {
   nodes: QuestionNode[];
   value: FormState;
   disabled: boolean;
+  answerIdByQuestion?: Record<string, number>;
   onAnswer: (questionId: string, answer: FormState[string]) => void;
 }) {
   // Dừng ở nút bị ẩn: câu con của câu bị ẩn cũng không hiện.
@@ -56,12 +62,19 @@ function QuestionTree({
             disabled={disabled}
             onChange={(answer) => onAnswer(question.question_id, answer)}
           />
+          {questionAcceptsImages(question) && (
+            <AnswerImages
+              answerId={answerIdByQuestion?.[question.question_id]}
+              options={question.options}
+            />
+          )}
           {children.length > 0 && (
             <div style={{ marginLeft: 24, marginTop: 12 }}>
               <QuestionTree
                 nodes={children}
                 value={value}
                 disabled={disabled}
+                answerIdByQuestion={answerIdByQuestion}
                 onAnswer={onAnswer}
               />
             </div>
@@ -78,6 +91,7 @@ export function DynamicForm({
   onChange,
   readOnly = false,
   editableFilledBy = FILLED_BY_VALUES,
+  answerIdByQuestion,
 }: DynamicFormProps) {
   const onAnswer = (questionId: string, answer: FormState[string]) =>
     onChange({ ...value, [questionId]: answer });
@@ -88,6 +102,7 @@ export function DynamicForm({
         nodes={buildQuestionTree(section.questions)}
         value={value}
         disabled={readOnly || !isSectionEditable(section, editableFilledBy)}
+        answerIdByQuestion={answerIdByQuestion}
         onAnswer={onAnswer}
       />
     </Card>

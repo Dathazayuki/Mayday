@@ -1,5 +1,6 @@
 import type { FilledBy, FormState, QuestionData, TemplateDetailData } from '@drmayday/shared';
 import { render, screen } from '@testing-library/react';
+import { imageResponse, okResponse, renderApp, seedSession } from '../../test/helpers';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { DynamicForm } from './DynamicForm';
@@ -91,6 +92,12 @@ const TEMPLATE: TemplateDetailData = {
           type_question: 'image_upload',
           order: '7',
         }),
+        question({
+          question_id: 'Q_SKIN',
+          question_text: 'Vùng da',
+          order: '8',
+          allow_image: '1',
+        }),
       ],
     },
     {
@@ -115,6 +122,7 @@ function Harness({
   onChange?: (state: FormState) => void;
   readOnly?: boolean;
   editableFilledBy?: readonly FilledBy[];
+  answerIdByQuestion?: Record<string, number>;
 }) {
   const [state, setState] = useState<FormState>(initial);
   return (
@@ -138,7 +146,6 @@ describe('DynamicForm', () => {
     expect(screen.getByLabelText('Số ngày bị')).toBeInTheDocument();
     expect(screen.getByLabelText('Ngày bắt đầu')).toHaveAttribute('placeholder', 'YYYY-MM-DD');
     expect(screen.getByLabelText('Chẩn đoán')).toBeInTheDocument();
-    expect(screen.getByText('Tải ảnh sẽ có ở giai đoạn 5')).toBeInTheDocument();
   });
 
   it('câu con hiện theo show_if_answer của câu cha và ẩn cả nhánh con cháu', async () => {
@@ -199,5 +206,42 @@ describe('DynamicForm', () => {
     expect(screen.getByLabelText('Chẩn đoán')).toBeDisabled();
     expect(screen.getByLabelText('Số ngày bị')).toBeEnabled();
     expect(screen.getByRole('radio', { name: 'Có' })).toBeEnabled();
+  });
+
+  it('câu có ảnh (image_upload, allow_image = 1) và đã có câu trả lời thì hiện ảnh; câu khác thì không', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        urls.push(url);
+        if (url.includes('/image-attachments/view/')) {
+          return Promise.resolve(imageResponse());
+        }
+        const id = url.split('/').pop();
+        return Promise.resolve(
+          okResponse([
+            {
+              id: `1${id}`,
+              option_value: null,
+              attachment: {
+                attachment_id: `9${id}`,
+                file_url: `/api/v1/image-attachments/view/9${id}`,
+                file_name: 'a.jpg',
+              },
+            },
+          ]),
+        );
+      }),
+    );
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    URL.revokeObjectURL = vi.fn();
+    seedSession();
+    renderApp(<Harness answerIdByQuestion={{ Q_PHOTO: 21, Q_SKIN: 22, Q_DIAG: 23, Q_ITCH: 24 }} />);
+    expect(await screen.findAllByRole('img')).toHaveLength(2);
+    const answerImageUrls = urls.filter((url) => url.includes('/answer-images/')).sort();
+    expect(answerImageUrls).toEqual([
+      'http://localhost:3000/api/v1/answer-images/21',
+      'http://localhost:3000/api/v1/answer-images/22',
+    ]);
   });
 });

@@ -1,4 +1,4 @@
-import { formatDate, formatDateTime } from './format-date';
+import { formatDate, formatDateTime, formatVnDateTime } from './format-date';
 
 describe('format-date', () => {
   it('formatDate đổi YYYY-MM-DD sang dd/MM/yyyy mà không lệch múi giờ', () => {
@@ -13,5 +13,10 @@ describe('format-date', () => {
   it('formatDateTime dùng định dạng vi-VN', () => {
     const iso = '2026-11-15T08:00:00.000Z';
     expect(formatDateTime(iso)).toBe(new Date(iso).toLocaleString('vi-VN'));
+  });
+
+  it('formatVnDateTime đổi giờ Việt Nam sang dd/MM/yyyy HH:mm:ss, không đổi múi giờ', () => {
+    expect(formatVnDateTime('2026-11-14 19:30:00')).toBe('14/11/2026 19:30:00');
+    expect(formatVnDateTime('2026-11-14')).toBe('14/11/2026');
   });
 });

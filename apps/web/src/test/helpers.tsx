@@ -24,6 +24,11 @@ export function jsonResponse(status: number, body: unknown) {
   });
 }
 
+/** Phản hồi ảnh nhị phân của endpoint view (nội dung giả). */
+export function imageResponse() {
+  return new Response('image-bytes', { status: 200, headers: { 'Content-Type': 'image/png' } });
+}
+
 export function okResponse(data: unknown = {}) {
   return jsonResponse(200, { code: '1000', message: 'OK', data });
 }

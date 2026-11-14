@@ -41,6 +41,7 @@ import { DynamicForm } from '../../components/dynamic-form/DynamicForm';
 import { formatDateTime } from '../../lib/format-date';
 import { useTemplateDetail } from '../../templates/template-detail-api';
 import { LabPanel } from './LabPanel';
+import { LesionPanel } from './LesionPanel';
 import { PrescriptionPanel } from './PrescriptionPanel';
 import { Uas7Panel } from './Uas7Panel';
 
@@ -142,6 +143,7 @@ function ExamPanel({
   const allQuestions = template.sections.flatMap((s) => s.questions);
   // Trạng thái form chỉ khởi tạo một lần từ câu trả lời đã lưu; refetch sau đó không ghi đè phần đang nhập.
   const [state, setState] = useState<FormState>(() => answersToState(allQuestions, answers));
+  const answerIdByQuestion = Object.fromEntries(answers.map((a) => [a.question_id, a.id]));
   const [closing, setClosing] = useState(false);
   const run = useRunAction();
   const accept = useAcceptMedicalRecord();
@@ -208,7 +210,13 @@ function ExamPanel({
         </Space>
       )}
       {/* Nhân viên có quyền khám được điền mọi section (spec 3): không giới hạn theo filled_by. */}
-      <DynamicForm template={template} value={state} onChange={setState} readOnly={finished} />
+      <DynamicForm
+        template={template}
+        value={state}
+        onChange={setState}
+        readOnly={finished}
+        answerIdByQuestion={answerIdByQuestion}
+      />
       <CloseModal
         open={closing}
         saving={close.isPending}
@@ -231,6 +239,7 @@ function RecordBody({ record }: { record: MedicalRecordData }) {
       <Uas7Panel patientId={record.patient_id} />
       <PrescriptionPanel record={record} />
       <LabPanel record={record} />
+      <LesionPanel medicalRecordId={record.medical_record_id} />
       <QueryErrorAlert error={error} />
       {record.template_id === null && (
         <Alert type="info" showIcon title="Bệnh án chưa gắn mẫu phiếu" />
@@ -245,7 +254,7 @@ function RecordBody({ record }: { record: MedicalRecordData }) {
   );
 }
 
-/** Màn khám: tóm tắt, lịch sử và điểm UAS7 của bệnh nhân, phiếu khám (DynamicForm) và các nút tiếp nhận/chốt/huỷ. */
+/** Màn khám: tóm tắt, lịch sử, điểm UAS7 và tổn thương da của bệnh nhân, phiếu khám (DynamicForm) và các nút tiếp nhận/chốt/huỷ. */
 export function MedicalRecordDetailPage() {
   const id = Number(useParams().id);
   const { data, error, isPending } = useMedicalRecord(id);
