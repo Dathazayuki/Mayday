@@ -30,6 +30,7 @@
 - **OTP:** 6 chữ số (`crypto.randomInt(0, 1_000_000)`, đệm 0 ở đầu), lưu SHA-256 hex vào `reset_token`, hết hạn sau 10 phút.
 - **Văn bản hiển thị cho người dùng:** tiếng Việt có dấu. Comment trong code bằng tiếng Việt, ngắn gọn.
 - **Kiểm tra trước khi commit:** `pnpm lint`, `pnpm typecheck` và test của package mình sửa phải xanh.
+- **Code sạch, gọn gàng, cấu trúc nhất quán** (yêu cầu của người dùng): mỗi module theo cùng một khuôn với module anh em (API: `*.controller.ts` / `*.service.ts` / `*.repository.ts` / `dto/`; Web: trang trong `pages/` + hàm gọi API theo miền; Mobile: màn trong `src/app/` + component dùng chung trong `src/components/`); không code chết, không lặp logic, tên rõ nghĩa; reviewer coi lệch cấu trúc là Important.
 - **Không tự quyết mục "Chờ chốt" trong docs/05.** Gặp điều tài liệu không nói thì báo lại (DONE_WITH_CONCERNS / NEEDS_CONTEXT).
 - **Không đụng tới các container `lms-*`, `open-design` và MySQL cổng 3306 của máy.**
 - **Commit message tiếng Việt kiểu conventional**, kết thúc bằng dòng `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
