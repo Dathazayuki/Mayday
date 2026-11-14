@@ -9,7 +9,7 @@ export function Banner({ tone, message }: { tone: BannerTone; message: string })
 }
 
 const styles = StyleSheet.create({
-  banner: { fontSize: 16, padding: 12, borderRadius: 8 },
+  banner: { fontSize: 18, padding: 12, borderRadius: 8 },
   error: { color: '#a8071a', backgroundColor: '#fff1f0' },
   success: { color: '#135200', backgroundColor: '#f6ffed' },
 });

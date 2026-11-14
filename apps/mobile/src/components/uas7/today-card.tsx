@@ -3,6 +3,7 @@ import {
   UAS7_FIELD_LABELS,
   describeError,
   isValidUas7Score,
+  type ResponseCode,
   type Uas7ScoreData,
 } from '@drmayday/shared';
 import { useState } from 'react';
@@ -11,12 +12,13 @@ import { Banner } from '@/components/banner';
 import { FormField } from '@/components/form-field';
 import { PrimaryButton } from '@/components/primary-button';
 import { ScorePicker } from '@/components/uas7/score-picker';
-import { todayLocalIso } from '@/lib/local-date';
 import { submitScore } from '@/lib/uas7-api';
 
-const DUPLICATE_DAY_CODE = '5002';
+const DUPLICATE_DAY_CODE: ResponseCode = '5002';
 
 interface TodayCardProps {
+  /** Ngày đang chấm (YYYY-MM-DD); màn cha đặt key theo ngày để form được làm mới khi qua ngày. */
+  scoreDate: string;
   medicalRecordId: string;
   /** Điểm hôm nay đã gửi; có giá trị thì hiện chỉ đọc, không cho gửi lại. */
   submitted: Uas7ScoreData | undefined;
@@ -24,12 +26,14 @@ interface TodayCardProps {
   onChanged: () => Promise<void>;
 }
 
-export function TodayCard({ medicalRecordId, submitted, onChanged }: TodayCardProps) {
+export function TodayCard({ scoreDate, medicalRecordId, submitted, onChanged }: TodayCardProps) {
   const [iss7, setIss7] = useState<string | null>(null);
   const [hss7, setHss7] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Giữ điểm vừa gửi để vẫn hiện trạng thái đã gửi dù tải lại danh sách thất bại.
+  const [sent, setSent] = useState<Uas7ScoreData | null>(null);
 
   async function handleSubmit() {
     if (iss7 === null || hss7 === null || !isValidUas7Score(iss7) || !isValidUas7Score(hss7)) {
@@ -39,13 +43,14 @@ export function TodayCard({ medicalRecordId, submitted, onChanged }: TodayCardPr
     setError(null);
     setSubmitting(true);
     try {
-      await submitScore({
+      const created = await submitScore({
         medical_record_id: medicalRecordId,
-        score_date: todayLocalIso(),
+        score_date: scoreDate,
         iss7,
         hss7,
         ...(note.trim() ? { note: note.trim() } : {}),
       });
+      setSent(created);
       await onChanged();
     } catch (e) {
       if (e instanceof ApiError && e.code === DUPLICATE_DAY_CODE) {
@@ -59,19 +64,21 @@ export function TodayCard({ medicalRecordId, submitted, onChanged }: TodayCardPr
     }
   }
 
+  const shown = submitted ?? sent;
+
   return (
     <View style={styles.card}>
       <Text style={styles.title}>Hôm nay</Text>
-      {submitted ? (
+      {shown ? (
         <>
           <Banner tone="success" message="Bạn đã chấm điểm hôm nay." />
           <Text style={styles.line}>
-            {UAS7_FIELD_LABELS.iss7}: {submitted.iss7}
+            {UAS7_FIELD_LABELS.iss7}: {shown.iss7}
           </Text>
           <Text style={styles.line}>
-            {UAS7_FIELD_LABELS.hss7}: {submitted.hss7}
+            {UAS7_FIELD_LABELS.hss7}: {shown.hss7}
           </Text>
-          {submitted.note ? <Text style={styles.line}>Ghi chú: {submitted.note}</Text> : null}
+          {shown.note ? <Text style={styles.line}>Ghi chú: {shown.note}</Text> : null}
         </>
       ) : (
         <>

@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { dailyScore, isValidUas7Score, uas7SeverityLabel } from './uas7.js';
+import {
+  UAS7_DAILY_MAX,
+  UAS7_SCORE_MAX,
+  UAS7_WEEK_DAYS,
+  UAS7_WEEK_MAX,
+  dailyScore,
+  isValidUas7Score,
+  uas7SeverityLabel,
+} from './uas7.js';
+
+describe('hằng số', () => {
+  it('điểm ngày tối đa là 2 lần điểm tối đa và tuần có 7 ngày', () => {
+    expect(UAS7_DAILY_MAX).toBe(2 * UAS7_SCORE_MAX);
+    expect(UAS7_WEEK_MAX).toBe(UAS7_WEEK_DAYS * UAS7_DAILY_MAX);
+  });
+});
 
 describe('uas7SeverityLabel', () => {
   it.each([
