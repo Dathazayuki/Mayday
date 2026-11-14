@@ -7,7 +7,7 @@ export default defineConfig({
     root: './',
     include: ['test/**/*.e2e-spec.ts'],
     env: {
-      JWT_SECRET: 'jwt-secret-cho-vitest-e2e',
+      JWT_SECRET: 'jwt-secret-cho-vitest-e2e-du-32-ky-tu!',
       JWT_EXPIRES_IN: '3600',
       DATABASE_URL: '',
     },

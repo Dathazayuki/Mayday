@@ -1,7 +1,7 @@
 import { validateEnv } from './env.js';
 
 describe('validateEnv', () => {
-  const base = { JWT_SECRET: 'mot-chuoi-bi-mat-du-dai' };
+  const base = { JWT_SECRET: 'mot-chuoi-bi-mat-du-dai-cho-unit-test-32' };
 
   it('dùng giá trị mặc định cho PORT và JWT_EXPIRES_IN', () => {
     expect(validateEnv(base)).toMatchObject({ PORT: 3000, JWT_EXPIRES_IN: 86400 });
@@ -24,7 +24,7 @@ describe('validateEnv', () => {
   });
 
   it('báo lỗi khi JWT_SECRET quá ngắn', () => {
-    expect(() => validateEnv({ JWT_SECRET: 'ngan' })).toThrow(/JWT_SECRET/);
+    expect(() => validateEnv({ JWT_SECRET: 'a'.repeat(31) })).toThrow(/JWT_SECRET/);
   });
 
   it('báo lỗi khi PORT không phải số nguyên dương', () => {

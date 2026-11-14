@@ -25,7 +25,7 @@ Tài liệu chuẩn của dự án nằm ở [docs/README.md](docs/README.md). K
 
 ```bash
 pnpm install
-cp .env.example .env    # rồi điền JWT_SECRET; DATABASE_URL để trống khi chưa có CSDL
+cp .env.example .env    # rồi điền JWT_SECRET (tối thiểu 32 ký tự); DATABASE_URL để trống khi chưa có CSDL
 ```
 
 ## Chạy khi phát triển
@@ -35,6 +35,7 @@ docker compose up -d minio   # kho ảnh MinIO (console: http://localhost:9101)
 pnpm dev:api                 # http://localhost:3000/api/v1/health
 pnpm dev:web                 # http://localhost:5173
 pnpm dev:mobile              # quét mã QR bằng Expo Go
+pnpm dev:shared              # biên dịch lại packages/shared khi sửa (API/Web/Mobile dùng bản dist)
 ```
 
 Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXPO_PUBLIC_API_BASE_URL=http://<IP-LAN-của-máy>:3000`.

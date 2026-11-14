@@ -36,8 +36,8 @@ function positiveInt(
 export function validateEnv(raw: Record<string, unknown>): Env {
   const errors: string[] = [];
   const jwtSecret = optionalString(raw, 'JWT_SECRET');
-  if (!jwtSecret || jwtSecret.length < 16) {
-    errors.push('JWT_SECRET là bắt buộc và phải dài tối thiểu 16 ký tự');
+  if (!jwtSecret || jwtSecret.length < 32) {
+    errors.push('JWT_SECRET là bắt buộc và phải dài tối thiểu 32 ký tự');
   }
 
   const env: Env = {

@@ -7,7 +7,7 @@ export default defineConfig({
     root: './',
     include: ['src/**/*.spec.ts'],
     env: {
-      JWT_SECRET: 'jwt-secret-cho-vitest-unit',
+      JWT_SECRET: 'jwt-secret-cho-vitest-unit-du-32-ky-tu',
       JWT_EXPIRES_IN: '3600',
       DATABASE_URL: '',
     },
