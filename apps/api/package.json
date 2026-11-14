@@ -15,6 +15,7 @@
     "start:prod": "node dist/main",
     "lint": "oxlint --type-aware src/ test/",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "test": "vitest run",
     "test:watch": "vitest",

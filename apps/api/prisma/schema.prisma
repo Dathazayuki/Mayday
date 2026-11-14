@@ -1,0 +1,13 @@
+// Model sẽ được sinh bằng `pnpm --filter @drmayday/api exec prisma db pull`
+// khi có CSDL do nhóm DB cung cấp (MT-19, MT-57). Provider mysql là tạm thời theo tài liệu CSDL.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "mysql"
+}
