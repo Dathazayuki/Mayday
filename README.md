@@ -31,7 +31,7 @@ cp .env.example .env    # rồi điền JWT_SECRET; DATABASE_URL để trống k
 ## Chạy khi phát triển
 
 ```bash
-docker compose up -d minio   # kho ảnh MinIO (console: http://localhost:9001)
+docker compose up -d minio   # kho ảnh MinIO (console: http://localhost:9101)
 pnpm dev:api                 # http://localhost:3000/api/v1/health
 pnpm dev:web                 # http://localhost:5173
 pnpm dev:mobile              # quét mã QR bằng Expo Go
