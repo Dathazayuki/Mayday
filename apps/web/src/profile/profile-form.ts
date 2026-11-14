@@ -1,9 +1,25 @@
 import {
   PATIENT_EDITABLE_FIELDS,
   isPatientProfile,
+  type PatientEditableField,
   type ProfileData,
   type UpdateProfileRequest,
 } from '@drmayday/shared';
+
+/** Nhãn tiếng Việt của các trường bệnh nhân: dùng chung cho trang hồ sơ và Drawer chi tiết của admin. */
+export const PATIENT_FIELD_LABELS: Record<PatientEditableField, string> = {
+  year_of_birth: 'Năm sinh',
+  career: 'Nghề nghiệp',
+  ethnic: 'Dân tộc',
+  hamlet_address: 'Thôn/Xóm',
+  commune_address: 'Xã/Phường',
+  city_address: 'Tỉnh/Thành phố',
+  work_place: 'Nơi làm việc',
+  health_insurance_number: 'Số thẻ BHYT',
+  health_insurance_validate: 'Hạn thẻ BHYT',
+  next_of_kin_name: 'Người thân',
+  next_of_kin_phone: 'Số điện thoại người thân',
+};
 
 /** Giá trị form có cùng dạng với body PUT; trường trống có thể là undefined hoặc chuỗi rỗng. */
 export type ProfileFormValues = UpdateProfileRequest;

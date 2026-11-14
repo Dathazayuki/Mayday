@@ -13,7 +13,12 @@ import {
 import { Alert, Button, Card, Form, Input, InputNumber, Select, Skeleton, Typography } from 'antd';
 import { useState } from 'react';
 import { useProfile, useUpdateProfile } from '../profile/profile-api';
-import { buildProfileChanges, toFormValues, type ProfileFormValues } from '../profile/profile-form';
+import {
+  buildProfileChanges,
+  PATIENT_FIELD_LABELS,
+  toFormValues,
+  type ProfileFormValues,
+} from '../profile/profile-form';
 
 type Notice = { type: 'success' | 'error' | 'info'; text: string };
 
@@ -24,22 +29,22 @@ const PATIENT_TEXT_FIELDS: {
   validate?: (value: string) => boolean;
   invalidMessage?: string;
 }[] = [
-  { name: 'ethnic', label: 'Dân tộc' },
-  { name: 'hamlet_address', label: 'Thôn/Xóm' },
-  { name: 'commune_address', label: 'Xã/Phường' },
-  { name: 'city_address', label: 'Tỉnh/Thành phố' },
-  { name: 'work_place', label: 'Nơi làm việc' },
-  { name: 'health_insurance_number', label: 'Số thẻ BHYT' },
+  { name: 'ethnic', label: PATIENT_FIELD_LABELS.ethnic },
+  { name: 'hamlet_address', label: PATIENT_FIELD_LABELS.hamlet_address },
+  { name: 'commune_address', label: PATIENT_FIELD_LABELS.commune_address },
+  { name: 'city_address', label: PATIENT_FIELD_LABELS.city_address },
+  { name: 'work_place', label: PATIENT_FIELD_LABELS.work_place },
+  { name: 'health_insurance_number', label: PATIENT_FIELD_LABELS.health_insurance_number },
   {
     name: 'health_insurance_validate',
-    label: 'Hạn thẻ BHYT',
+    label: PATIENT_FIELD_LABELS.health_insurance_validate,
     validate: isValidIsoDate,
     invalidMessage: 'Ngày không đúng định dạng YYYY-MM-DD',
   },
-  { name: 'next_of_kin_name', label: 'Người thân' },
+  { name: 'next_of_kin_name', label: PATIENT_FIELD_LABELS.next_of_kin_name },
   {
     name: 'next_of_kin_phone',
-    label: 'Số điện thoại người thân',
+    label: PATIENT_FIELD_LABELS.next_of_kin_phone,
     validate: isValidVietnamPhone,
     invalidMessage: 'Số điện thoại không đúng định dạng (VD: 0912345678)',
   },
@@ -49,7 +54,7 @@ function PatientFields({ profile }: { profile: PatientProfileData }) {
   return (
     <>
       <Form.Item
-        label="Năm sinh"
+        label={PATIENT_FIELD_LABELS.year_of_birth}
         name="year_of_birth"
         rules={[
           {
@@ -62,7 +67,7 @@ function PatientFields({ profile }: { profile: PatientProfileData }) {
       >
         <InputNumber precision={0} style={{ width: '100%' }} />
       </Form.Item>
-      <Form.Item label="Nghề nghiệp" name="career">
+      <Form.Item label={PATIENT_FIELD_LABELS.career} name="career">
         <Select allowClear options={[...CAREER_OPTIONS]} />
       </Form.Item>
       {PATIENT_TEXT_FIELDS.map(({ name, label, validate, invalidMessage }) => (

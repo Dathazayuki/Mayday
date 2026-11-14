@@ -10,16 +10,22 @@ interface BaseProps<TValues extends object, TItem> {
   /** Tên đối tượng dùng trong tiêu đề và thông báo, ví dụ "chi nhánh". */
   entityName: string;
   saving: boolean;
-  onCreate: (values: TValues) => Promise<unknown>;
   /** Các Form.Item của đối tượng. */
   children: ReactNode;
 }
 
-/** Hoặc có onUpdate (tạo và sửa), hoặc đánh dấu createOnly cho đối tượng không có API sửa. */
+type CreateHandler<TValues> = (values: TValues) => Promise<unknown>;
+type UpdateHandler<TValues, TItem> = (item: TItem, values: TValues) => Promise<unknown>;
+
+/**
+ * Tạo và sửa (onCreate + onUpdate), hoặc chỉ tạo (createOnly: đối tượng không có API sửa), hoặc chỉ
+ * sửa (updateOnly: thao tác trên bản ghi có sẵn, ví dụ phân công nhân viên).
+ */
 type EntityFormModalProps<TValues extends object, TItem> = BaseProps<TValues, TItem> &
   (
-    | { onUpdate: (item: TItem, values: TValues) => Promise<unknown>; createOnly?: never }
-    | { createOnly: true; onUpdate?: never }
+    | { onCreate: CreateHandler<TValues>; onUpdate: UpdateHandler<TValues, TItem> }
+    | { onCreate: CreateHandler<TValues>; createOnly: true; onUpdate?: never }
+    | { onUpdate: UpdateHandler<TValues, TItem>; updateOnly: true; onCreate?: never }
   );
 
 /** Modal tạo/sửa dùng chung: một form cho cả hai chế độ, đóng khi lưu thành công. */
@@ -33,7 +39,7 @@ export function EntityFormModal<TValues extends object, TItem>(
   async function handleFinish(values: TValues) {
     const ok =
       editing === 'new' || !onUpdate
-        ? await run(() => onCreate(values), `Đã thêm ${entityName}`)
+        ? await run(() => onCreate!(values), `Đã thêm ${entityName}`)
         : await run(() => onUpdate(editing as TItem, values), `Đã cập nhật ${entityName}`);
     if (ok) close();
   }
