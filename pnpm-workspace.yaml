@@ -4,6 +4,7 @@ packages:
 allowBuilds:
   '@prisma/engines': true
   '@scarf/scarf': false
+  esbuild: true
   prisma: true
 
 # pnpm 11 đọc cấu hình ở đây (không đọc .npmrc). Dùng isolated – cách đã kiểm thử với Expo, Vite, NestJS.

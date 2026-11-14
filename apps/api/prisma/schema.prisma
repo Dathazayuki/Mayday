@@ -1,5 +1,5 @@
-// Model sẽ được sinh bằng `pnpm --filter @drmayday/api exec prisma db pull`
-// khi có CSDL do nhóm DB cung cấp (MT-19, MT-57). Provider mysql là tạm thời theo tài liệu CSDL.
+// Schema DEV tạm thời viết theo docs/03-co-so-du-lieu.md (track changes coi như đã chấp nhận), đúng dạng `prisma db pull` sẽ sinh.
+// Khi nhóm DB gửi schema thật (MT-57): `db pull` rồi sửa các *.repository.ts
 
 generator client {
   provider            = "prisma-client"
@@ -10,4 +10,147 @@ generator client {
 
 datasource db {
   provider = "mysql"
+}
+
+enum users_gioi_tinh {
+  Nam
+  Nu
+  Khac // MT-59: tài liệu CSDL chỉ có Nam/Nu, Sheet có "other"
+}
+
+enum patients_nghe_nghiep {
+  Cong_nhan            @map("Cong nhan")
+  Nong_dan             @map("Nong dan")
+  Hoc_sinh___Sinh_vien @map("Hoc sinh - Sinh vien")
+  Can_bo_cong_chuc     @map("Can bo cong chuc")
+  Khac
+}
+
+enum user_fcm_tokens_device_type {
+  android
+  ios
+  web
+}
+
+model roles {
+  role_id        Int        @id @default(autoincrement())
+  name           String     @unique @db.VarChar(255)
+  description    String?    @db.VarChar(255)
+  parent_role_id Int?
+  created_at     DateTime   @default(now()) @db.DateTime(0)
+  updated_at     DateTime   @default(now()) @updatedAt @db.DateTime(0)
+  parent         roles?     @relation("roles_parent", fields: [parent_role_id], references: [role_id], onDelete: Restrict, onUpdate: Restrict)
+  children       roles[]    @relation("roles_parent")
+  staffs         staffs[]
+  patients       patients[]
+}
+
+model branches {
+  id          Int           @id @default(autoincrement())
+  name        String        @db.VarChar(255)
+  address     String?       @db.VarChar(255)
+  phone       String?       @db.VarChar(20)
+  created_at  DateTime      @default(now()) @db.DateTime(0)
+  updated_at  DateTime      @default(now()) @updatedAt @db.DateTime(0)
+  departments departments[]
+  staffs      staffs[]
+}
+
+model departments {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(255)
+  description String?  @db.VarChar(255)
+  branch_id   Int
+  created_at  DateTime @default(now()) @db.DateTime(0)
+  updated_at  DateTime @default(now()) @updatedAt @db.DateTime(0)
+  branch      branches @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  rooms       rooms[]
+  staffs      staffs[]
+}
+
+model rooms {
+  id            Int          @id @default(autoincrement())
+  name          String       @db.VarChar(255)
+  description   String?      @db.VarChar(255)
+  department_id Int?
+  created_at    DateTime     @default(now()) @db.DateTime(0)
+  updated_at    DateTime     @default(now()) @updatedAt @db.DateTime(0)
+  department    departments? @relation(fields: [department_id], references: [id], onDelete: SetNull, onUpdate: Restrict)
+  staffs        staffs[]
+}
+
+model users {
+  user_id             Int               @id @default(autoincrement())
+  password_hash       String            @db.VarChar(255)
+  ho_ten              String            @db.VarChar(255)
+  so_dien_thoai       String            @unique @db.VarChar(20)
+  gioi_tinh           users_gioi_tinh?
+  reset_token         String?           @db.VarChar(255)
+  reset_token_expires DateTime?         @db.DateTime(0)
+  is_active           Boolean           @default(true)
+  created_at          DateTime          @default(now()) @db.DateTime(0)
+  updated_at          DateTime          @default(now()) @updatedAt @db.DateTime(0)
+  staffs              staffs?
+  patients            patients?
+  user_fcm_tokens     user_fcm_tokens[]
+  token_blacklist     token_blacklist[]
+}
+
+model staffs {
+  user_id       Int          @id
+  role_id       Int
+  department_id Int?
+  branch_id     Int?
+  room_id       Int?
+  user          users        @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: Restrict)
+  role          roles        @relation(fields: [role_id], references: [role_id], onDelete: Restrict, onUpdate: Restrict)
+  department    departments? @relation(fields: [department_id], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  branch        branches?    @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  room          rooms?       @relation(fields: [room_id], references: [id], onDelete: Restrict, onUpdate: Restrict)
+}
+
+model patients {
+  user_id                          Int                   @id
+  role_id                          Int
+  ngay_sinh                        DateTime?             @db.Date
+  nghe_nghiep                      patients_nghe_nghiep?
+  dan_toc                          String?               @db.VarChar(100)
+  dia_chi_so_nha_thon_pho          String?               @db.VarChar(100)
+  dia_chi_xa_phuong                String?               @db.VarChar(100)
+  dia_chi_tinh_tp                  String?               @db.VarChar(100)
+  noi_lam_viec                     String?               @db.VarChar(100)
+  bhyt_so_the                      String?               @db.VarChar(100)
+  bhyt_gia_tri_den                 DateTime?             @db.Date
+  nguoi_nha_ho_ten_dia_chi         String?               @db.VarChar(100)
+  nguoi_nha_so_dien_thoai          String?               @db.VarChar(100)
+  thoi_diem_kham_lan_dau           DateTime?             @db.DateTime(0)
+  ngay_bat_dau_dieu_tri_ngoai_tru  DateTime?             @db.Date
+  ngay_ket_thuc_dieu_tri_ngoai_tru DateTime?             @db.Date
+  // Các cột tien_su_* của tài liệu CSDL thuộc MT-10, thêm khi có schema thật.
+  created_at                       DateTime              @default(now()) @db.DateTime(0)
+  updated_at                       DateTime              @default(now()) @updatedAt @db.DateTime(0)
+  user                             users                 @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: Restrict)
+  role                             roles                 @relation(fields: [role_id], references: [role_id], onDelete: Restrict, onUpdate: Restrict)
+}
+
+model user_fcm_tokens {
+  id          Int                          @id @default(autoincrement())
+  user_id     Int
+  fcm_token   String                       @db.Text
+  device_type user_fcm_tokens_device_type?
+  created_at  DateTime                     @default(now()) @db.DateTime(0)
+  updated_at  DateTime                     @default(now()) @updatedAt @db.DateTime(0)
+  user        users                        @relation(fields: [user_id], references: [user_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([user_id])
+}
+
+model token_blacklist {
+  invalid_token_id Int      @id @default(autoincrement())
+  jti              String   @unique @db.VarChar(64)
+  user_id          Int
+  expires_at       DateTime @db.DateTime(0)
+  created_at       DateTime @default(now()) @db.DateTime(0)
+  updated_at       DateTime @default(now()) @updatedAt @db.DateTime(0)
+  user             users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: Restrict)
 }

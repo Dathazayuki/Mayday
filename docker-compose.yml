@@ -12,5 +12,33 @@ services:
     volumes:
       - minio-data:/data
 
+  # CSDL dev tạm thời (MT-19, MT-57). Cổng host 3307 vì 3306 đã có MySQL khác trên máy.
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-drmayday-root-dev}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-drmayday}
+      MYSQL_USER: ${MYSQL_USER:-drmayday}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-drmayday-dev-secret}
+    ports:
+      - '${MYSQL_PORT:-3307}:3306'
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'mysqladmin',
+          'ping',
+          '-h',
+          '127.0.0.1',
+          '-uroot',
+          '-p${MYSQL_ROOT_PASSWORD:-drmayday-root-dev}',
+        ]
+      interval: 5s
+      retries: 20
+
 volumes:
   minio-data:
+  mysql-data:
