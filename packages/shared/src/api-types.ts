@@ -11,7 +11,19 @@ export interface ApiResponse<T = unknown> {
   code: string;
   message: string;
   data?: T;
+  /** Chỉ API danh sách có phân trang: tổng số bản ghi, nằm ngoài data (Sheet GET /admin/users). */
+  total?: number;
 }
+
+export interface PageResult<T> {
+  items: T[];
+  total: number;
+}
+
+/** Phân trang mặc định của Sheet GET /admin/users; LIMIT_MAX do dự án đặt để chặn truy vấn quá lớn. */
+export const PAGE_DEFAULT = 1;
+export const LIMIT_DEFAULT = 20;
+export const LIMIT_MAX = 100;
 
 /** Mã chỉ dùng phía client khi không gọi được máy chủ (không có trong catalog). */
 export const NETWORK_ERROR_CODE = 'NETWORK_ERROR';
