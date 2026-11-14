@@ -21,3 +21,8 @@ export * from './uas7.js';
 export * from './contracts/prescriptions.js';
 export * from './contracts/labs.js';
 export * from './contracts/notifications.js';
+export * from './contracts/media.js';
+export * from './media.js';
+export * from './answer-images.js';
+export * from './contracts/lesions.js';
+export * from './lesions.js';
