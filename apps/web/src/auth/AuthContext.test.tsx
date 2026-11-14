@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen } from '@testing-library/react';
+import { LOGOUT_TIMEOUT_MS } from '@drmayday/shared';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { UNAUTHENTICATED_EVENT } from '../api';
 import { errorResponse, okResponse, seedSession } from '../test/helpers';
@@ -16,10 +17,10 @@ function Probe() {
   );
 }
 
-function renderProbe() {
+function renderProbe(queryClient = new QueryClient()) {
   seedSession();
   render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <Probe />
       </AuthProvider>
@@ -63,6 +64,59 @@ describe('AuthProvider.logout', () => {
     expect(await screen.findByText('chưa đăng nhập')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem('drmayday.token')).toBeNull();
+  });
+});
+
+describe('AuthProvider.logout khi API treo', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('hết thời gian chờ đăng xuất thì vẫn xoá phiên', async () => {
+    vi.useFakeTimers();
+    // fetch treo cho tới khi bị abort, như mạng chập chờn.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_, reject) => {
+            init.signal?.addEventListener('abort', () => reject(new DOMException('', 'AbortError')));
+          }),
+      ),
+    );
+    renderProbe();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Thoát' }));
+    expect(screen.getByText('đã đăng nhập')).toBeInTheDocument();
+    await act(() => vi.advanceTimersByTimeAsync(LOGOUT_TIMEOUT_MS));
+
+    expect(screen.getByText('chưa đăng nhập')).toBeInTheDocument();
+    expect(localStorage.getItem('drmayday.token')).toBeNull();
+  });
+});
+
+describe('AuthProvider xoá cache truy vấn', () => {
+  it('khi đăng xuất', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse()));
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['profile'], { full_name: 'A' });
+    renderProbe(queryClient);
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Thoát' }));
+
+    expect(await screen.findByText('chưa đăng nhập')).toBeInTheDocument();
+    expect(queryClient.getQueryData(['profile'])).toBeUndefined();
+  });
+
+  it('khi hết phiên', async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['profile'], { full_name: 'A' });
+    renderProbe(queryClient);
+
+    act(() => {
+      window.dispatchEvent(new Event(UNAUTHENTICATED_EVENT));
+    });
+
+    expect(await screen.findByText('chưa đăng nhập')).toBeInTheDocument();
+    expect(queryClient.getQueryData(['profile'])).toBeUndefined();
   });
 });
 

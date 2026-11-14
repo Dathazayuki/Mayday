@@ -1,5 +1,6 @@
 import { DownOutlined, KeyOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { Button, Dropdown, Layout, Menu, type MenuProps } from 'antd';
+import { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../auth/useAuth';
 import { NAV_GROUPS } from './menu';
@@ -8,6 +9,7 @@ export function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const items: MenuProps['items'] = [
     { key: '/', label: 'Tổng quan' },
@@ -24,11 +26,13 @@ export function AppLayout() {
       { key: '/profile', icon: <UserOutlined />, label: 'Hồ sơ cá nhân' },
       { key: '/change-password', icon: <KeyOutlined />, label: 'Đổi mật khẩu' },
       { type: 'divider' },
-      { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất' },
+      { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất', disabled: loggingOut },
     ],
     onClick: ({ key }) => {
-      if (key === 'logout') void logout();
-      else navigate(key);
+      if (key !== 'logout') return navigate(key);
+      // logout luôn xoá phiên nên layout sẽ bị gỡ; không cần đặt lại cờ.
+      setLoggingOut(true);
+      void logout();
     },
   };
 
@@ -48,7 +52,7 @@ export function AppLayout() {
           style={{ background: '#fff', display: 'flex', justifyContent: 'flex-end', paddingInline: 16 }}
         >
           <Dropdown menu={userMenu} trigger={['click']}>
-            <Button type="text" icon={<UserOutlined />}>
+            <Button type="text" icon={<UserOutlined />} loading={loggingOut}>
               {user?.full_name} <DownOutlined />
             </Button>
           </Dropdown>

@@ -107,4 +107,20 @@ describe('Định tuyến và đăng nhập', () => {
     const [url] = fetchMock.mock.calls[0] as [string];
     expect(url).toBe('http://localhost:3000/api/v1/auth/logout');
   });
+
+  it('đang đăng xuất thì không cho bấm Đăng xuất lần nữa (không gọi API hai lần)', async () => {
+    seedSession();
+    const fetchMock = vi.fn(() => new Promise<Response>(() => undefined)); // logout treo
+    vi.stubGlobal('fetch', fetchMock);
+    renderAt('/');
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /Nguyễn Văn An/ }));
+    await user.click(await screen.findByText('Đăng xuất'));
+    // Nút người dùng chuyển sang trạng thái loading nên không mở lại được menu để bấm lần hai.
+    const trigger = screen.getByRole('button', { name: /Nguyễn Văn An/ });
+    expect(trigger).toHaveClass('ant-btn-loading');
+    await user.click(trigger);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

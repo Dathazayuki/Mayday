@@ -1,20 +1,28 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Route, Routes } from 'react-router';
+import { Route, Routes, useLocation } from 'react-router';
 import { RequireAuth } from '../auth/RequireAuth';
 import { errorResponse, okResponse, renderApp, seedSession } from '../test/helpers';
 import { ChangePasswordPage } from './ChangePasswordPage';
 import { LoginPage } from './LoginPage';
 
+/** Hiện state của location hiện tại để kiểm tra thông báo đã được xoá khỏi history. */
+function LocationStateProbe() {
+  return <output aria-label="location-state">{JSON.stringify(useLocation().state)}</output>;
+}
+
 function renderPage() {
   seedSession();
   renderApp(
+    <>
+    <LocationStateProbe />
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<RequireAuth />}>
         <Route path="/change-password" element={<ChangePasswordPage />} />
       </Route>
-    </Routes>,
+    </Routes>
+    </>,
     '/change-password',
   );
 }
@@ -70,7 +78,7 @@ describe('ChangePasswordPage', () => {
     expect(
       await screen.findByText('Đổi mật khẩu thành công, vui lòng đăng nhập lại'),
     ).toBeInTheDocument();
-    expect(localStorage.getItem('drmayday.token')).toBeNull();
+    await waitFor(() => expect(localStorage.getItem('drmayday.token')).toBeNull());
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('http://localhost:3000/api/v1/auth/change-password');
@@ -82,5 +90,16 @@ describe('ChangePasswordPage', () => {
         confirm_password: 'moi123456',
       }),
     );
+  });
+
+  it('thông báo được bỏ khỏi state của history sau khi hiển thị (reload không hiện lại)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse()));
+    renderPage();
+
+    await fill('cu123456', 'moi123456', 'moi123456');
+    await screen.findByText('Đổi mật khẩu thành công, vui lòng đăng nhập lại');
+
+    await waitFor(() => expect(screen.getByLabelText('location-state')).toHaveTextContent('null'));
+    expect(screen.getByText('Đổi mật khẩu thành công, vui lòng đăng nhập lại')).toBeInTheDocument();
   });
 });

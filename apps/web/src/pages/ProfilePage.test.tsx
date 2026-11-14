@@ -1,4 +1,6 @@
-import { screen, waitFor } from '@testing-library/react';
+import { describeError, ApiError } from '@drmayday/shared';
+import { QueryClient } from '@tanstack/react-query';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { errorResponse, okResponse, renderApp, seedSession } from '../test/helpers';
 import { ProfilePage } from './ProfilePage';
@@ -163,7 +165,84 @@ describe('ProfilePage', () => {
     await user.click(screen.getByRole('button', { name: 'Lưu' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/\S/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      describeError(new ApiError('2003', 'error', 400)),
+    );
     expect(screen.queryByText('Đã lưu hồ sơ')).not.toBeInTheDocument();
+  });
+
+  it('năm sinh ngoài khoảng cho phép: báo lỗi tại form, không gọi PUT', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(PATIENT_PROFILE));
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage();
+    const user = userEvent.setup();
+
+    const input = await screen.findByLabelText('Năm sinh');
+    await user.clear(input);
+    await user.type(input, '1800');
+    await user.click(screen.getByRole('button', { name: 'Lưu' }));
+
+    expect(await screen.findByText('Năm sinh không hợp lệ')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('chọn giới tính mới thì PUT gửi gender', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okResponse(STAFF_PROFILE))
+      .mockResolvedValueOnce(okResponse({ ...STAFF_PROFILE, gender: 'female' }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByLabelText('Giới tính'));
+    await user.click(await screen.findByTitle('Nữ'));
+    await user.click(screen.getByRole('button', { name: 'Lưu' }));
+
+    expect(await screen.findByText('Đã lưu hồ sơ')).toBeInTheDocument();
+    const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(init.body).toBe(JSON.stringify({ gender: 'female' }));
+  });
+
+  it('chọn nghề nghiệp mới thì PUT gửi career', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okResponse(PATIENT_PROFILE))
+      .mockResolvedValueOnce(okResponse({ ...PATIENT_PROFILE, career: 'Nong dan' }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByLabelText('Nghề nghiệp'));
+    await user.click(await screen.findByTitle('Nông dân'));
+    await user.click(screen.getByRole('button', { name: 'Lưu' }));
+
+    expect(await screen.findByText('Đã lưu hồ sơ')).toBeInTheDocument();
+    const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(init.body).toBe(JSON.stringify({ career: 'Nong dan' }));
+  });
+
+  it('refetch nền không làm trường chưa sửa bị coi là đã đổi (không ghi đè dữ liệu server)', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okResponse(PATIENT_PROFILE))
+      // Lần refetch: server đã có thành phố mới do nơi khác sửa.
+      .mockResolvedValueOnce(okResponse({ ...PATIENT_PROFILE, city_address: 'Huế' }))
+      .mockResolvedValueOnce(okResponse({ ...PATIENT_PROFILE, city_address: 'Huế', ethnic: 'Tày' }));
+    vi.stubGlobal('fetch', fetchMock);
+    seedSession();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderApp(<ProfilePage />, '/', queryClient);
+    const user = userEvent.setup();
+
+    const ethnic = await screen.findByLabelText('Dân tộc');
+    await act(() => queryClient.refetchQueries({ queryKey: ['profile'] }));
+    await user.clear(ethnic);
+    await user.type(ethnic, 'Tày');
+    await user.click(screen.getByRole('button', { name: 'Lưu' }));
+
+    expect(await screen.findByText('Đã lưu hồ sơ')).toBeInTheDocument();
+    const [, init] = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(init.body).toBe(JSON.stringify({ ethnic: 'Tày' }));
   });
 });

@@ -33,8 +33,11 @@ export function errorResponse(status: number, code: string) {
 }
 
 /** Render với đủ provider như App (Query + Auth + Router). */
-export function renderApp(ui: ReactNode, path = '/') {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+export function renderApp(
+  ui: ReactNode,
+  path = '/',
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

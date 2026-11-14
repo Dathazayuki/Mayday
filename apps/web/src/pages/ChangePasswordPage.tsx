@@ -1,13 +1,11 @@
 import { PASSWORD_MIN_LENGTH, describeError, type ChangePasswordRequest } from '@drmayday/shared';
 import { Alert, Button, Card, Form, Input } from 'antd';
 import { useState } from 'react';
-import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { apiClient } from '../api';
-import { useAuth } from '../auth/useAuth';
+import { PASSWORD_CHANGED_NOTICE, type LoginLocationState } from '../auth/login-state';
 
 export function ChangePasswordPage() {
-  const { clearSession } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -22,10 +20,8 @@ export function ChangePasswordPage() {
       setSubmitting(false);
       return;
     }
-    // Server đã thu hồi token: chỉ xoá phiên cục bộ. flushSync để RequireAuth chuyển trang
-    // xong trước, lệnh navigate sau mới ghi đè state (kèm thông báo) lên bước chuyển đó.
-    flushSync(clearSession);
-    navigate('/login', { replace: true, state: { notice: 'password-changed' } });
+    // Server đã thu hồi token. Chỉ điều hướng; LoginPage thấy thông báo này sẽ xoá phiên cục bộ.
+    navigate('/login', { replace: true, state: { notice: PASSWORD_CHANGED_NOTICE } satisfies LoginLocationState });
   }
 
   return (

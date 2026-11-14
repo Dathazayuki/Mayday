@@ -6,6 +6,7 @@ import {
   isValidIsoDate,
   isValidVietnamPhone,
   isValidYearOfBirth,
+  type PatientEditableField,
   type PatientProfileData,
   type ProfileData,
 } from '@drmayday/shared';
@@ -18,7 +19,7 @@ type Notice = { type: 'success' | 'error' | 'info'; text: string };
 
 /** Trường văn bản của bệnh nhân (theo thứ tự hiển thị), kèm quy tắc kiểm tra riêng nếu có. */
 const PATIENT_TEXT_FIELDS: {
-  name: keyof PatientProfileData;
+  name: Exclude<PatientEditableField, 'year_of_birth' | 'career'>;
   label: string;
   validate?: (value: string) => boolean;
   invalidMessage?: string;
@@ -59,7 +60,7 @@ function PatientFields({ profile }: { profile: PatientProfileData }) {
           },
         ]}
       >
-        <InputNumber min={1900} precision={0} style={{ width: '100%' }} />
+        <InputNumber precision={0} style={{ width: '100%' }} />
       </Form.Item>
       <Form.Item label="Nghề nghiệp" name="career">
         <Select allowClear options={[...CAREER_OPTIONS]} />
@@ -98,16 +99,20 @@ function ProfileForm({ profile }: { profile: ProfileData }) {
   const [form] = Form.useForm<ProfileFormValues>();
   const [notice, setNotice] = useState<Notice | null>(null);
   const { mutateAsync, isPending } = useUpdateProfile();
+  // Bản chụp lúc khởi tạo form (cập nhật sau khi lưu): mốc so sánh, không đổi theo refetch nền.
+  const [initial, setInitial] = useState(() => toFormValues(profile));
 
   async function handleFinish(values: ProfileFormValues) {
-    const changes = buildProfileChanges(profile, values);
+    const changes = buildProfileChanges(initial, values);
     if (Object.keys(changes).length === 0) {
       setNotice({ type: 'info', text: 'Chưa có thay đổi nào để lưu' });
       return;
     }
     try {
       const saved = await mutateAsync(changes);
-      form.setFieldsValue(toFormValues(saved));
+      const savedValues = toFormValues(saved);
+      setInitial(savedValues);
+      form.setFieldsValue(savedValues);
       setNotice({ type: 'success', text: 'Đã lưu hồ sơ' });
     } catch (err) {
       setNotice({ type: 'error', text: describeError(err) });
@@ -118,7 +123,7 @@ function ProfileForm({ profile }: { profile: ProfileData }) {
     <Form<ProfileFormValues>
       form={form}
       layout="vertical"
-      initialValues={toFormValues(profile)}
+      initialValues={initial}
       onFinish={handleFinish}
       requiredMark={false}
     >

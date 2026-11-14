@@ -1,4 +1,4 @@
-import type { LoginRequest, LoginResponseData } from '@drmayday/shared';
+import { LOGOUT_TIMEOUT_MS, type LoginRequest, type LoginResponseData } from '@drmayday/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { apiClient, UNAUTHENTICATED_EVENT } from '../api';
@@ -16,10 +16,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
   }, [queryClient]);
 
-  // Gọi API khi token còn lưu; lỗi (mạng, 3001/3002) vẫn xoá phiên.
+  // Gọi API khi token còn lưu; lỗi (mạng, hết giờ, 3001/3002) vẫn xoá phiên.
   const logout = useCallback(async () => {
     try {
-      await apiClient.post('/auth/logout');
+      await apiClient.post('/auth/logout', undefined, { timeoutMs: LOGOUT_TIMEOUT_MS });
     } catch {
       // Bỏ qua: dù API lỗi người dùng vẫn phải thoát được.
     } finally {
