@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import { Alert, Linking, StyleSheet, View } from 'react-native';
 import { PrimaryButton } from '@/components/primary-button';
 import { pickImages, type ImageSource, type PickedImage } from '@/lib/image-picker';
@@ -11,11 +12,24 @@ interface ImageSourceButtonsProps {
 
 /** Hai nút "Chụp ảnh" và "Chọn từ thư viện", kèm xử lý quyền bị từ chối và ảnh không hợp lệ. */
 export function ImageSourceButtons({ limit, onPicked, disabled = false }: ImageSourceButtonsProps) {
+  // Chỉ mở một bộ chọn ảnh tại một thời điểm (bấm đúp hoặc bấm hai nút liên tiếp).
+  const pickingRef = useRef(false);
+  const [picking, setPicking] = useState(false);
+
   async function handlePick(source: ImageSource) {
+    if (pickingRef.current) return;
+    pickingRef.current = true;
+    setPicking(true);
     try {
       const result = await pickImages({ source, limit });
       if (result.status === 'ok') {
-        onPicked(result.images);
+        if (result.images.length > limit) {
+          Alert.alert(
+            'Chỉ lấy một phần ảnh',
+            `Bạn chọn ${result.images.length} ảnh nhưng chỉ thêm được tối đa ${limit} ảnh. ${result.images.length - limit} ảnh cuối đã bị bỏ qua.`,
+          );
+        }
+        onPicked(result.images.slice(0, limit));
       } else if (result.status === 'invalid') {
         Alert.alert('Không dùng được ảnh', result.message);
       } else if (result.status === 'denied') {
@@ -33,6 +47,9 @@ export function ImageSourceButtons({ limit, onPicked, disabled = false }: ImageS
     } catch (error) {
       console.warn('Không mở được bộ chọn ảnh:', error);
       Alert.alert('Không mở được ảnh', 'Đã có lỗi khi mở máy ảnh hoặc thư viện. Vui lòng thử lại.');
+    } finally {
+      pickingRef.current = false;
+      setPicking(false);
     }
   }
 
@@ -43,7 +60,7 @@ export function ImageSourceButtons({ limit, onPicked, disabled = false }: ImageS
           title="Chụp ảnh"
           variant="secondary"
           onPress={() => void handlePick('camera')}
-          loading={disabled}
+          disabled={disabled || picking}
         />
       </View>
       <View style={styles.cell}>
@@ -51,7 +68,7 @@ export function ImageSourceButtons({ limit, onPicked, disabled = false }: ImageS
           title="Chọn từ thư viện"
           variant="secondary"
           onPress={() => void handlePick('library')}
-          loading={disabled}
+          disabled={disabled || picking}
         />
       </View>
     </View>

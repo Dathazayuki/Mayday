@@ -61,6 +61,8 @@ function EpisodeDetailView({ id }: { id: string }) {
   const fetcher = useCallback(() => loadDetail(id), [id]);
   const { data, error, refreshing, reload, refresh } = useLoader(fetcher);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Một thao tác xoá tại một thời điểm.
+  const [busy, setBusy] = useState(false);
 
   function confirmDelete(title: string, message: string, action: () => Promise<unknown>) {
     Alert.alert(title, message, [
@@ -70,11 +72,15 @@ function EpisodeDetailView({ id }: { id: string }) {
   }
 
   async function runAction(action: () => Promise<unknown>) {
+    if (busy) return;
+    setBusy(true);
     setActionError(null);
     try {
       await action();
     } catch (e) {
       setActionError(describeError(e));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -113,11 +119,13 @@ function EpisodeDetailView({ id }: { id: string }) {
             <PrimaryButton
               title="Sửa đợt"
               variant="secondary"
+              disabled={busy}
               onPress={() => router.push({ pathname: '/lesions/new', params: { id } })}
             />
             <PrimaryButton
               title="Xoá đợt"
               variant="danger"
+              loading={busy}
               onPress={() =>
                 confirmDelete(
                   'Xoá đợt tổn thương?',
@@ -139,6 +147,7 @@ function EpisodeDetailView({ id }: { id: string }) {
             location={location}
             photos={photos}
             canEdit={canEdit}
+            busy={busy}
             onEdit={() =>
               router.push({
                 pathname: '/lesions/location',

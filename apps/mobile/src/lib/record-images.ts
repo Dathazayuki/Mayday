@@ -1,60 +1,11 @@
-import {
-  imageTriggerOptionValues,
-  questionAcceptsImages,
-  type FormState,
-  type QuestionData,
-} from '@drmayday/shared';
+import { answerIdsByQuestion, type ImageSlot } from '@drmayday/shared';
 import type { PickedImage } from './image-picker';
 import { attachImagesToAnswer } from './media-api';
 import { fetchAnswers, saveAnswers } from './medical-records-api';
 
-/** Ảnh đã chọn ở máy, theo ô ảnh (câu hỏi, hoặc lựa chọn của câu hỏi). */
-export type PickedImages = Record<string, PickedImage[]>;
-
-export function imageSlotKey(questionId: string, optionValue?: string): string {
-  return optionValue === undefined ? questionId : `${questionId}\u0000${optionValue}`;
-}
-
-export interface ImageSlot {
-  questionId: string;
-  optionValue?: string;
-  images: PickedImage[];
-}
-
-/**
- * Các ô ảnh có ảnh của những câu đang hiển thị: ảnh cấp câu hỏi, và ảnh cấp lựa chọn của các
- * lựa chọn trigger_image_upload đang được chọn. Ảnh của ô đã ẩn hoặc đã bỏ chọn bị bỏ qua.
- */
-export function collectImageSlots(
-  visibleQuestions: readonly QuestionData[],
-  state: FormState,
-  picked: PickedImages,
-): ImageSlot[] {
-  const slots: ImageSlot[] = [];
-  for (const question of visibleQuestions) {
-    if (!questionAcceptsImages(question)) continue;
-    const optionValues = imageTriggerOptionValues(question, state[question.question_id]);
-    for (const optionValue of [undefined, ...optionValues]) {
-      const images = picked[imageSlotKey(question.question_id, optionValue)] ?? [];
-      if (images.length > 0) slots.push({ questionId: question.question_id, optionValue, images });
-    }
-  }
-  return slots;
-}
-
-/** Số ảnh của mỗi câu hỏi (cấp câu hỏi cộng cấp lựa chọn), đầu vào của validateImageQuestions. */
-export function countImagesByQuestion(slots: readonly ImageSlot[]): Record<string, number> {
-  const counts: Record<string, number> = {};
-  for (const slot of slots) {
-    counts[slot.questionId] = (counts[slot.questionId] ?? 0) + slot.images.length;
-  }
-  return counts;
-}
-
 /** question_id → answers.id của bệnh án. */
 export async function fetchAnswerIds(medicalRecordId: string): Promise<Record<string, string>> {
-  const answers = await fetchAnswers(medicalRecordId);
-  return Object.fromEntries(answers.map((answer) => [answer.question_id, String(answer.id)]));
+  return answerIdsByQuestion(await fetchAnswers(medicalRecordId));
 }
 
 /** Tạo câu trả lời rỗng cho câu hỏi chưa có câu trả lời để có answer_id gắn ảnh (MT-93). */
@@ -70,12 +21,14 @@ export async function createEmptyAnswer(
 
 /**
  * Tải các ô ảnh lên và gắn vào câu trả lời của bệnh án vừa tạo. Một ô lỗi không chặn các ô còn lại;
- * trả về false nếu có ô nào lỗi (hoặc không lấy được câu trả lời) để màn hình báo người dùng thêm lại ảnh.
+ * trả về false nếu có ô nào lỗi (hoặc không lấy được câu trả lời) để màn hình báo người dùng thêm
+ * lại ảnh. `onProgress(đã xong, tổng)` đếm theo số ảnh.
  */
 export async function uploadRecordImages(params: {
   medicalRecordId: string;
   userId: string;
-  slots: readonly ImageSlot[];
+  slots: readonly ImageSlot<PickedImage>[];
+  onProgress?: (done: number, total: number) => void;
 }): Promise<boolean> {
   let answerIds: Record<string, string>;
   try {
@@ -85,7 +38,10 @@ export async function uploadRecordImages(params: {
     return false;
   }
 
+  const total = params.slots.reduce((sum, slot) => sum + slot.images.length, 0);
+  let done = 0;
   let allUploaded = true;
+  params.onProgress?.(done, total);
   for (const slot of params.slots) {
     try {
       const answerId = answerIds[slot.questionId];
@@ -102,6 +58,8 @@ export async function uploadRecordImages(params: {
       console.warn('Không tải được ảnh của phiếu khám:', error);
       allUploaded = false;
     }
+    done += slot.images.length;
+    params.onProgress?.(done, total);
   }
   return allUploaded;
 }

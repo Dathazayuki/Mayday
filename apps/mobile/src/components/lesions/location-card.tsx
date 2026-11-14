@@ -8,6 +8,8 @@ interface LocationCardProps {
   location: LesionLocationData;
   photos: readonly LesionPhotoListItem[];
   canEdit: boolean;
+  /** Một thao tác xoá đang chạy: khoá các nút. */
+  busy: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onAddPhoto: () => void;
@@ -20,6 +22,7 @@ export function LocationCard({
   location,
   photos,
   canEdit,
+  busy,
   onEdit,
   onDelete,
   onAddPhoto,
@@ -36,15 +39,16 @@ export function LocationCard({
         <PhotoGroup
           photos={photos}
           canEdit={canEdit}
+          busy={busy}
           onEdit={onEditPhoto}
           onDelete={onDeletePhoto}
         />
       )}
       {canEdit && (
         <>
-          <PrimaryButton title="Thêm ảnh" onPress={onAddPhoto} />
-          <PrimaryButton title="Sửa vị trí" variant="secondary" onPress={onEdit} />
-          <PrimaryButton title="Xoá vị trí" variant="danger" onPress={onDelete} />
+          <PrimaryButton title="Thêm ảnh" onPress={onAddPhoto} disabled={busy} />
+          <PrimaryButton title="Sửa vị trí" variant="secondary" onPress={onEdit} disabled={busy} />
+          <PrimaryButton title="Xoá vị trí" variant="danger" onPress={onDelete} disabled={busy} />
         </>
       )}
     </View>

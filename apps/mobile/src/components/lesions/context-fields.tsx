@@ -1,5 +1,5 @@
 import { FormField } from '@/components/form-field';
-import type { ContextFormErrors, ContextFormValues } from '@/lib/lesion-form';
+import type { ContextFormErrors, ContextFormValues } from '@drmayday/shared';
 import { ContextTagsInput } from './context-tags-input';
 import { DatetimeFields } from './datetime-fields';
 import { MedicationFields } from './medication-fields';

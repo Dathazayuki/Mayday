@@ -1,16 +1,16 @@
 import {
+  answerIdsByQuestion,
   answersToState,
   describeError,
   isPatientEditableStatus,
   isPatientSection,
   type FormState,
-  type LabResultRequestData,
   type MedicalRecordData,
   type QuestionData,
   type TemplateDetailData,
 } from '@drmayday/shared';
 import { useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { AuthGate } from '@/components/auth-gate';
 import { Banner } from '@/components/banner';
@@ -19,6 +19,7 @@ import { DynamicForm } from '@/components/dynamic-form/dynamic-form';
 import { LabResultsSection } from '@/components/labs/lab-results-section';
 import { RecordLesionsSection } from '@/components/lesions/record-lesions-section';
 import { FormScreen } from '@/components/form-screen';
+import { LoadError } from '@/components/load-error';
 import { PrimaryButton } from '@/components/primary-button';
 import { RecordStatusBadge } from '@/components/record-status-badge';
 import { fetchLabResults } from '@/lib/labs-api';
@@ -30,6 +31,7 @@ import {
   fetchTemplate,
 } from '@/lib/medical-records-api';
 import { createEmptyAnswer } from '@/lib/record-images';
+import { useLoader } from '@/lib/use-loader';
 
 interface RecordDetail {
   record: MedicalRecordData;
@@ -52,52 +54,25 @@ async function loadDetail(id: string): Promise<RecordDetail> {
     record,
     template,
     state: answersToState(questions, answers),
-    answerIds: Object.fromEntries(answers.map((a) => [a.question_id, String(a.id)])),
+    answerIds: answerIdsByQuestion(answers),
   };
 }
 
 function RecordDetailView({ id, imagesFailed }: { id: string; imagesFailed: boolean }) {
-  const [detail, setDetail] = useState<RecordDetail | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [cancelling, setCancelling] = useState(false);
-  const [labResults, setLabResults] = useState<LabResultRequestData[] | null>(null);
-  const [labError, setLabError] = useState<string | null>(null);
-
+  const detailFetcher = useCallback(() => loadDetail(id), [id]);
+  const labsFetcher = useCallback(() => fetchLabResults(id), [id]);
+  const { data: detail, error: loadError, reload } = useLoader(detailFetcher);
   // Kết quả xét nghiệm tải riêng: lỗi ở đây chỉ hiện trong mục của nó.
-  const latestLabRequest = useRef(0);
-  const loadLabResults = useCallback(async () => {
-    const requestId = ++latestLabRequest.current;
-    setLabError(null);
-    try {
-      const results = await fetchLabResults(id);
-      if (requestId === latestLabRequest.current) setLabResults(results);
-    } catch (error) {
-      if (requestId === latestLabRequest.current) setLabError(describeError(error));
-    }
-  }, [id]);
-
-  const load = useCallback(async () => {
-    setFormError(null);
-    try {
-      setDetail(await loadDetail(id));
-    } catch (error) {
-      setFormError(describeError(error));
-    }
-  }, [id]);
-
-  useEffect(() => {
-    void load();
-    void loadLabResults();
-  }, [load, loadLabResults]);
+  const labs = useLoader(labsFetcher);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [showImagesFailed, setShowImagesFailed] = useState(imagesFailed);
 
   if (!detail) {
     return (
       <FormScreen>
-        {formError ? (
-          <>
-            <Banner tone="error" message={formError} />
-            <PrimaryButton title="Thử lại" variant="secondary" onPress={() => void load()} />
-          </>
+        {loadError ? (
+          <LoadError message={loadError} onRetry={() => void reload()} />
         ) : (
           <ActivityIndicator size="large" />
         )}
@@ -122,13 +97,14 @@ function RecordDetailView({ id, imagesFailed }: { id: string; imagesFailed: bool
   }
 
   async function handleCancel() {
+    if (cancelling) return;
     setCancelling(true);
-    setFormError(null);
+    setActionError(null);
     try {
       await cancelMedicalRecord(id);
-      await load();
+      await reload();
     } catch (error) {
-      setFormError(describeError(error));
+      setActionError(describeError(error));
     } finally {
       setCancelling(false);
     }
@@ -136,8 +112,9 @@ function RecordDetailView({ id, imagesFailed }: { id: string; imagesFailed: bool
 
   return (
     <FormScreen>
-      {formError && <Banner tone="error" message={formError} />}
-      {imagesFailed && (
+      {actionError && <Banner tone="error" message={actionError} />}
+      {loadError && <Banner tone="error" message={loadError} />}
+      {showImagesFailed && (
         <Banner
           tone="error"
           message="Bệnh án đã được tạo nhưng một số ảnh chưa tải lên được. Vui lòng thêm lại ảnh."
@@ -168,15 +145,16 @@ function RecordDetailView({ id, imagesFailed }: { id: string; imagesFailed: bool
               answerId={answerIds[question.question_id] ?? null}
               ensureAnswerId={() => createEmptyAnswer(id, question.question_id)}
               canEdit={canEditImages(question)}
+              onAttached={() => setShowImagesFailed(false)}
             />
           )}
         />
       )}
       <RecordLesionsSection medicalRecordId={id} />
       <LabResultsSection
-        requests={labResults}
-        error={labError}
-        onRetry={() => void loadLabResults()}
+        requests={labs.data}
+        error={labs.error}
+        onRetry={() => void labs.reload()}
       />
       {patientCanEdit && (
         <PrimaryButton

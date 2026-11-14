@@ -4,18 +4,19 @@ import {
   SYMPTOM_SCORE_FIELDS,
   SYMPTOM_SCORE_LABELS,
   SYMPTOM_SCORE_MAX,
+  formatDisplayLesionDateTime,
   groupPhotosByMilestone,
   type LesionPhotoListItem,
 } from '@drmayday/shared';
 import { StyleSheet, Text, View } from 'react-native';
 import { AuthorizedImage } from '@/components/media/authorized-image';
 import { PrimaryButton } from '@/components/primary-button';
-import { formatDisplayLesionDateTime } from '@/lib/local-date';
 
 interface PhotoGroupProps {
   photos: readonly LesionPhotoListItem[];
   /** Có quyền sửa/xoá (bệnh án chưa đóng). */
   canEdit: boolean;
+  busy: boolean;
   onEdit: (photo: LesionPhotoListItem) => void;
   onDelete: (photo: LesionPhotoListItem) => void;
 }
@@ -27,7 +28,7 @@ function scoresLine(photo: LesionPhotoListItem): string {
 }
 
 /** Ảnh của một vị trí, nhóm theo mốc kèm điểm triệu chứng. */
-export function PhotoGroup({ photos, canEdit, onEdit, onDelete }: PhotoGroupProps) {
+export function PhotoGroup({ photos, canEdit, busy, onEdit, onDelete }: PhotoGroupProps) {
   const groups = groupPhotosByMilestone(photos);
   return (
     <View style={styles.groups}>
@@ -55,11 +56,13 @@ export function PhotoGroup({ photos, canEdit, onEdit, onDelete }: PhotoGroupProp
                     <PrimaryButton
                       title="Sửa ảnh"
                       variant="secondary"
+                      disabled={busy}
                       onPress={() => onEdit(photo)}
                     />
                     <PrimaryButton
                       title="Xoá ảnh"
                       variant="danger"
+                      disabled={busy}
                       onPress={() => onDelete(photo)}
                     />
                   </>

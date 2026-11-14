@@ -7,6 +7,8 @@ interface PrimaryButtonProps {
   onPress: () => void;
   variant?: ButtonVariant;
   loading?: boolean;
+  /** Khoá nút (không đổi nhãn), VD: khi một thao tác khác đang chạy. */
+  disabled?: boolean;
 }
 
 export function PrimaryButton({
@@ -14,15 +16,22 @@ export function PrimaryButton({
   onPress,
   variant = 'primary',
   loading = false,
+  disabled = false,
 }: PrimaryButtonProps) {
   const look = variants[variant];
+  const inactive = loading || disabled;
   return (
     <Pressable
-      style={({ pressed }) => [styles.button, look.container, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.button,
+        look.container,
+        pressed && styles.pressed,
+        disabled && styles.disabled,
+      ]}
       onPress={onPress}
-      disabled={loading}
+      disabled={inactive}
       accessibilityRole="button"
-      accessibilityState={{ disabled: loading, busy: loading }}
+      accessibilityState={{ disabled: inactive, busy: loading }}
     >
       {loading ? (
         <ActivityIndicator color={look.textColor} />
@@ -36,6 +45,7 @@ export function PrimaryButton({
 const styles = StyleSheet.create({
   button: { minHeight: 56, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.85 },
+  disabled: { opacity: 0.5 },
   text: { fontSize: 18, fontWeight: '700' },
 });
 

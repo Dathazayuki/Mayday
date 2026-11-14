@@ -1,20 +1,25 @@
 import {
   SYMPTOM_SCORE_FIELDS,
+  type CreateLesionPhotoRequest,
+  type LesionContextData,
+  type LesionContextInput,
+  type LesionContextPatch,
+  type LesionMilestone,
+  type LesionPhotoListItem,
+  type LesionPhotoScoresInput,
+  type MedicationUnit,
+  type UpdateLesionPhotoRequest,
+} from './contracts/lesions.js';
+import {
   formatLesionDateTime,
   isNonNegativeIntString,
   isValidLesionDateTime,
   parseContextTags,
   stringifyContextTags,
-  type LesionContextData,
-  type LesionContextInput,
-  type LesionContextPatch,
-  type LesionMilestone,
-  type LesionPhotoScoresInput,
-  type LesionPhotoListItem,
-  type MedicationUnit,
-  type UpdateLesionPhotoRequest,
-} from '@drmayday/shared';
-import type { FieldErrors } from './validation';
+} from './lesions.js';
+
+/** Lỗi theo từng trường; rỗng nghĩa là hợp lệ. */
+export type FieldErrors<K extends string> = Partial<Record<K, string>>;
 
 const INVALID_DATETIME = 'Ngày giờ không đúng định dạng (VD: 2026-11-15 08:30:00)';
 const INVALID_NUMBER = 'Vui lòng nhập số nguyên không âm';
@@ -91,9 +96,18 @@ export function buildContextPatch(values: ContextFormValues): LesionContextPatch
 
 /** POST: trường để trống bị bỏ khỏi request. */
 export function buildContextInput(values: ContextFormValues): LesionContextInput {
-  return Object.fromEntries(
-    Object.entries(buildContextPatch(values)).filter(([, value]) => value !== null),
-  ) as LesionContextInput;
+  const input: LesionContextInput = {};
+  const occurredAt = textOrNull(values.occurred_at);
+  if (occurredAt) input.occurred_at = occurredAt;
+  if (values.tags.length > 0) input.context_tags = stringifyContextTags(values.tags);
+  const other = textOrNull(values.context_other);
+  if (other) input.context_other = other;
+  const medicationName = textOrNull(values.medication_name);
+  if (medicationName) input.medication_name = medicationName;
+  const takenAgo = textOrNull(values.medication_taken_ago);
+  if (takenAgo) input.medication_taken_ago = takenAgo;
+  if (values.medication_unit) input.medication_unit = values.medication_unit;
+  return input;
 }
 
 // ---- Ảnh tổn thương ----
@@ -155,6 +169,27 @@ export function buildPhotoScores(values: PhotoFormValues): LesionPhotoScoresInpu
     if (value !== null) scores[field] = value;
   }
   return scores;
+}
+
+/**
+ * Request tạo ảnh tổn thương; null khi chưa chọn mốc (validatePhotoForm đã báo lỗi này).
+ * Trường trống bị bỏ khỏi request.
+ */
+export function buildPhotoCreate(
+  values: PhotoFormValues,
+  ids: { episodeId: string; locationId: string; attachmentId: string },
+): CreateLesionPhotoRequest | null {
+  if (!values.milestone) return null;
+  const request: CreateLesionPhotoRequest = {
+    episode_id: ids.episodeId,
+    location_id: ids.locationId,
+    attachment_id: ids.attachmentId,
+    milestone: values.milestone,
+    ...buildPhotoScores(values),
+  };
+  const takenAt = textOrNull(values.taken_at);
+  if (takenAt) request.taken_at = takenAt;
+  return request;
 }
 
 /** PATCH milestone: điểm và chỉ số để trống được gửi null để xoá. */

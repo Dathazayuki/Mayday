@@ -26,3 +26,5 @@ export * from './media.js';
 export * from './answer-images.js';
 export * from './contracts/lesions.js';
 export * from './lesions.js';
+export * from './answer-image-slots.js';
+export * from './lesion-form.js';

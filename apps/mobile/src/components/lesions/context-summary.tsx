@@ -1,6 +1,10 @@
-import { describeMedication, parseContextTags, type LesionContextData } from '@drmayday/shared';
+import {
+  describeMedication,
+  formatDisplayLesionDateTime,
+  parseContextTags,
+  type LesionContextData,
+} from '@drmayday/shared';
 import { StyleSheet, Text, View } from 'react-native';
-import { formatDisplayLesionDateTime } from '@/lib/local-date';
 
 /** Bối cảnh và thuốc của một đợt hoặc vị trí, chỉ hiện những mục có dữ liệu. */
 export function ContextSummary({ data }: { data: LesionContextData }) {

@@ -6,6 +6,7 @@ import {
   mediaFileUrl,
   normalizeImageMime,
   resolveMediaUrl,
+  uploadFileName,
 } from './media.js';
 import { MEDIA_MAX_FILE_BYTES, MEDIA_PATHS } from './contracts/media.js';
 
@@ -110,5 +111,18 @@ describe('MEDIA_PATHS', () => {
   it('ghép đường dẫn theo id', () => {
     expect(MEDIA_PATHS.byUser(5)).toBe('/image-attachments/user/5');
     expect(MEDIA_PATHS.answerImagesOf('3')).toBe('/answer-images/3');
+  });
+});
+
+describe('uploadFileName', () => {
+  it('đổi đuôi theo MIME (HEIC đã chuyển JPEG thành .jpg)', () => {
+    expect(uploadFileName('IMG_001.HEIC', 'image/jpeg')).toBe('IMG_001.jpg');
+    expect(uploadFileName('a.b.png', 'image/webp')).toBe('a.b.webp');
+  });
+
+  it('thêm đuôi khi tên không có đuôi và dùng "anh" khi tên rỗng', () => {
+    expect(uploadFileName('photo', 'image/png')).toBe('photo.png');
+    expect(uploadFileName('  ', 'image/jpeg')).toBe('anh.jpg');
+    expect(uploadFileName('.jpg', 'image/jpeg')).toBe('anh.jpg');
   });
 });

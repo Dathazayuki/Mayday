@@ -9,7 +9,7 @@ import {
   Text,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '@/auth/auth-context';
+import { useCurrentUserId } from '@/auth/auth-context';
 import { AuthGate } from '@/components/auth-gate';
 import { Banner } from '@/components/banner';
 import { LoadError } from '@/components/load-error';
@@ -27,11 +27,14 @@ function deleteErrorMessage(error: unknown): string {
 }
 
 function MediaLibrary() {
-  const { user } = useAuth();
-  const userId = user?.user_id ?? '';
-  const fetcher = useCallback(() => fetchMyAttachments(userId), [userId]);
+  const userId = useCurrentUserId();
+  const fetcher = useCallback(async () => {
+    if (!userId) throw new Error('Không xác định được tài khoản');
+    return fetchMyAttachments(userId);
+  }, [userId]);
   const { data, error, refreshing, reload, refresh } = useLoader(fetcher);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   function confirmDelete(image: GridImage) {
     Alert.alert('Xoá ảnh?', 'Ảnh sẽ bị xoá khỏi kho ảnh và không thể khôi phục.', [
@@ -41,12 +44,16 @@ function MediaLibrary() {
   }
 
   async function handleDelete(id: string) {
+    if (deleting) return;
+    setDeleting(true);
     setDeleteError(null);
     try {
       await deleteAttachment(id);
       await reload();
     } catch (e) {
       setDeleteError(deleteErrorMessage(e));
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -65,7 +72,7 @@ function MediaLibrary() {
         ) : images.length === 0 ? (
           <Text style={styles.empty}>Kho ảnh của bạn đang trống.</Text>
         ) : (
-          <ImageGrid images={images} onRemove={confirmDelete} />
+          <ImageGrid images={images} onRemove={confirmDelete} disabled={deleting} />
         )}
       </ScrollView>
     </SafeAreaView>

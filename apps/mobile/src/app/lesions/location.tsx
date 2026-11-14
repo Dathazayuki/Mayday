@@ -3,6 +3,13 @@ import {
   BODY_PART_MAX_LENGTH,
   describeError,
   type LesionLocationData,
+  buildContextInput,
+  buildContextPatch,
+  emptyContextValues,
+  toContextValues,
+  validateContext,
+  type ContextFormErrors,
+  type ContextFormValues,
 } from '@drmayday/shared';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -14,15 +21,6 @@ import { FormScreen } from '@/components/form-screen';
 import { ContextFields } from '@/components/lesions/context-fields';
 import { LoadError } from '@/components/load-error';
 import { PrimaryButton } from '@/components/primary-button';
-import {
-  buildContextInput,
-  buildContextPatch,
-  emptyContextValues,
-  toContextValues,
-  validateContext,
-  type ContextFormErrors,
-  type ContextFormValues,
-} from '@/lib/lesion-form';
 import { createLocation, fetchLocations, updateLocation } from '@/lib/lesions-api';
 import { useLoader } from '@/lib/use-loader';
 

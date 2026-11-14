@@ -1,4 +1,10 @@
-import { ApiError, checkImageFile, describeError } from '@drmayday/shared';
+import {
+  ApiError,
+  checkImageBatch,
+  describeError,
+  normalizeImageMime,
+  uploadFileName,
+} from '@drmayday/shared';
 import * as ImagePicker from 'expo-image-picker';
 
 export type ImageSource = 'camera' | 'library';
@@ -38,10 +44,13 @@ function mimeTypeOf(asset: ImagePicker.ImagePickerAsset, fileName: string): stri
 
 function toPickedImage(asset: ImagePicker.ImagePickerAsset): PickedImage {
   const fileName = fileNameOf(asset);
+  const declaredMime = mimeTypeOf(asset, fileName);
+  const mime = normalizeImageMime(declaredMime);
   return {
     uri: asset.uri,
-    mimeType: mimeTypeOf(asset, fileName),
-    fileName,
+    mimeType: mime ?? declaredMime,
+    // Đuôi tên tệp theo MIME thật (HEIC đã chuyển JPEG thì thành .jpg).
+    fileName: mime ? uploadFileName(fileName, mime) : fileName,
     size: typeof asset.fileSize === 'number' ? asset.fileSize : null,
   };
 }
@@ -84,9 +93,7 @@ export async function pickImages({
   if (result.canceled) return { status: 'cancelled' };
 
   const images = result.assets.map(toPickedImage);
-  for (const image of images) {
-    const problem = checkImageFile({ mimeType: image.mimeType, size: image.size });
-    if (problem) return { status: 'invalid', message: describeError(new ApiError(problem, '', 0)) };
-  }
+  const problem = checkImageBatch(images);
+  if (problem) return { status: 'invalid', message: describeError(new ApiError(problem, '', 0)) };
   return { status: 'ok', images };
 }

@@ -4,6 +4,13 @@ import {
   SYMPTOM_SCORE_LABELS,
   describeError,
   type LesionPhotoListItem,
+  buildPhotoCreate,
+  buildPhotoPatch,
+  newPhotoValues,
+  toPhotoValues,
+  validatePhotoForm,
+  type PhotoFormErrors,
+  type PhotoFormValues,
 } from '@drmayday/shared';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -21,16 +28,6 @@ import { AuthorizedImage } from '@/components/media/authorized-image';
 import { ImageSourceButtons } from '@/components/media/image-source-buttons';
 import { PrimaryButton } from '@/components/primary-button';
 import type { PickedImage } from '@/lib/image-picker';
-import {
-  buildPhotoPatch,
-  buildPhotoScores,
-  newPhotoValues,
-  textOrNull,
-  toPhotoValues,
-  validatePhotoForm,
-  type PhotoFormErrors,
-  type PhotoFormValues,
-} from '@/lib/lesion-form';
 import { createPhoto, deletePhoto, fetchPhotos, updatePhoto } from '@/lib/lesions-api';
 import { uploadImage } from '@/lib/media-api';
 import { useLoader } from '@/lib/use-loader';
@@ -53,7 +50,8 @@ function PhotoForm({ episodeId, locationId, medicalRecordId, photo }: PhotoFormP
   );
   const [errors, setErrors] = useState<PhotoFormErrors & { image?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  // Một thao tác tại một thời điểm: lưu và xoá không chồng nhau.
+  const [busy, setBusy] = useState<'saving' | 'deleting' | null>(null);
 
   const set = <K extends keyof PhotoFormValues>(key: K, value: PhotoFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
@@ -65,24 +63,20 @@ function PhotoForm({ episodeId, locationId, medicalRecordId, photo }: PhotoFormP
       attachment = uploaded.id;
       setAttachmentId(attachment);
     }
-    await createPhoto({
-      episode_id: episodeId,
-      location_id: locationId,
-      attachment_id: attachment,
-      milestone: values.milestone!,
-      ...(textOrNull(values.taken_at) ? { taken_at: values.taken_at.trim() } : {}),
-      ...buildPhotoScores(values),
-    });
+    const request = buildPhotoCreate(values, { episodeId, locationId, attachmentId: attachment });
+    if (!request) throw new Error('Chưa chọn mốc của ảnh');
+    await createPhoto(request);
   }
 
   async function handleSubmit() {
+    if (busy) return;
     const nextErrors: PhotoFormErrors & { image?: string } = validatePhotoForm(values);
     if (!photo && !image) nextErrors.image = 'Vui lòng chụp hoặc chọn một ảnh';
     setErrors(nextErrors);
     setFormError(null);
     if (Object.keys(nextErrors).length > 0) return;
 
-    setSubmitting(true);
+    setBusy('saving');
     try {
       if (photo) await updatePhoto(photo.photo_id, buildPhotoPatch(values));
       else if (image) await submitNew(image);
@@ -90,7 +84,7 @@ function PhotoForm({ episodeId, locationId, medicalRecordId, photo }: PhotoFormP
     } catch (error) {
       setFormError(describeError(error));
     } finally {
-      setSubmitting(false);
+      setBusy(null);
     }
   }
 
@@ -102,13 +96,16 @@ function PhotoForm({ episodeId, locationId, medicalRecordId, photo }: PhotoFormP
   }
 
   async function handleDelete() {
-    if (!photo) return;
+    if (!photo || busy) return;
+    setBusy('deleting');
     setFormError(null);
     try {
       await deletePhoto(photo.photo_id);
       router.back();
     } catch (error) {
       setFormError(describeError(error));
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -122,7 +119,7 @@ function PhotoForm({ episodeId, locationId, medicalRecordId, photo }: PhotoFormP
           {image && <Image source={{ uri: image.uri }} style={styles.preview} contentFit="cover" />}
           <ImageSourceButtons
             limit={1}
-            disabled={submitting}
+            disabled={busy !== null}
             onPicked={(images) => {
               setImage(images[0]);
               setAttachmentId(null);
@@ -174,9 +171,18 @@ function PhotoForm({ episodeId, locationId, medicalRecordId, photo }: PhotoFormP
       <PrimaryButton
         title={photo ? 'Lưu thay đổi' : 'Lưu ảnh'}
         onPress={() => void handleSubmit()}
-        loading={submitting}
+        loading={busy === 'saving'}
+        disabled={busy === 'deleting'}
       />
-      {photo && <PrimaryButton title="Xoá ảnh" variant="danger" onPress={confirmDelete} />}
+      {photo && (
+        <PrimaryButton
+          title="Xoá ảnh"
+          variant="danger"
+          onPress={confirmDelete}
+          loading={busy === 'deleting'}
+          disabled={busy === 'saving'}
+        />
+      )}
     </>
   );
 }

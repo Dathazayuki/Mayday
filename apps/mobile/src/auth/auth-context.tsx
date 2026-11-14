@@ -7,6 +7,7 @@ import {
   type SignupRequest,
   type SignupResponseData,
 } from '@drmayday/shared';
+import { Image } from 'expo-image';
 import {
   createContext,
   useCallback,
@@ -24,6 +25,8 @@ type AuthStatus = 'loading' | 'signed-in' | 'signed-out';
 interface AuthContextValue {
   status: AuthStatus;
   user: LoginUserInfo | null;
+  /** Bearer token của phiên hiện tại (đọc một lần, dùng chung cho mọi ảnh cần xác thực). */
+  token: string | null;
   login: (input: LoginRequest) => Promise<void>;
   /** Đăng ký tài khoản bệnh nhân, không tự đăng nhập. */
   signup: (input: SignupRequest) => Promise<SignupResponseData>;
@@ -37,11 +40,21 @@ interface AuthContextValue {
   updateUser: (patch: Partial<LoginUserInfo>) => Promise<void>;
 }
 
+/** Ảnh y tế được cache trên máy: xoá khi đăng xuất hoặc phiên hết hạn để người dùng sau không thấy. */
+async function clearImageCaches(): Promise<void> {
+  try {
+    await Promise.all([Image.clearMemoryCache(), Image.clearDiskCache()]);
+  } catch (error) {
+    console.warn('Không xoá được cache ảnh:', error);
+  }
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<LoginUserInfo | null>(null);
+  const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -49,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((session) => {
         if (!active) return;
         setUser(session?.user ?? null);
+        setToken(session?.token ?? null);
         setStatus(session ? 'signed-in' : 'signed-out');
       })
       .catch(() => {
@@ -65,7 +79,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Chỉ xoá phiên trên máy, không gọi API (tránh vòng lặp khi API trả 3001 cho chính lệnh logout).
   const endSession = useCallback(async () => {
     await clearSession();
+    await clearImageCaches();
     setUser(null);
+    setToken(null);
     setStatus('signed-out');
   }, []);
 
@@ -75,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await apiClient.post<LoginResponseData>('/auth/login', input);
     await saveSession({ token: data.token, user: data.user_info });
     setUser(data.user_info);
+    setToken(data.token);
     setStatus('signed-in');
   }, []);
 
@@ -106,8 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ status, user, login, signup, logout, changePassword, endSession, updateUser }),
-    [status, user, login, signup, logout, changePassword, endSession, updateUser],
+    () => ({ status, user, token, login, signup, logout, changePassword, endSession, updateUser }),
+    [status, user, token, login, signup, logout, changePassword, endSession, updateUser],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -116,4 +133,10 @@ export function useAuth(): AuthContextValue {
   const value = useContext(AuthContext);
   if (!value) throw new Error('useAuth phải được dùng bên trong AuthProvider');
   return value;
+}
+
+/** user_id của phiên hiện tại; null khi chưa đăng nhập hoặc giá trị không phải số nguyên dương. */
+export function useCurrentUserId(): string | null {
+  const { user } = useAuth();
+  return user && /^[1-9]\d*$/.test(user.user_id) ? user.user_id : null;
 }

@@ -4,21 +4,6 @@ import {
   formatLesionDateTime,
   isRecordActiveForLesions,
   type LesionEpisodeData,
-  type MedicalRecordHistoryItem,
-} from '@drmayday/shared';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator } from 'react-native';
-import { useAuth } from '@/auth/auth-context';
-import { AuthGate } from '@/components/auth-gate';
-import { Banner } from '@/components/banner';
-import { FormField } from '@/components/form-field';
-import { FormScreen } from '@/components/form-screen';
-import { ContextFields } from '@/components/lesions/context-fields';
-import { LoadError } from '@/components/load-error';
-import { OptionPicker } from '@/components/option-picker';
-import { PrimaryButton } from '@/components/primary-button';
-import {
   buildContextInput,
   buildContextPatch,
   emptyContextValues,
@@ -27,14 +12,33 @@ import {
   validateContext,
   type ContextFormErrors,
   type ContextFormValues,
-} from '@/lib/lesion-form';
+} from '@drmayday/shared';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator } from 'react-native';
+import { useCurrentUserId } from '@/auth/auth-context';
+import { AuthGate } from '@/components/auth-gate';
+import { Banner } from '@/components/banner';
+import { FormField } from '@/components/form-field';
+import { FormScreen } from '@/components/form-screen';
+import { ContextFields } from '@/components/lesions/context-fields';
+import { LoadError } from '@/components/load-error';
+import { OptionPicker } from '@/components/option-picker';
+import { PrimaryButton } from '@/components/primary-button';
 import { createEpisode, fetchEpisode, updateEpisode } from '@/lib/lesions-api';
-import { fetchHistory } from '@/lib/medical-records-api';
+import { formatDisplayDateTime } from '@/lib/local-date';
+import { fetchHistory, fetchMedicalRecord, fetchTemplate } from '@/lib/medical-records-api';
 import { useLoader } from '@/lib/use-loader';
+
+/** Bệnh án đang hoạt động để chọn, kèm nhãn có ngày tạo và tên mẫu phiếu. */
+interface RecordChoice {
+  id: string;
+  label: string;
+}
 
 interface EpisodeFormSetup {
   /** Bệnh án đang hoạt động để chọn (chỉ khi tạo mới). */
-  records: MedicalRecordHistoryItem[];
+  records: RecordChoice[];
   /** Đợt đang sửa; null khi tạo mới. */
   episode: LesionEpisodeData | null;
 }
@@ -48,7 +52,7 @@ function EpisodeForm({ setup }: { setup: EpisodeFormSetup }) {
   const router = useRouter();
   const { episode, records } = setup;
   const [recordId, setRecordId] = useState<string | null>(
-    records.length === 1 ? String(records[0].medical_record_id) : null,
+    records.length === 1 ? records[0].id : null,
   );
   const [name, setName] = useState(episode?.name ?? '');
   const [description, setDescription] = useState(episode?.description ?? '');
@@ -111,10 +115,7 @@ function EpisodeForm({ setup }: { setup: EpisodeFormSetup }) {
         <>
           <OptionPicker
             label="Bệnh án"
-            options={records.map((record) => ({
-              value: String(record.medical_record_id),
-              label: `Bệnh án #${record.medical_record_id}`,
-            }))}
+            options={records.map((record) => ({ value: record.id, label: record.label }))}
             value={recordId}
             onChange={setRecordId}
           />
@@ -144,16 +145,29 @@ function EpisodeForm({ setup }: { setup: EpisodeFormSetup }) {
   );
 }
 
+/** "Mẫu phiếu #12 · 15/11/2026 08:30"; lỗi tải tên mẫu thì chỉ còn số và ngày. */
+async function describeRecord(record: { medical_record_id: number; created_at: string }) {
+  let templateName = 'Bệnh án';
+  try {
+    const detail = await fetchMedicalRecord(String(record.medical_record_id));
+    if (detail.template_id) templateName = (await fetchTemplate(detail.template_id)).name;
+  } catch {
+    // Chỉ là nhãn hiển thị: giữ tên mặc định.
+  }
+  return {
+    id: String(record.medical_record_id),
+    label: `${templateName} #${record.medical_record_id} · ${formatDisplayDateTime(record.created_at)}`,
+  };
+}
+
 function EpisodeFormLoader({ id }: { id: string | undefined }) {
-  const { user } = useAuth();
-  const userId = user?.user_id;
+  const userId = useCurrentUserId();
   const fetcher = useCallback(async (): Promise<EpisodeFormSetup> => {
     if (id) return { records: [], episode: await fetchEpisode(id) };
+    if (!userId) throw new Error('Không xác định được tài khoản');
     const history = await fetchHistory(Number(userId));
-    return {
-      records: history.filter((record) => isRecordActiveForLesions(record.status)),
-      episode: null,
-    };
+    const active = history.filter((record) => isRecordActiveForLesions(record.status));
+    return { records: await Promise.all(active.map(describeRecord)), episode: null };
   }, [id, userId]);
   const { data, error, reload } = useLoader(fetcher);
 

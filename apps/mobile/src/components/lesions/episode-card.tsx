@@ -1,6 +1,5 @@
-import { parseContextTags } from '@drmayday/shared';
+import { formatDisplayLesionDateTime, parseContextTags } from '@drmayday/shared';
 import { Pressable, StyleSheet, Text } from 'react-native';
-import { formatDisplayLesionDateTime } from '@/lib/local-date';
 
 interface EpisodeCardProps {
   name: string;

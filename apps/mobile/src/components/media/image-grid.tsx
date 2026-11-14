@@ -19,6 +19,8 @@ interface ImageGridProps {
   /** Có thì mỗi ảnh có nút gỡ/xoá. */
   removeLabel?: string;
   onRemove?: (image: GridImage) => void;
+  /** Khoá nút gỡ/xoá khi một thao tác đang chạy. */
+  disabled?: boolean;
 }
 
 function ImageView({ image, large }: { image: GridImage; large?: boolean }) {
@@ -31,7 +33,12 @@ function ImageView({ image, large }: { image: GridImage; large?: boolean }) {
 }
 
 /** Lưới ảnh hai cột; chạm vào ảnh để xem lớn. */
-export function ImageGrid({ images, removeLabel = 'Xoá', onRemove }: ImageGridProps) {
+export function ImageGrid({
+  images,
+  removeLabel = 'Xoá',
+  onRemove,
+  disabled = false,
+}: ImageGridProps) {
   const [previewed, setPreviewed] = useState<GridImage | null>(null);
 
   return (
@@ -47,7 +54,12 @@ export function ImageGrid({ images, removeLabel = 'Xoá', onRemove }: ImageGridP
           </Pressable>
           {image.caption ? <Text style={styles.caption}>{image.caption}</Text> : null}
           {onRemove && (
-            <PrimaryButton title={removeLabel} variant="danger" onPress={() => onRemove(image)} />
+            <PrimaryButton
+              title={removeLabel}
+              variant="danger"
+              disabled={disabled}
+              onPress={() => onRemove(image)}
+            />
           )}
         </View>
       ))}

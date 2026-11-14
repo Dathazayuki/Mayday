@@ -1,7 +1,7 @@
 import { MEDIA_MAX_BATCH_FILES, describeError } from '@drmayday/shared';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
-import { useAuth } from '@/auth/auth-context';
+import { useCurrentUserId } from '@/auth/auth-context';
 import { Banner } from '@/components/banner';
 import { LoadError } from '@/components/load-error';
 import { ImageGrid, type GridImage } from '@/components/media/image-grid';
@@ -27,6 +27,8 @@ interface RemoteProps {
   /** Tạo câu trả lời rỗng (MT-93) rồi trả answer_id. */
   ensureAnswerId: () => Promise<string>;
   canEdit: boolean;
+  /** Gọi sau khi thêm ảnh thành công (VD: để xoá banner "một số ảnh chưa tải lên được"). */
+  onAttached?: () => void;
 }
 
 export type AnswerImagesFieldProps = {
@@ -66,7 +68,7 @@ function LocalAnswerImages({
       {remaining > 0 && (
         <ImageSourceButtons
           limit={remaining}
-          onPicked={(picked) => onChange([...images, ...picked].slice(0, MEDIA_MAX_BATCH_FILES))}
+          onPicked={(picked) => onChange([...images, ...picked])}
         />
       )}
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -82,8 +84,9 @@ function RemoteAnswerImages({
   answerId,
   ensureAnswerId,
   canEdit,
+  onAttached,
 }: AnswerImagesFieldProps & RemoteProps) {
-  const { user } = useAuth();
+  const userId = useCurrentUserId();
   // Ref để lần tải lại ngay sau khi tạo câu trả lời thấy answer_id mới.
   const answerIdRef = useRef(answerId);
   const fetcher = useCallback(async () => {
@@ -97,9 +100,11 @@ function RemoteAnswerImages({
   const [actionError, setActionError] = useState<string | null>(null);
 
   async function handlePicked(images: PickedImage[]) {
+    if (busy) return;
     setBusy(true);
     setActionError(null);
     try {
+      if (!userId) throw new Error('Không xác định được tài khoản');
       const id = answerIdRef.current ?? (await ensureAnswerId());
       answerIdRef.current = id;
       await attachImagesToAnswer({
@@ -108,10 +113,13 @@ function RemoteAnswerImages({
         optionValue,
         medicalRecordId,
         questionId,
-        userId: user?.user_id ?? '',
+        userId,
       });
+      onAttached?.();
     } catch (e) {
-      setActionError(describeError(e));
+      setActionError(
+        `${describeError(e)} Những ảnh đã tải xong vẫn được giữ, hãy thêm lại phần còn thiếu.`,
+      );
     } finally {
       setBusy(false);
     }
@@ -126,12 +134,16 @@ function RemoteAnswerImages({
   }
 
   async function handleUnlink(linkId: string) {
+    if (busy) return;
+    setBusy(true);
     setActionError(null);
     try {
       await unlinkAnswerImage(linkId);
       await reload();
     } catch (e) {
       setActionError(describeError(e));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -154,6 +166,7 @@ function RemoteAnswerImages({
               images={images}
               removeLabel="Gỡ ảnh"
               onRemove={canEdit ? confirmUnlink : undefined}
+              disabled={busy}
             />
           )}
       {canEdit && (
