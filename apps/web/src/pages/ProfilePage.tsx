@@ -7,6 +7,7 @@ import {
 } from '@drmayday/shared';
 import { Alert, Button, Card, Form, Input, Select, Skeleton, Typography } from 'antd';
 import { useState } from 'react';
+import { formatDateTime } from '../lib/format-date';
 import { PatientEditableFields } from '../profile/PatientEditableFields';
 import { useProfile, useUpdateProfile } from '../profile/profile-api';
 import { buildProfileChanges, toFormValues, type ProfileFormValues } from '../profile/profile-form';
@@ -19,7 +20,7 @@ function PatientFields({ profile }: { profile: PatientProfileData }) {
       <PatientEditableFields />
       <Form.Item label="Lần khám đầu tiên">
         <Typography.Text>
-          {profile.first_visit ? new Date(profile.first_visit).toLocaleString('vi-VN') : 'Chưa có'}
+          {profile.first_visit ? formatDateTime(profile.first_visit) : 'Chưa có'}
         </Typography.Text>
       </Form.Item>
     </>

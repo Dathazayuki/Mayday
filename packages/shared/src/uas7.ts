@@ -1,6 +1,7 @@
 export const UAS7_SCORE_MIN = 0;
 export const UAS7_SCORE_MAX = 3;
 export const UAS7_WEEK_MAX = 42;
+export const UAS7_WEEK_DAYS = 7;
 
 /** Nhãn hiển thị — nghĩa theo Sheet/slide/CSDL; đổi tại đây nếu MT-11 chốt theo quy ước quốc tế. */
 export const UAS7_FIELD_LABELS = { iss7: 'Điểm sẩn', hss7: 'Điểm ngứa' } as const;

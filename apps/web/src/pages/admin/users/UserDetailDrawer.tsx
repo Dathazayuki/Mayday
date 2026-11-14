@@ -9,6 +9,7 @@ import {
 } from '@drmayday/shared';
 import { Descriptions, Drawer, Skeleton } from 'antd';
 import type { ReactNode } from 'react';
+import { formatDateTime } from '../../../lib/format-date';
 import { useBranches, useDepartments, useRooms } from '../../../admin/facilities-api';
 import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
 import { useAdminUser } from '../../../admin/users-api';
@@ -61,9 +62,7 @@ function DetailBody({ detail, roles }: { detail: AdminUserDetailData; roles: Rol
       })),
       {
         label: 'Lần khám đầu tiên',
-        value: detail.first_visit
-          ? new Date(detail.first_visit).toLocaleString('vi-VN')
-          : 'Chưa có',
+        value: detail.first_visit ? formatDateTime(detail.first_visit) : 'Chưa có',
       },
     );
   } else if (isStaffDetail(detail)) {

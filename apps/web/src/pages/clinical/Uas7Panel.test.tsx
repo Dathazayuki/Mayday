@@ -47,7 +47,7 @@ describe('Uas7Panel', () => {
     expect(await screen.findByText('18/42')).toBeInTheDocument();
     expect(screen.getByText('Trung bình')).toBeInTheDocument();
     expect(screen.getByText('5/7 ngày')).toBeInTheDocument();
-    expect(screen.getByText('2026-11-09 → 2026-11-15')).toBeInTheDocument();
+    expect(screen.getByText('09/11/2026 → 15/11/2026')).toBeInTheDocument();
   });
 
   it('bảng lịch sử dùng nhãn từ UAS7_FIELD_LABELS và hiện điểm từng ngày', async () => {
@@ -70,7 +70,7 @@ describe('Uas7Panel', () => {
       expect(within(table).getByText(label)).toBeInTheDocument();
     }
     expect(await within(table).findByText('Ngứa đêm')).toBeInTheDocument();
-    const row = within(table).getByText('2026-11-15').closest('tr')!;
+    const row = within(table).getByText('15/11/2026').closest('tr')!;
     expect(within(row).getByText('5')).toBeInTheDocument();
   });
 
@@ -88,6 +88,16 @@ describe('Uas7Panel', () => {
       '/uas7-scores/week/7': () => errorResponse(403, '3106'),
       '/uas7-scores/patient/7': () => errorResponse(403, '3106'),
     });
-    expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
+    const alerts = await screen.findAllByRole('alert');
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toHaveTextContent('Bệnh nhân không được xem dữ liệu người khác');
+  });
+
+  it('hai truy vấn lỗi khác nhau: hiện đủ cả hai thông báo', async () => {
+    setup({
+      '/uas7-scores/week/7': () => errorResponse(403, '3106'),
+      '/uas7-scores/patient/7': () => errorResponse(404, '3007'),
+    });
+    expect(await screen.findAllByRole('alert')).toHaveLength(2);
   });
 });

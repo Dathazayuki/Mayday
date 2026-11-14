@@ -37,10 +37,9 @@ import { MedicalRecordStatusTag } from '../../clinical/status';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { useRunAction } from '../../components/crud/use-run-action';
 import { DynamicForm } from '../../components/dynamic-form/DynamicForm';
+import { formatDateTime } from '../../lib/format-date';
 import { useTemplateDetail } from '../../templates/template-detail-api';
 import { Uas7Panel } from './Uas7Panel';
-
-const formatTime = (iso: string) => new Date(iso).toLocaleString('vi-VN');
 
 function SummaryCard({ record }: { record: MedicalRecordData }) {
   const { data, error } = useMedicalRecordSummary(record.medical_record_id);
@@ -52,7 +51,7 @@ function SummaryCard({ record }: { record: MedicalRecordData }) {
         <Descriptions.Item label="Trạng thái">
           <MedicalRecordStatusTag status={record.status} />
         </Descriptions.Item>
-        <Descriptions.Item label="Ngày tạo">{formatTime(record.created_at)}</Descriptions.Item>
+        <Descriptions.Item label="Ngày tạo">{formatDateTime(record.created_at)}</Descriptions.Item>
         {record.instructions && (
           <Descriptions.Item label="Dặn dò">{record.instructions}</Descriptions.Item>
         )}
@@ -76,7 +75,7 @@ function HistoryCard({ patientId }: { patientId: number }) {
               <Space>
                 <span>#{item.medical_record_id}</span>
                 <MedicalRecordStatusTag status={item.status} />
-                <span>{formatTime(item.created_at)}</span>
+                <span>{formatDateTime(item.created_at)}</span>
               </Space>
               {item.instructions && <span>{item.instructions}</span>}
             </Space>

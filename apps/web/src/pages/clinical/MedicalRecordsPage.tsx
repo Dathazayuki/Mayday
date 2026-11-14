@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useMedicalRecords } from '../../clinical/medical-records-api';
 import { MedicalRecordStatusTag } from '../../clinical/status';
+import { formatDateTime } from '../../lib/format-date';
 import { EntityTable } from '../../components/crud/EntityTable';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { usePageClamp } from '../../components/crud/use-page-clamp';
@@ -73,7 +74,7 @@ export function MedicalRecordsPage() {
           {
             title: 'Ngày tạo',
             dataIndex: 'created_at',
-            render: (value: string) => new Date(value).toLocaleString('vi-VN'),
+            render: (value: string) => formatDateTime(value),
           },
         ]}
       />
