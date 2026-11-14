@@ -3,6 +3,7 @@ import {
   describeError,
   isPatientEditableStatus,
   type FormState,
+  type LabResultRequestData,
   type MedicalRecordData,
   type TemplateDetailData,
 } from '@drmayday/shared';
@@ -11,10 +12,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { AuthGate } from '@/components/auth-gate';
 import { Banner } from '@/components/banner';
+import { LabResultsSection } from '@/components/labs/lab-results-section';
 import { DynamicForm } from '@/components/dynamic-form/dynamic-form';
 import { FormScreen } from '@/components/form-screen';
 import { PrimaryButton } from '@/components/primary-button';
 import { RecordStatusBadge } from '@/components/record-status-badge';
+import { fetchLabResults } from '@/lib/labs-api';
 import {
   cancelMedicalRecord,
   fetchAnswers,
@@ -48,15 +51,28 @@ function RecordDetailView({ id }: { id: string }) {
   const [detail, setDetail] = useState<RecordDetail | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [labResults, setLabResults] = useState<LabResultRequestData[] | null>(null);
+  const [labError, setLabError] = useState<string | null>(null);
+
+  // Kết quả xét nghiệm tải riêng: lỗi ở đây chỉ hiện trong mục của nó.
+  const loadLabResults = useCallback(async () => {
+    setLabError(null);
+    try {
+      setLabResults(await fetchLabResults(id));
+    } catch (error) {
+      setLabError(describeError(error));
+    }
+  }, [id]);
 
   const load = useCallback(async () => {
     setFormError(null);
+    void loadLabResults();
     try {
       setDetail(await loadDetail(id));
     } catch (error) {
       setFormError(describeError(error));
     }
-  }, [id]);
+  }, [id, loadLabResults]);
 
   useEffect(() => {
     void load();
@@ -113,6 +129,11 @@ function RecordDetailView({ id }: { id: string }) {
         </View>
       ) : null}
       {template && <DynamicForm template={template} state={state} readOnly />}
+      <LabResultsSection
+        requests={labResults}
+        error={labError}
+        onRetry={() => void loadLabResults()}
+      />
       {isPatientEditableStatus(record.status) && (
         <PrimaryButton
           title="Huỷ bệnh án"
