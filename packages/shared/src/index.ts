@@ -12,3 +12,6 @@ export * from './contracts/rbac.js';
 export * from './contracts/facilities.js';
 export * from './contracts/templates.js';
 export * from './form-tree.js';
+export * from './form-answers.js';
+export * from './contracts/patients.js';
+export * from './contracts/medical-records.js';
