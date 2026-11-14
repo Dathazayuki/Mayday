@@ -33,16 +33,68 @@ enum user_fcm_tokens_device_type {
 }
 
 model roles {
-  role_id        Int        @id @default(autoincrement())
-  name           String     @unique @db.VarChar(255)
-  description    String?    @db.VarChar(255)
-  parent_role_id Int?
-  created_at     DateTime   @default(now()) @db.DateTime(0)
-  updated_at     DateTime   @default(now()) @updatedAt @db.DateTime(0)
-  parent         roles?     @relation("roles_parent", fields: [parent_role_id], references: [role_id], onDelete: Restrict, onUpdate: Restrict)
-  children       roles[]    @relation("roles_parent")
-  staffs         staffs[]
-  patients       patients[]
+  role_id          Int                @id @default(autoincrement())
+  name             String             @unique @db.VarChar(255)
+  description      String?            @db.VarChar(255)
+  parent_role_id   Int?
+  created_at       DateTime           @default(now()) @db.DateTime(0)
+  updated_at       DateTime           @default(now()) @updatedAt @db.DateTime(0)
+  parent           roles?             @relation("roles_parent", fields: [parent_role_id], references: [role_id], onDelete: Restrict, onUpdate: Restrict)
+  children         roles[]            @relation("roles_parent")
+  staffs           staffs[]
+  patients         patients[]
+  role_permissions role_permissions[]
+}
+
+// Tài liệu CSDL không ghi unique cho name; dev đặt unique để chặn trùng (spec giai đoạn 2, mục 2).
+model permissions {
+  permission_id         Int                     @id @default(autoincrement())
+  name                  String                  @unique @db.VarChar(255)
+  description           String?                 @db.VarChar(255)
+  created_at            DateTime                @default(now()) @db.DateTime(0)
+  updated_at            DateTime                @default(now()) @updatedAt @db.DateTime(0)
+  role_permissions      role_permissions[]
+  permissions_endpoints permissions_endpoints[]
+}
+
+// Tài liệu CSDL đã bỏ cột id (track change) → khoá chính ghép (MT-64).
+model role_permissions {
+  role_id       Int
+  permission_id Int
+  created_at    DateTime    @default(now()) @db.DateTime(0)
+  updated_at    DateTime    @default(now()) @updatedAt @db.DateTime(0)
+  role          roles       @relation(fields: [role_id], references: [role_id], onDelete: Cascade, onUpdate: Restrict)
+  permission    permissions @relation(fields: [permission_id], references: [permission_id], onDelete: Cascade, onUpdate: Restrict)
+
+  @@id([role_id, permission_id])
+  @@index([permission_id])
+}
+
+// Route của API, do lệnh đồng bộ (scripts/sync-endpoints.ts) ghi.
+model api_endpoints {
+  api_endpoints_id      Int                     @id @default(autoincrement())
+  name                  String                  @db.VarChar(255)
+  method                String                  @db.VarChar(255)
+  path                  String                  @db.VarChar(255)
+  description           String?                 @db.VarChar(255)
+  created_at            DateTime                @default(now()) @db.DateTime(0)
+  updated_at            DateTime                @default(now()) @updatedAt @db.DateTime(0)
+  permissions_endpoints permissions_endpoints[]
+
+  @@unique([method, path])
+}
+
+model permissions_endpoints {
+  permissions_endpoints_id Int           @id @default(autoincrement())
+  permission_id            Int
+  endpoint_id              Int
+  created_at               DateTime      @default(now()) @db.DateTime(0)
+  updated_at               DateTime      @default(now()) @updatedAt @db.DateTime(0)
+  permission               permissions   @relation(fields: [permission_id], references: [permission_id], onDelete: Cascade, onUpdate: Restrict)
+  endpoint                 api_endpoints @relation(fields: [endpoint_id], references: [api_endpoints_id], onDelete: Cascade, onUpdate: Restrict)
+
+  @@unique([permission_id, endpoint_id])
+  @@index([endpoint_id])
 }
 
 model branches {

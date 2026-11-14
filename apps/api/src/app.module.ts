@@ -7,6 +7,7 @@ import { ResponseInterceptor } from './common/response.interceptor.js';
 import { createValidationPipe } from './common/validation.js';
 import { validateEnv } from './config/env.js';
 import { HealthController } from './health/health.controller.js';
+import { PermissionsModule } from './permissions/permissions.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 @Module({
@@ -18,6 +19,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     }),
     PrismaModule,
     AuthModule,
+    PermissionsModule,
   ],
   controllers: [HealthController],
   providers: [
