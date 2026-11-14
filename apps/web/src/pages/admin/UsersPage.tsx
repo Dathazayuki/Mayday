@@ -11,6 +11,7 @@ import { useAuth } from '../../auth/useAuth';
 import { AssignUserModal } from './users/AssignUserModal';
 import { CreateStaffModal } from './users/CreateStaffModal';
 import { UserDetailDrawer } from './users/UserDetailDrawer';
+import { UserExtraActions } from './users/UserExtraActions';
 import { UserFormModal } from './users/UserFormModal';
 import { useAssignUserModal, useCreateStaffModal, useUserFormModal } from './users/user-modals';
 
@@ -22,7 +23,11 @@ export function UsersPage() {
 
   const roles = useRoles();
   const roleList = roles.data ?? [];
-  const { data, error, isPending } = useAdminUsers({ page, limit, role_id: roleFilter });
+  const { data, error, isPending, isPlaceholderData } = useAdminUsers({
+    page,
+    limit,
+    role_id: roleFilter,
+  });
   const remove = useDeleteUser();
   const deleteRow = useDeleteAction('người dùng');
   const userModal = useUserFormModal();
@@ -31,6 +36,11 @@ export function UsersPage() {
   // user_id đăng nhập là string, của danh sách là số: đổi sang số một lần để so sánh.
   const { user } = useAuth();
   const currentUserId = user ? Number(user.user_id) : undefined;
+
+  // Trang hiện tại không còn dòng nào (vừa xoá dòng cuối của trang cuối): lùi về trang cuối hợp lệ.
+  if (data && !isPlaceholderData && data.items.length === 0 && page > PAGE_DEFAULT) {
+    setPage(Math.max(PAGE_DEFAULT, Math.ceil(data.total / limit)));
+  }
 
   const roleOf = (id: number) => roleList.find((r) => r.id === id);
 
@@ -55,9 +65,10 @@ export function UsersPage() {
         </Button>
         <Button onClick={staffModal.openCreate}>Thêm nhân viên</Button>
       </div>
-      <EntityTable<AdminUserListItem & { id: number }>
-        data={data?.items.map((u) => ({ ...u, id: u.user_id }))}
-        loading={isPending}
+      <EntityTable<AdminUserListItem>
+        rowKey="user_id"
+        data={data?.items}
+        loading={isPending || isPlaceholderData}
         pagination={{
           current: page,
           pageSize: limit,
@@ -74,7 +85,8 @@ export function UsersPage() {
           {
             title: 'Vai trò',
             dataIndex: 'role_id',
-            render: (id: number) => roleOf(id)?.name ?? id,
+            // Trong lúc tải vai trò, không lộ id số.
+            render: (id: number) => roleOf(id)?.name ?? (roles.isPending ? '…' : id),
           },
           {
             title: 'Trạng thái',
@@ -89,16 +101,12 @@ export function UsersPage() {
               return (
                 <RowActions
                   extra={
-                    <>
-                      <Button size="small" onClick={() => setViewingId(row.user_id)}>
-                        Xem
-                      </Button>
-                      {role && !isPatientRole(role) && (
-                        <Button size="small" onClick={() => assignModal.openEdit(row)}>
-                          Phân công
-                        </Button>
-                      )}
-                    </>
+                    <UserExtraActions
+                      user={row}
+                      canAssign={role !== undefined && !isPatientRole(role)}
+                      onView={(u) => setViewingId(u.user_id)}
+                      onAssign={assignModal.openEdit}
+                    />
                   }
                   onEdit={() => userModal.openEdit(row)}
                   deleteDisabled={row.user_id === currentUserId}

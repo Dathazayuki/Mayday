@@ -3,8 +3,6 @@ import { useEntityModal } from '../../../admin/use-entity-modal';
 import type { AccountValues } from './AccountFields';
 import type { PlacementValues } from './PlacementFields';
 
-/** Trạng thái mở/đóng và form của ba Modal trang người dùng (UsersPage giữ, các Modal hiển thị). */
-
 export interface UserFormValues extends AccountValues {
   role_id: number;
   is_active: 0 | 1;
@@ -14,6 +12,7 @@ export interface StaffFormValues extends AccountValues, PlacementValues {
   role_id: number;
 }
 
+/** Trạng thái mở/đóng và form của ba Modal trang người dùng: UsersPage giữ, các Modal hiển thị. */
 export function useUserFormModal() {
   return useEntityModal<UserFormValues, AdminUserListItem>((user) =>
     user

@@ -1,3 +1,4 @@
+import { QueryClient } from '@tanstack/react-query';
 import { App } from 'antd';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
@@ -74,6 +75,9 @@ function listResponse(data: unknown, total: number) {
   return jsonResponse(200, { code: '1000', message: 'OK', data, total });
 }
 
+/** QueryClient của lần setup gần nhất, để test chủ động làm mới dữ liệu. */
+let queryClient: QueryClient;
+
 function setup(overrides: Record<string, Handler> = {}) {
   const calls: Call[] = [];
   const fetchMock = vi.fn((url: string, init: RequestInit) => {
@@ -107,10 +111,13 @@ function setup(overrides: Record<string, Handler> = {}) {
   });
   vi.stubGlobal('fetch', fetchMock);
   seedSession();
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   renderApp(
     <App>
       <UsersPage />
     </App>,
+    '/',
+    queryClient,
   );
   return calls;
 }
@@ -378,5 +385,63 @@ describe('UsersPage', () => {
       within(await rowOf('Quản trị viên')).getByRole('button', { name: 'Xoá' }),
     ).toBeDisabled();
     expect(within(await rowOf('Bác sĩ Lan')).getByRole('button', { name: 'Xoá' })).toBeEnabled();
+  });
+
+  it('xoá dòng cuối của trang cuối thì lùi về trang cuối hợp lệ', async () => {
+    let deleted = false;
+    const calls = setup({
+      'GET /admin/users': (call) => {
+        const page = new URL(call.url).searchParams.get('page');
+        if (page === '1') return listResponse(USERS.slice(0, 2), deleted ? 20 : 21);
+        return listResponse(deleted ? [] : [USERS[2]], deleted ? 20 : 21);
+      },
+      'DELETE /admin/users/3': () => {
+        deleted = true;
+        return okResponse({});
+      },
+    });
+    const user = userEvent.setup();
+    await rowOf('Bác sĩ Lan');
+    await user.click(screen.getByRole('button', { name: 'Page 2' }));
+    await user.click(within(await rowOf('Bệnh nhân Nam')).getByRole('button', { name: 'Xoá' }));
+    await user.click((await screen.findAllByRole('button', { name: 'Xoá' })).at(-1)!);
+    await screen.findByText('Đã xoá người dùng');
+
+    const deleteIndex = calls.findIndex((c) => c.method === 'DELETE');
+    await waitFor(() =>
+      expect(
+        calls.slice(deleteIndex).some((c) => c.url === `${BASE}/admin/users?page=1&limit=20`),
+      ).toBe(true),
+    );
+    expect(await screen.findByText('Bác sĩ Lan')).toBeInTheDocument();
+  });
+
+  it('nạp sẵn form sửa một lần: refetch nền không ghi đè giá trị người dùng đã đổi', async () => {
+    let gender = 'female';
+    const calls = setup({
+      'GET /admin/users/2': () => okResponse({ ...STAFF_DETAIL, gender }),
+    });
+    const user = userEvent.setup();
+    await user.click(within(await rowOf('Bác sĩ Lan')).getByRole('button', { name: 'Sửa' }));
+    const dialog = await screen.findByRole('dialog');
+    const selected = (title: string) =>
+      dialog.querySelector(`.ant-select-content[title="${title}"]`);
+    await waitFor(() => expect(selected('Nữ')).not.toBeNull());
+    await pick(user, 'Giới tính', 'Nam');
+    expect(selected('Nam')).not.toBeNull();
+
+    gender = 'other';
+    const before = calls.filter((c) => c.url === `${BASE}/admin/users/2`).length;
+    await queryClient.invalidateQueries({ queryKey: ['admin-users', 'detail'] });
+    await waitFor(() =>
+      expect(calls.filter((c) => c.url === `${BASE}/admin/users/2`).length).toBeGreaterThan(before),
+    );
+    await waitFor(() =>
+      expect(queryClient.getQueryData(['admin-users', 'detail', 2])).toMatchObject({
+        gender: 'other',
+      }),
+    );
+    expect(selected('Nam')).not.toBeNull();
+    expect(selected('Khác')).toBeNull();
   });
 });

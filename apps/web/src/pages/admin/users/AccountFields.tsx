@@ -62,6 +62,7 @@ export function AccountFields({ withCredentials }: { withCredentials: boolean })
           </Form.Item>
         </>
       )}
+      {/* Form sửa không cho xoá giới tính: bỏ trống nghĩa là không đổi (API bỏ qua trường vắng). */}
       <Form.Item label="Giới tính" name="gender">
         <Select allowClear={withCredentials} options={[...GENDER_OPTIONS]} />
       </Form.Item>

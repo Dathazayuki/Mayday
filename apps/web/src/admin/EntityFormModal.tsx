@@ -37,10 +37,12 @@ export function EntityFormModal<TValues extends object, TItem>(
   const { form, editing, close } = modal;
 
   async function handleFinish(values: TValues) {
-    const ok =
-      editing === 'new' || !onUpdate
-        ? await run(() => onCreate!(values), `Đã thêm ${entityName}`)
-        : await run(() => onUpdate(editing as TItem, values), `Đã cập nhật ${entityName}`);
+    let ok = false;
+    if (editing === 'new') {
+      if (onCreate) ok = await run(() => onCreate(values), `Đã thêm ${entityName}`);
+    } else if (onUpdate) {
+      ok = await run(() => onUpdate(editing as TItem, values), `Đã cập nhật ${entityName}`);
+    }
     if (ok) close();
   }
 
