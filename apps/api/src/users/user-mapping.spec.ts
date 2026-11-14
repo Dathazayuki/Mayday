@@ -12,6 +12,7 @@ import {
   normalizeFullName,
   profileUpdateToDb,
   roleIdOf,
+  toCreateStaffData,
   toLoginUserInfo,
   toSignupData,
   yearFromDate,
@@ -198,6 +199,18 @@ describe('UserRecord → data trả về', () => {
       role_id: 2,
       is_active: 1,
       created_at: '2026-11-15T01:02:03.000Z',
+    });
+  });
+
+  it('toCreateStaffData: mọi trường kiểu int, room_id null khi không có phòng (MT-06, MT-37)', () => {
+    const assignment = { roleId: 6, branchId: 10, departmentId: 20, roomId: null };
+    expect(toCreateStaffData(record, assignment)).toEqual({
+      user_id: 7,
+      full_name: 'NGUYỄN VĂN A',
+      role_id: 6,
+      branch_id: 10,
+      department_id: 20,
+      room_id: null,
     });
   });
 

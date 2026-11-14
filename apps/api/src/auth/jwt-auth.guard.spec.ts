@@ -2,8 +2,8 @@
 import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { isDatabaseConnectionError } from '../common/all-exceptions.filter.js';
 import { Prisma } from '../generated/prisma/client.js';
+import { isDatabaseConnectionError } from '../prisma/prisma-errors.js';
 import { JwtAuthGuard, extractBearerToken } from './jwt-auth.guard.js';
 import type { JwtPayload, VerifiedJwt } from './jwt-payload.js';
 import { Public } from './public.decorator.js';

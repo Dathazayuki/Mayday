@@ -1,5 +1,6 @@
 import type {
   Career,
+  CreateStaffResponseData,
   Gender,
   LoginUserInfo,
   PatientEditableField,
@@ -37,12 +38,15 @@ export interface NewPatient extends NewUser {
   patientRoleId: number;
 }
 
-export interface NewStaff extends NewUser {
+/** Vai trò và nơi công tác của nhân viên (bảng `staffs`). */
+export interface StaffAssignment {
   roleId: number;
   branchId: number;
   departmentId: number;
   roomId: number | null;
 }
+
+export interface NewStaff extends NewUser, StaffAssignment {}
 
 /** Giá trị hồ sơ ghi vào CSDL (PUT profile), theo tên trường của Sheet; null = xoá giá trị. */
 export type ProfileWrite = { full_name: string; gender: Gender | null } & {
@@ -190,6 +194,24 @@ export function toSignupData(record: UserRecord, roleId: number): SignupResponse
     role_id: roleId,
     is_active: record.is_active ? 1 : 0,
     created_at: record.created_at.toISOString(),
+  };
+}
+
+/**
+ * data của create-staff (1001): mọi trường kiểu int (MT-06), thêm room_id (MT-37). Vai trò và nơi
+ * công tác lấy từ `assignment` vừa ghi vào `staffs` (cột trong CSDL cho phép NULL vì admin không có).
+ */
+export function toCreateStaffData(
+  record: UserRecord,
+  assignment: StaffAssignment,
+): CreateStaffResponseData {
+  return {
+    user_id: record.user_id,
+    full_name: record.ho_ten,
+    role_id: assignment.roleId,
+    branch_id: assignment.branchId,
+    department_id: assignment.departmentId,
+    room_id: assignment.roomId,
   };
 }
 

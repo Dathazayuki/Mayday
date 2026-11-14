@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { App } from 'supertest/types.js';
-import { seedBase, type SeedResult } from '../../prisma/seed.js';
+import { seedBase, type SeedOptions, type SeedResult } from '../../prisma/seed.js';
 import { AppModule } from '../../src/app.module.js';
 import { configureApp } from '../../src/app.setup.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
@@ -18,9 +18,13 @@ export async function createTestApp(): Promise<INestApplication<App>> {
 
 /**
  * Xoá dữ liệu mọi bảng giai đoạn 1 (bảng con trước bảng cha), seed lại vai trò và cơ sở vật chất,
- * rồi xoá cache trong bộ nhớ của app (role_id đổi sau mỗi lần seed lại).
+ * rồi xoá cache trong bộ nhớ của app (role_id đổi sau mỗi lần seed lại). `opts` truyền cho seedBase
+ * (ví dụ tài khoản admin).
  */
-export async function resetData(app: INestApplication): Promise<SeedResult> {
+export async function resetData(
+  app: INestApplication,
+  opts: SeedOptions = {},
+): Promise<SeedResult> {
   const prisma = app.get(PrismaService).db;
   await prisma.$transaction([
     prisma.token_blacklist.deleteMany(),
@@ -35,7 +39,7 @@ export async function resetData(app: INestApplication): Promise<SeedResult> {
     prisma.roles.updateMany({ data: { parent_role_id: null } }),
     prisma.roles.deleteMany(),
   ]);
-  const seed = await seedBase(prisma);
+  const seed = await seedBase(prisma, opts);
   app.get(RolesRepository).clearCache();
   return seed;
 }
