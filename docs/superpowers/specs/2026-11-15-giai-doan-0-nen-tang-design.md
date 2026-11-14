@@ -44,11 +44,13 @@ DR-May-day/
 ├─ apps/mobile/           Expo (React Native) + expo-router
 ├─ packages/shared/       @drmayday/shared
 ├─ docker-compose.yml     MinIO
-├─ package.json, pnpm-workspace.yaml, tsconfig.base.json, .npmrc, .env.example
+├─ package.json, pnpm-workspace.yaml, .npmrc, .prettierrc, .env.example
 ```
 
+Mỗi ứng dụng dùng tsconfig do template của nó sinh ra; không dùng `tsconfig.base.json` chung.
+
 - **Môi trường:** Node 22 LTS. pnpm (bật qua `corepack`), workspaces `apps/*` và `packages/*`.
-- **Cấu hình chung:** `.npmrc` có `node-linker=hoisted` (Expo yêu cầu). TypeScript strict. ESLint và Prettier dùng chung một cấu hình.
+- **Cấu hình chung:** `.npmrc` có `node-linker=hoisted` (Expo yêu cầu). TypeScript strict. Lint theo công cụ của từng template (oxlint cho API, Web và shared). Prettier dùng chung một cấu hình ở thư mục gốc.
 - **Dựng khung:** mỗi ứng dụng được tạo bằng **công cụ khởi tạo chính thức** (Nest CLI, `create-vite`, `create-expo-app`), dùng bản ổn định hiện hành. Sau đó mới chỉnh theo spec này. Lý do: các framework đã lên phiên bản mới (NestJS 12, Vite 8, React 19, Expo 58...), nên không dựng tay theo trí nhớ. Mỗi bước phải chạy được build/test thật.
 - **Script ở thư mục gốc:** `pnpm dev:api`, `pnpm dev:web`, `pnpm dev:mobile`, `pnpm test`, `pnpm lint`, `pnpm typecheck`, `pnpm build`.
 
@@ -81,11 +83,11 @@ Một unit test đọc bảng trong file tài liệu đó và kiểm tra **mọi
 
 - **Kiểu response:** `ApiResponse<T> = { code: string; message: string; data?: T }`, cùng các kiểu phụ trợ khác.
 - **`ApiError`:** gồm `code`, `message`, `httpStatus`, dùng chung cho client.
-- **`createApiClient({ baseUrl, getToken, onUnauthorized })`:** dựa trên `fetch` nên chạy được cả trên Web lẫn React Native.
+- **`createApiClient({ baseUrl, getToken, onUnauthenticated })`:** dựa trên `fetch` nên chạy được cả trên Web lẫn React Native.
   - Tự gắn `Authorization: Bearer`.
   - Tự gỡ lớp bọc response.
   - Khi `code` khác 1000/1001 thì ném `ApiError`.
-  - Khi gặp 3001/3002/3003 thì gọi `onUnauthorized`.
+  - Khi gặp 3001/3002/3003 thì gọi `onUnauthenticated`.
 - **`API_PREFIX = '/api/v1'`:** áp dụng MT-01.
 - **Kiểm tra số điện thoại:** `isValidVietnamPhone()` theo mô tả mã 2004: số Việt Nam bắt đầu bằng 03, 05, 07, 08 hoặc 09, đủ 10 chữ số. API (trả 2004), Web và Mobile dùng chung hàm này.
 
@@ -139,13 +141,13 @@ Một unit test đọc bảng trong file tài liệu đó và kiểm tra **mọi
 - **Layout sau đăng nhập:** thanh menu bên trái liệt kê các phần nghiệp vụ theo slide, mỗi mục là trang "Đang phát triển".
   - Bác sĩ: Bệnh nhân, Bệnh án.
   - Admin: Người dùng, Phân quyền, Cơ sở vật chất, Mẫu phiếu khám.
-  - Menu chọn theo `role_id`; ánh xạ vai trò → menu tạm thời, chốt ở giai đoạn 2 khi có bảng roles thật.
+  - Giai đoạn 0 hiện đủ mọi mục cho mọi tài khoản. Lọc menu theo `role_id` làm ở giai đoạn 2, khi biết bảng roles thật; không tự đặt id vai trò.
 - **Route bảo vệ:** chưa đăng nhập thì chuyển về `/login`.
 - **Kiểm thử:** Vitest + React Testing Library cho phần kiểm tra form đăng nhập và route bảo vệ.
 
 ## 6. Khung Mobile (`apps/mobile`)
 
-- **Thư viện:** Expo (TypeScript), expo-router, `expo-secure-store` để lưu token, client API từ `@drmayday/shared`. Địa chỉ API đọc từ `EXPO_PUBLIC_API_BASE_URL`.
+- **Thư viện:** Expo (TypeScript), expo-router, `expo-secure-store` để lưu token, client API từ `@drmayday/shared`. Địa chỉ API đọc từ `EXPO_PUBLIC_API_BASE_URL`. Tắt `typedRoutes` để `tsc --noEmit` chạy được mà không cần dev server.
 - **Màn hình đăng nhập:** cùng luật kiểm tra như Web. Slide yêu cầu nút bấm lớn, flow rõ ràng, báo lỗi ngay tại client.
 - **Màn hình chính:** tab giữ chỗ cho phía bệnh nhân (Trang chủ, UAS7, Tổn thương da, Bệnh án, Thông báo), mỗi tab là màn hình "Đang phát triển".
 - **Kiểm thử:** typecheck. Chạy thử bằng `expo start`. Unit test tập trung ở `packages/shared`, vì phần logic của Mobile nằm ở đó.
