@@ -1,13 +1,13 @@
 import type { CreateRoomRequest, UpdateRoomRequest } from '@drmayday/shared';
-import { Type } from 'class-transformer';
-import { IsDefined, IsInt, IsOptional, ValidateIf } from 'class-validator';
+import { IsDefined, IsOptional, ValidateIf } from 'class-validator';
+import { IdQuery, IdRule } from '../../common/id.js';
 import { isPresent } from '../../common/is-present.js';
-import { NameRule, TextRule } from './field-rules.js';
+import { NonBlankTextRule, TextRule } from './field-rules.js';
 
 /** POST /rooms. */
 export class CreateRoomDto implements CreateRoomRequest {
   @IsDefined()
-  @NameRule()
+  @NonBlankTextRule()
   name: string;
 
   @IsOptional()
@@ -15,14 +15,14 @@ export class CreateRoomDto implements CreateRoomRequest {
   description?: string;
 
   @IsDefined()
-  @IsInt()
+  @IdRule()
   department_id: number;
 }
 
 /** PUT /rooms/:id: ít nhất một trường; `description: null` xoá mô tả. */
 export class UpdateRoomDto implements UpdateRoomRequest {
   @ValidateIf(isPresent)
-  @NameRule()
+  @NonBlankTextRule()
   name?: string;
 
   @IsOptional()
@@ -30,14 +30,12 @@ export class UpdateRoomDto implements UpdateRoomRequest {
   description?: string | null;
 
   @ValidateIf(isPresent)
-  @IsInt()
+  @IdRule()
   department_id?: number;
 }
 
-/** GET /rooms?department_id= (query luôn là chuỗi nên cần chuyển sang số). */
+/** GET /rooms?department_id= (vắng hoặc rỗng = không lọc). */
 export class ListRoomsQuery {
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
+  @IdQuery()
   department_id?: number;
 }

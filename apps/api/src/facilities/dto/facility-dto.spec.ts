@@ -27,6 +27,7 @@ describe('CreateBranchDto', () => {
     ['thiếu address', { address: undefined }, '2001'],
     ['thiếu phone', { phone: undefined }, '2001'],
     ['name chỉ có khoảng trắng', { name: '  ' }, '2003'],
+    ['address chỉ có khoảng trắng', { address: '   ' }, '2003'],
     ['name dài quá 255 ký tự', { name: 'A'.repeat(256) }, '2003'],
     ['address không phải chuỗi', { address: 5 }, '2002'],
     ['phone sai định dạng', { phone: '123' }, '2004'],
@@ -43,6 +44,7 @@ describe('UpdateBranchDto', () => {
 
   it.each([
     ['phone sai định dạng', { phone: '123' }, '2004'],
+    ['address chỉ có khoảng trắng', { address: '  ' }, '2003'],
     ['name null', { name: null }, '2001'],
     ['name rỗng', { name: '' }, '2001'],
   ])('%s → %s', async (_name, body, code) => {
@@ -62,6 +64,7 @@ describe('CreateDepartmentDto', () => {
     ['thiếu name', { name: undefined }, '2001'],
     ['thiếu branch_id', { branch_id: undefined }, '2001'],
     ["branch_id = 'a'", { branch_id: 'a' }, '2002'],
+    ['branch_id vượt INT tối đa', { branch_id: 2147483648 }, '2003'],
     ['description không phải chuỗi', { description: 5 }, '2002'],
   ])('%s → %s', async (_name, override, code) => {
     expect(await codeFor(CreateDepartmentDto, { ...valid, ...override })).toBe(code);
@@ -82,9 +85,18 @@ describe('ListDepartmentsQuery / ListRoomsQuery', () => {
     expect(await codeFor(ListRoomsQuery, { department_id: '3' })).toBeNull();
   });
 
-  it('không phải số → 2002', async () => {
-    expect(await codeFor(ListDepartmentsQuery, { branch_id: 'abc' })).toBe('2002');
-    expect(await codeFor(ListRoomsQuery, { department_id: 'abc' })).toBe('2002');
+  it('rỗng hoặc chỉ khoảng trắng = không lọc', async () => {
+    expect(await codeFor(ListDepartmentsQuery, { branch_id: '' })).toBeNull();
+    expect(await codeFor(ListRoomsQuery, { department_id: '  ' })).toBeNull();
+  });
+
+  it.each(['abc', '0', '-1', '1.5', '1e2', '0x10'])('%j → 2002', async (value) => {
+    expect(await codeFor(ListDepartmentsQuery, { branch_id: value })).toBe('2002');
+    expect(await codeFor(ListRoomsQuery, { department_id: value })).toBe('2002');
+  });
+
+  it('vượt INT tối đa → 2003', async () => {
+    expect(await codeFor(ListDepartmentsQuery, { branch_id: '2147483648' })).toBe('2003');
   });
 });
 

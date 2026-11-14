@@ -1,5 +1,5 @@
 import { Prisma } from '../generated/prisma/client.js';
-import { isUniqueViolation } from './prisma-errors.js';
+import { isForeignKeyViolation, isUniqueViolation } from './prisma-errors.js';
 
 /** Dạng lỗi thật Prisma 7 + adapter mariadb ném khi trùng khoá unique (MySQL 1062). */
 function uniqueViolation(index: string, code = 'P2002') {
@@ -15,6 +15,19 @@ function uniqueViolation(index: string, code = 'P2002') {
     },
   });
 }
+
+describe('isForeignKeyViolation', () => {
+  it('P2003 → true; mã khác hoặc không phải lỗi Prisma → false', () => {
+    const prismaError = (code: string) =>
+      new Prisma.PrismaClientKnownRequestError('FK', {
+        code,
+        clientVersion: Prisma.prismaVersion.client,
+      });
+    expect(isForeignKeyViolation(prismaError('P2003'))).toBe(true);
+    expect(isForeignKeyViolation(prismaError('P2002'))).toBe(false);
+    expect(isForeignKeyViolation(new Error('P2003'))).toBe(false);
+  });
+});
 
 describe('isUniqueViolation', () => {
   it('P2002 trên đúng index → true', () => {

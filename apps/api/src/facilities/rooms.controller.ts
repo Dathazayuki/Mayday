@@ -27,19 +27,19 @@ export class RoomsController {
   }
 
   @Get(':id')
-  get(@Param('id', parseIdPipe) id: number): Promise<RoomData> {
+  get(@Param('id', parseIdPipe()) id: number): Promise<RoomData> {
     return this.rooms.get(id);
   }
 
   @Put(':id')
   @RequireRole('admin')
-  update(@Param('id', parseIdPipe) id: number, @Body() dto: UpdateRoomDto): Promise<RoomData> {
+  update(@Param('id', parseIdPipe()) id: number, @Body() dto: UpdateRoomDto): Promise<RoomData> {
     return this.rooms.update(id, dto);
   }
 
   @Delete(':id')
   @RequireRole('admin')
-  async remove(@Param('id', parseIdPipe) id: number): Promise<Record<string, never>> {
+  async remove(@Param('id', parseIdPipe()) id: number): Promise<Record<string, never>> {
     await this.rooms.remove(id);
     return {};
   }

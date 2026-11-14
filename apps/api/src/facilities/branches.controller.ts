@@ -27,19 +27,22 @@ export class BranchesController {
   }
 
   @Get(':id')
-  get(@Param('id', parseIdPipe) id: number): Promise<BranchData> {
+  get(@Param('id', parseIdPipe()) id: number): Promise<BranchData> {
     return this.branches.get(id);
   }
 
   @Put(':id')
   @RequireRole('admin')
-  update(@Param('id', parseIdPipe) id: number, @Body() dto: UpdateBranchDto): Promise<BranchData> {
+  update(
+    @Param('id', parseIdPipe()) id: number,
+    @Body() dto: UpdateBranchDto,
+  ): Promise<BranchData> {
     return this.branches.update(id, dto);
   }
 
   @Delete(':id')
   @RequireRole('admin')
-  async remove(@Param('id', parseIdPipe) id: number): Promise<Record<string, never>> {
+  async remove(@Param('id', parseIdPipe()) id: number): Promise<Record<string, never>> {
     await this.branches.remove(id);
     return {};
   }

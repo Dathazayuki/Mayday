@@ -1,5 +1,6 @@
 import { DepartmentsService } from './departments.service.js';
 import type { FacilitiesRepository } from './facilities.repository.js';
+import { FacilitiesService } from './facilities.service.js';
 import { departmentRecord } from './facility-record.fixture.js';
 
 const NOT_FOUND = { code: '2003', httpStatus: 404 };
@@ -25,7 +26,8 @@ function setup() {
     findBranch: vi.fn<FacilitiesRepository['findBranch']>().mockResolvedValue({ id: 11 }),
     countStaffs: vi.fn<FacilitiesRepository['countStaffs']>().mockResolvedValue(0),
   };
-  return { repo, service: new DepartmentsService(repo as unknown as FacilitiesRepository) };
+  const facilities = repo as unknown as FacilitiesRepository;
+  return { repo, service: new DepartmentsService(facilities, new FacilitiesService(facilities)) };
 }
 
 describe('DepartmentsService', () => {
@@ -104,13 +106,10 @@ describe('DepartmentsService', () => {
       expect(repo.updateDepartment).not.toHaveBeenCalled();
     });
 
-    it('đổi chi nhánh khi khoa còn nhân viên → 2003, không ghi', async () => {
+    it('đổi chi nhánh khi khoa còn nhân viên → 2003 / 409, không ghi', async () => {
       const { service, repo } = setup();
       repo.countStaffs.mockResolvedValue(3);
-      await expect(service.update(20, { branch_id: 11 })).rejects.toMatchObject({
-        code: '2003',
-        data: { field: 'branch_id' },
-      });
+      await expect(service.update(20, { branch_id: 11 })).rejects.toMatchObject(CONFLICT);
       expect(repo.countStaffs).toHaveBeenCalledWith({ departmentId: 20 });
       expect(repo.updateDepartment).not.toHaveBeenCalled();
     });

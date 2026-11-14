@@ -1,13 +1,13 @@
 import type { CreateDepartmentRequest, UpdateDepartmentRequest } from '@drmayday/shared';
-import { Type } from 'class-transformer';
-import { IsDefined, IsInt, IsOptional, ValidateIf } from 'class-validator';
+import { IsDefined, IsOptional, ValidateIf } from 'class-validator';
+import { IdQuery, IdRule } from '../../common/id.js';
 import { isPresent } from '../../common/is-present.js';
-import { NameRule, TextRule } from './field-rules.js';
+import { NonBlankTextRule, TextRule } from './field-rules.js';
 
 /** POST /departments. */
 export class CreateDepartmentDto implements CreateDepartmentRequest {
   @IsDefined()
-  @NameRule()
+  @NonBlankTextRule()
   name: string;
 
   @IsOptional()
@@ -15,14 +15,14 @@ export class CreateDepartmentDto implements CreateDepartmentRequest {
   description?: string;
 
   @IsDefined()
-  @IsInt()
+  @IdRule()
   branch_id: number;
 }
 
 /** PUT /departments/:id: ít nhất một trường; `description: null` xoá mô tả. */
 export class UpdateDepartmentDto implements UpdateDepartmentRequest {
   @ValidateIf(isPresent)
-  @NameRule()
+  @NonBlankTextRule()
   name?: string;
 
   @IsOptional()
@@ -30,14 +30,12 @@ export class UpdateDepartmentDto implements UpdateDepartmentRequest {
   description?: string | null;
 
   @ValidateIf(isPresent)
-  @IsInt()
+  @IdRule()
   branch_id?: number;
 }
 
-/** GET /departments?branch_id= (query luôn là chuỗi nên cần chuyển sang số). */
+/** GET /departments?branch_id= (vắng hoặc rỗng = không lọc). */
 export class ListDepartmentsQuery {
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
+  @IdQuery()
   branch_id?: number;
 }

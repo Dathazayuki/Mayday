@@ -31,14 +31,14 @@ export class DepartmentsController {
   }
 
   @Get(':id')
-  get(@Param('id', parseIdPipe) id: number): Promise<DepartmentData> {
+  get(@Param('id', parseIdPipe()) id: number): Promise<DepartmentData> {
     return this.departments.get(id);
   }
 
   @Put(':id')
   @RequireRole('admin')
   update(
-    @Param('id', parseIdPipe) id: number,
+    @Param('id', parseIdPipe()) id: number,
     @Body() dto: UpdateDepartmentDto,
   ): Promise<DepartmentData> {
     return this.departments.update(id, dto);
@@ -46,7 +46,7 @@ export class DepartmentsController {
 
   @Delete(':id')
   @RequireRole('admin')
-  async remove(@Param('id', parseIdPipe) id: number): Promise<Record<string, never>> {
+  async remove(@Param('id', parseIdPipe()) id: number): Promise<Record<string, never>> {
     await this.departments.remove(id);
     return {};
   }

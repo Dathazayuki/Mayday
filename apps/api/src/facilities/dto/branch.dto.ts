@@ -2,16 +2,16 @@ import type { CreateBranchRequest, UpdateBranchRequest } from '@drmayday/shared'
 import { IsDefined, ValidateIf } from 'class-validator';
 import { isPresent } from '../../common/is-present.js';
 import { IsVietnamPhone } from '../../common/is-vietnam-phone.decorator.js';
-import { NameRule, TextRule } from './field-rules.js';
+import { NonBlankTextRule } from './field-rules.js';
 
 /** POST /branches: cả ba trường bắt buộc. */
 export class CreateBranchDto implements CreateBranchRequest {
   @IsDefined()
-  @NameRule()
+  @NonBlankTextRule()
   name: string;
 
   @IsDefined()
-  @TextRule()
+  @NonBlankTextRule()
   address: string;
 
   @IsDefined()
@@ -22,11 +22,11 @@ export class CreateBranchDto implements CreateBranchRequest {
 /** PUT /branches/:id: ít nhất một trường (BranchesService kiểm tra, 2001). */
 export class UpdateBranchDto implements UpdateBranchRequest {
   @ValidateIf(isPresent)
-  @NameRule()
+  @NonBlankTextRule()
   name?: string;
 
   @ValidateIf(isPresent)
-  @TextRule()
+  @NonBlankTextRule()
   address?: string;
 
   @ValidateIf(isPresent)

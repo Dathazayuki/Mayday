@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { conflict } from '../common/app.exception.js';
 import type { branches, departments, rooms } from '../generated/prisma/client.js';
+import { isForeignKeyViolation } from '../prisma/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 /** Chi nhánh, khoa, phòng rút gọn: id và id của cấp cha, đủ để kiểm tra nơi công tác. */
@@ -28,6 +30,19 @@ export type StaffScope = { branchId: number } | { departmentId: number } | { roo
 @Injectable()
 export class FacilitiesRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Hàng rào cuối khi hai request chạy đồng thời: service đã kiểm tra trước, nhưng dữ liệu liên
+   * quan có thể xuất hiện giữa lúc kiểm tra và lúc ghi. Khoá ngoại chặn thì trả 2003/409 thay vì 500.
+   */
+  private async guardForeignKey<T>(write: () => Promise<T>): Promise<T> {
+    try {
+      return await write();
+    } catch (error) {
+      if (isForeignKeyViolation(error)) throw conflict();
+      throw error;
+    }
+  }
 
   // ---- Tra cứu rút gọn ----
 
@@ -80,11 +95,11 @@ export class FacilitiesRepository {
   }
 
   updateBranch(id: number, data: BranchChanges): Promise<branches> {
-    return this.prisma.db.branches.update({ where: { id }, data });
+    return this.guardForeignKey(() => this.prisma.db.branches.update({ where: { id }, data }));
   }
 
   async deleteBranch(id: number): Promise<void> {
-    await this.prisma.db.branches.delete({ where: { id } });
+    await this.guardForeignKey(() => this.prisma.db.branches.delete({ where: { id } }));
   }
 
   // ---- Khoa ----
@@ -105,12 +120,12 @@ export class FacilitiesRepository {
   }
 
   updateDepartment(id: number, data: DepartmentChanges): Promise<departments> {
-    return this.prisma.db.departments.update({ where: { id }, data });
+    return this.guardForeignKey(() => this.prisma.db.departments.update({ where: { id }, data }));
   }
 
   /** Phòng của khoa chuyển `department_id` = NULL nhờ khoá ngoại ON DELETE SET NULL. */
   async deleteDepartment(id: number): Promise<void> {
-    await this.prisma.db.departments.delete({ where: { id } });
+    await this.guardForeignKey(() => this.prisma.db.departments.delete({ where: { id } }));
   }
 
   // ---- Phòng ----
@@ -131,10 +146,10 @@ export class FacilitiesRepository {
   }
 
   updateRoom(id: number, data: RoomChanges): Promise<rooms> {
-    return this.prisma.db.rooms.update({ where: { id }, data });
+    return this.guardForeignKey(() => this.prisma.db.rooms.update({ where: { id }, data }));
   }
 
   async deleteRoom(id: number): Promise<void> {
-    await this.prisma.db.rooms.delete({ where: { id } });
+    await this.guardForeignKey(() => this.prisma.db.rooms.delete({ where: { id } }));
   }
 }

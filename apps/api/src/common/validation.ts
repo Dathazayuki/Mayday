@@ -1,4 +1,4 @@
-import { ValidationPipe, type ValidationError } from '@nestjs/common';
+import { ValidationPipe, type ArgumentMetadata, type ValidationError } from '@nestjs/common';
 import type { ResponseCode as Code } from '@drmayday/shared';
 import { AppException } from './app.exception.js';
 
@@ -50,8 +50,18 @@ export function validationErrorsToException(errors: ValidationError[]): AppExcep
   return new AppException(codeForValidationError(leaf.error), { field: leaf.path });
 }
 
+/**
+ * Nest mặc định đổi tham số đường dẫn kiểu number bằng `+value` ("1e2" → 100, "0x10" → 16, " " → 0)
+ * trước cả pipe của route. Giữ nguyên chuỗi để `parseIdPipe` áp luật id (id.ts) cho `:id`.
+ */
+class AppValidationPipe extends ValidationPipe {
+  protected override transformPrimitive(value: unknown, metadata: ArgumentMetadata): unknown {
+    return metadata.type === 'param' ? value : super.transformPrimitive(value, metadata);
+  }
+}
+
 export function createValidationPipe(): ValidationPipe {
-  return new ValidationPipe({
+  return new AppValidationPipe({
     whitelist: true,
     transform: true,
     exceptionFactory: validationErrorsToException,

@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import type { SeedResult } from '../../prisma/seed.js';
+import { FacilitiesRepository } from '../../src/facilities/facilities.repository.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { createTestApp, resetData } from './helpers.js';
@@ -216,13 +217,13 @@ describe('branches, departments, rooms (MySQL thật)', () => {
       expect(res.body.code).toBe('2003');
     });
 
-    it('đổi chi nhánh khi khoa còn nhân viên → 400 / 2003', async () => {
+    it('đổi chi nhánh khi khoa còn nhân viên → 409 / 2003', async () => {
       await createDoctor().expect(201);
       const other = await prisma.branches.create({ data: { name: 'Chi nhánh khác' } });
       const res = await api('put', `/departments/${seed.departmentId}`)
         .send({ branch_id: other.id })
-        .expect(400);
-      expect(res.body).toMatchObject({ code: '2003', data: { field: 'branch_id' } });
+        .expect(409);
+      expect(res.body.code).toBe('2003');
     });
 
     it('đổi chi nhánh khi khoa không có nhân viên → 200', async () => {
@@ -310,15 +311,15 @@ describe('branches, departments, rooms (MySQL thật)', () => {
       expect(await prisma.rooms.count({ where: { id: seed.roomId } })).toBe(1);
     });
 
-    it('đổi khoa khi phòng còn nhân viên → 400 / 2003', async () => {
+    it('đổi khoa khi phòng còn nhân viên → 409 / 2003', async () => {
       await createDoctor().expect(201);
       const other = await prisma.departments.create({
         data: { name: 'Khoa khác', branch_id: seed.branchId },
       });
       const res = await api('put', `/rooms/${seed.roomId}`)
         .send({ department_id: other.id })
-        .expect(400);
-      expect(res.body).toMatchObject({ code: '2003', data: { field: 'department_id' } });
+        .expect(409);
+      expect(res.body.code).toBe('2003');
     });
 
     it('PUT body rỗng → 2001; GET /:id không tồn tại → 404; :id = abc → 2002', async () => {
@@ -327,6 +328,53 @@ describe('branches, departments, rooms (MySQL thật)', () => {
       );
       expect((await api('get', '/rooms/999999').expect(404)).body.code).toBe('2003');
       expect((await api('get', '/rooms/abc').expect(400)).body.code).toBe('2002');
+    });
+  });
+
+  describe('luật id dùng chung', () => {
+    it('?branch_id= rỗng hoặc toàn khoảng trắng = không lọc', async () => {
+      const all = await api('get', '/departments').expect(200);
+      for (const query of ['branch_id=', 'branch_id=%20%20']) {
+        const res = await api('get', `/departments?${query}`).expect(200);
+        expect(res.body.data).toEqual(all.body.data);
+      }
+    });
+
+    it.each(['0', '-1', '1.5', '1e2', '0x10', 'abc'])(
+      '?branch_id=%s → 400 / 2002',
+      async (value) => {
+        expect((await api('get', `/departments?branch_id=${value}`).expect(400)).body.code).toBe(
+          '2002',
+        );
+        expect((await api('get', `/rooms?department_id=${value}`).expect(400)).body.code).toBe(
+          '2002',
+        );
+        expect((await api('get', `/branches/${value}`).expect(400)).body.code).toBe('2002');
+      },
+    );
+
+    it('id vượt INT tối đa → 400 / 2003 (path, query, body)', async () => {
+      expect((await api('get', '/branches/2147483648').expect(400)).body.code).toBe('2003');
+      expect((await api('get', '/rooms?department_id=2147483648').expect(400)).body.code).toBe(
+        '2003',
+      );
+      const res = await api('post', '/departments').send({ name: 'K', branch_id: 2147483648 });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('2003');
+    });
+  });
+
+  describe('hàng rào khoá ngoại ở repository (đua giữa kiểm tra và ghi)', () => {
+    it('xoá hoặc đổi cha khi CSDL từ chối → 2003 / 409 thay vì 500', async () => {
+      await createDoctor().expect(201);
+      const repository = app.get(FacilitiesRepository);
+      const conflict = { code: '2003', httpStatus: 409 };
+      await expect(repository.deleteBranch(seed.branchId)).rejects.toMatchObject(conflict);
+      await expect(repository.deleteDepartment(seed.departmentId)).rejects.toMatchObject(conflict);
+      await expect(repository.deleteRoom(seed.roomId)).rejects.toMatchObject(conflict);
+      await expect(
+        repository.updateDepartment(seed.departmentId, { branch_id: 999999 }),
+      ).rejects.toMatchObject(conflict);
     });
   });
 

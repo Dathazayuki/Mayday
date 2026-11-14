@@ -34,6 +34,29 @@ function setup() {
   return { repo, service: new FacilitiesService(repo as unknown as FacilitiesRepository) };
 }
 
+describe('FacilitiesService: kiểm tra một cấp', () => {
+  it('assertBranchExists: chi nhánh không tồn tại → 2003 (field branch_id)', async () => {
+    const { service } = setup();
+    await expect(service.assertBranchExists(BRANCH_ID)).resolves.toBeUndefined();
+    await expect(service.assertBranchExists(99)).rejects.toMatchObject({
+      code: '2003',
+      data: { field: 'branch_id' },
+    });
+  });
+
+  it('assertDepartmentExists: trả khoa; không tồn tại → 2003 (field department_id)', async () => {
+    const { service } = setup();
+    await expect(service.assertDepartmentExists(DEPARTMENT_ID)).resolves.toEqual({
+      id: DEPARTMENT_ID,
+      branch_id: BRANCH_ID,
+    });
+    await expect(service.assertDepartmentExists(99)).rejects.toMatchObject({
+      code: '2003',
+      data: { field: 'department_id' },
+    });
+  });
+});
+
 describe('FacilitiesService.assertPlacement', () => {
   const placement: Placement = {
     branchId: BRANCH_ID,
