@@ -154,7 +154,7 @@ Một unit test đọc bảng trong file tài liệu đó và kiểm tra **mọi
 
 ## 7. Hạ tầng phát triển
 
-- **`docker-compose.yml`:** chạy MinIO (cổng API 9000, console 9001), thông tin truy cập lấy từ `.env`. Chưa có CSDL local cho tới khi có schema thật (MT-57).
+- **`docker-compose.yml`:** chạy MinIO trên cổng máy 9100 (API) và 9101 (console). Không dùng 9000/9001 để tránh trùng với dịch vụ khác trên máy. Image là `cgr.dev/chainguard/minio`, vì image chính thức trên quay.io và Docker Hub không còn tải công khai. Thông tin truy cập lấy từ `.env`. Chưa có CSDL local cho tới khi có schema thật (MT-57).
 - **`.env.example`:** liệt kê đủ biến môi trường của cả 3 ứng dụng, không chứa giá trị bí mật.
 
 ## 8. Hoàn thành giai đoạn 0 khi
