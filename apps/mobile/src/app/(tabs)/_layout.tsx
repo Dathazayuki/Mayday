@@ -1,9 +1,17 @@
 import { Redirect } from 'expo-router';
 import { NativeTabs } from 'expo-router/native-tabs';
+import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '@/auth/auth-context';
 
 export default function TabsLayout() {
   const { status } = useAuth();
+  if (status === 'loading') {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
   if (status === 'signed-out') return <Redirect href="/login" />;
 
   return (
@@ -17,7 +25,7 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Icon sf="chart.bar.fill" md="monitoring" />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="lesions">
-        <NativeTabs.Trigger.Label>Tổn thương</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Tổn thương da</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="bandage.fill" md="healing" />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="records">

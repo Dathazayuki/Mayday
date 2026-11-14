@@ -1,5 +1,5 @@
 import { describeError, isValidVietnamPhone } from '@drmayday/shared';
-import { Redirect, router } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -42,7 +42,6 @@ export default function LoginScreen() {
     setSubmitting(true);
     try {
       await login({ phone, password });
-      router.replace('/home');
     } catch (error) {
       setFormError(describeError(error));
     } finally {

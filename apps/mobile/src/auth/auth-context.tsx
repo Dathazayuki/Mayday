@@ -28,11 +28,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    void loadSession().then((session) => {
-      if (!active) return;
-      setUser(session?.user ?? null);
-      setStatus(session ? 'signed-in' : 'signed-out');
-    });
+    void loadSession()
+      .then((session) => {
+        if (!active) return;
+        setUser(session?.user ?? null);
+        setStatus(session ? 'signed-in' : 'signed-out');
+      })
+      .catch(() => {
+        if (active) {
+          setUser(null);
+          setStatus('signed-out');
+        }
+      });
     return () => {
       active = false;
     };
