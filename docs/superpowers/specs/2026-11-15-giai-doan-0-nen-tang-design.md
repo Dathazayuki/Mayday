@@ -44,7 +44,7 @@ DR-May-day/
 ├─ apps/mobile/           Expo (React Native) + expo-router
 ├─ packages/shared/       @drmayday/shared
 ├─ docker-compose.yml     MinIO
-├─ package.json, pnpm-workspace.yaml, .npmrc, .prettierrc, .env.example
+├─ package.json, pnpm-workspace.yaml, .prettierrc, .env.example
 ```
 
 Mỗi ứng dụng dùng tsconfig do template của nó sinh ra; không dùng `tsconfig.base.json` chung.
@@ -125,7 +125,7 @@ Một unit test đọc bảng trong file tài liệu đó và kiểm tra **mọi
    - Chưa khai báo model nào. Model sẽ có khi chạy `prisma db pull` trên CSDL thật.
    - Kết nối "lười": app khởi động được kể cả khi không có hoặc không kết nối được CSDL, chỉ ghi cảnh báo.
    - Cấu hình làm theo tài liệu chính thức của Prisma bản hiện hành (generator, driver adapter nếu bản mới yêu cầu).
-   - `prisma` (CLI) là devDependency; `postinstall` chạy `prisma generate`. Cách đóng gói khi deploy (build trong môi trường có devDependencies rồi `pnpm deploy --prod`, hoặc cách khác) sẽ chốt khi có thông tin server từ nhóm DB (MT-57).
+   - `prisma` (CLI) là devDependency; `postinstall` chạy `prisma generate`. Cách đóng gói khi deploy (build trong môi trường có devDependencies rồi `pnpm deploy --prod`, hoặc cách khác) sẽ chốt khi có thông tin server từ nhóm DB (MT-57). Lưu ý cho lúc đó: `pnpm deploy --prod` sẽ chạy `postinstall` (prisma generate) và `prepare` (tsc) của shared trong khi không có devDependencies. Cần thêm `--ignore-scripts` (Prisma Client đã được biên dịch vào `dist`) hoặc chặn hai script này.
 8. **`GET /api/v1/health` (public):** trả `{ status: 'ok', db: 'up' | 'down' | 'not_configured', time }`.
 9. **Kiểm thử:**
    - Unit test cho interceptor, filter, cách đổi lỗi validation, guard.
