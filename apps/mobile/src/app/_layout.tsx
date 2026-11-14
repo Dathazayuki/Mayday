@@ -17,6 +17,14 @@ export default function RootLayout() {
           name="change-password"
           options={{ ...formScreenOptions, title: 'Đổi mật khẩu' }}
         />
+        <Stack.Screen
+          name="records/new"
+          options={{ ...formScreenOptions, title: 'Tạo bệnh án mới' }}
+        />
+        <Stack.Screen
+          name="records/[id]"
+          options={{ ...formScreenOptions, title: 'Chi tiết bệnh án' }}
+        />
       </Stack>
     </AuthProvider>
   );
