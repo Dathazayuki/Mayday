@@ -2,12 +2,12 @@ import { LIMIT_DEFAULT, PAGE_DEFAULT, type Flag, type TemplateSummary } from '@d
 import { Button, Card, Select, Tag } from 'antd';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { EntityTable } from '../../admin/EntityTable';
-import { QueryErrorAlert } from '../../admin/QueryErrorAlert';
+import { EntityTable } from '../../components/crud/EntityTable';
+import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { RowActions } from '../../admin/RowActions';
 import { useDeleteTemplate, useTemplates } from '../../admin/templates-api';
-import { useEntityModal } from '../../admin/use-entity-modal';
-import { useDeleteAction } from '../../admin/use-run-action';
+import { useEntityModal } from '../../components/crud/use-entity-modal';
+import { useDeleteAction } from '../../components/crud/use-run-action';
 import { TemplateFormModal } from './templates/TemplateFormModal';
 import {
   TEMPLATE_STATUS_OPTIONS,

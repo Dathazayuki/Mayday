@@ -1,8 +1,8 @@
 import type { DepartmentListItem } from '@drmayday/shared';
 import { Button, Form, Input, Select } from 'antd';
 import { useState } from 'react';
-import { EntityFormModal } from '../../../admin/EntityFormModal';
-import { EntityTable } from '../../../admin/EntityTable';
+import { EntityFormModal } from '../../../components/crud/EntityFormModal';
+import { EntityTable } from '../../../components/crud/EntityTable';
 import {
   toNumericId,
   useBranches,
@@ -11,10 +11,10 @@ import {
   useDepartments,
   useUpdateDepartment,
 } from '../../../admin/facilities-api';
-import { QueryErrorAlert } from '../../../admin/QueryErrorAlert';
+import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
 import { RowActions } from '../../../admin/RowActions';
-import { useEntityModal } from '../../../admin/use-entity-modal';
-import { useDeleteAction } from '../../../admin/use-run-action';
+import { useEntityModal } from '../../../components/crud/use-entity-modal';
+import { useDeleteAction } from '../../../components/crud/use-run-action';
 
 interface DepartmentFormValues {
   name: string;

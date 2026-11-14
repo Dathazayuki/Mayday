@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { useIsAdmin } from '../admin/use-is-admin';
 import { useAuth } from '../auth/useAuth';
+import { useIsPatient } from '../profile/use-is-patient';
 import { NAV_GROUPS } from './menu';
 
 export function AppLayout() {
@@ -11,17 +12,27 @@ export function AppLayout() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const isAdmin = useIsAdmin();
+  const isPatient = useIsPatient();
   const [loggingOut, setLoggingOut] = useState(false);
 
   const items: MenuProps['items'] = [
     { key: '/', label: 'Tổng quan' },
-    ...NAV_GROUPS.filter((group) => !group.adminOnly || isAdmin === true).map((group) => ({
+    // Chỉ ẩn nhóm nhân viên khi chắc chắn là bệnh nhân; API vẫn kiểm tra quyền.
+    ...NAV_GROUPS.filter(
+      (group) => (!group.adminOnly || isAdmin === true) && (!group.staffOnly || isPatient !== true),
+    ).map((group) => ({
       type: 'group' as const,
       key: group.label,
       label: group.label,
       children: group.items.map(({ key, label }) => ({ key, label })),
     })),
   ];
+
+  // Trang con (VD /medical-records/5) sáng mục menu cha.
+  const selectedKeys = items
+    .flatMap((item) => (item && 'children' in item ? (item.children ?? []) : [item]))
+    .map((item) => String(item?.key))
+    .filter((key) => key === pathname || (key !== '/' && pathname.startsWith(`${key}/`)));
 
   const userMenu: MenuProps = {
     items: [
@@ -44,7 +55,7 @@ export function AppLayout() {
         <div style={{ padding: 16, fontWeight: 600, fontSize: 18 }}>DrMayDay</div>
         <Menu
           mode="inline"
-          selectedKeys={[pathname]}
+          selectedKeys={selectedKeys}
           items={items}
           onClick={({ key }) => navigate(key)}
         />

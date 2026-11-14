@@ -1,8 +1,8 @@
 import type { TemplateSummary } from '@drmayday/shared';
 import { Form, Input, Select } from 'antd';
-import { EntityFormModal } from '../../../admin/EntityFormModal';
+import { EntityFormModal } from '../../../components/crud/EntityFormModal';
 import { useCreateTemplate, useUpdateTemplate } from '../../../admin/templates-api';
-import type { EntityModal } from '../../../admin/use-entity-modal';
+import type { EntityModal } from '../../../components/crud/use-entity-modal';
 import { codeRules } from './code-rules';
 import { TEMPLATE_STATUS_OPTIONS, type TemplateFormValues } from './template-form';
 

@@ -1,5 +1,5 @@
 import { isStaffDetail, type AdminUserListItem } from '@drmayday/shared';
-import { EntityFormModal } from '../../../admin/EntityFormModal';
+import { EntityFormModal } from '../../../components/crud/EntityFormModal';
 import { useAssignUser } from '../../../admin/users-api';
 import { PlacementFields, type PlacementValues } from './PlacementFields';
 import { usePrefillFromDetail } from './use-prefill-from-detail';

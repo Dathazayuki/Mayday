@@ -5,7 +5,7 @@ import {
 } from '@drmayday/shared';
 import { Button, Drawer, Form, Input, InputNumber, Select, Space, Switch } from 'antd';
 import { useCreateQuestion, useUpdateQuestion } from '../../../admin/templates-api';
-import { useRunAction } from '../../../admin/use-run-action';
+import { useRunAction } from '../../../components/crud/use-run-action';
 import { codeRules } from './code-rules';
 import { OptionsEditor } from './OptionsEditor';
 import type { QuestionDrawerState } from './question-drawer-state';

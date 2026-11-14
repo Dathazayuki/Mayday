@@ -1,10 +1,10 @@
 import type { RoleData } from '@drmayday/shared';
 import { Button, Form, Input, Select, Tree } from 'antd';
 import { useMemo } from 'react';
-import { EntityFormModal } from '../../../admin/EntityFormModal';
-import { QueryErrorAlert } from '../../../admin/QueryErrorAlert';
+import { EntityFormModal } from '../../../components/crud/EntityFormModal';
+import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
 import { useCreateRole, useRoles } from '../../../admin/rbac-api';
-import { useEntityModal } from '../../../admin/use-entity-modal';
+import { useEntityModal } from '../../../components/crud/use-entity-modal';
 import { buildRoleTree } from './role-tree';
 
 interface RoleFormValues {

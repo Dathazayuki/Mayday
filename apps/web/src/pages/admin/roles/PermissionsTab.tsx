@@ -1,8 +1,8 @@
 import type { PermissionData } from '@drmayday/shared';
 import { Button, Form, Input } from 'antd';
-import { EntityFormModal } from '../../../admin/EntityFormModal';
-import { EntityTable } from '../../../admin/EntityTable';
-import { QueryErrorAlert } from '../../../admin/QueryErrorAlert';
+import { EntityFormModal } from '../../../components/crud/EntityFormModal';
+import { EntityTable } from '../../../components/crud/EntityTable';
+import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
 import {
   useCreatePermission,
   useDeletePermission,
@@ -10,8 +10,8 @@ import {
   useUpdatePermission,
 } from '../../../admin/rbac-api';
 import { RowActions } from '../../../admin/RowActions';
-import { useEntityModal } from '../../../admin/use-entity-modal';
-import { useDeleteAction } from '../../../admin/use-run-action';
+import { useEntityModal } from '../../../components/crud/use-entity-modal';
+import { useDeleteAction } from '../../../components/crud/use-run-action';
 
 interface PermissionFormValues {
   name: string;

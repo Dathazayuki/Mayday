@@ -1,8 +1,8 @@
 import type { TemplateSectionDetail } from '@drmayday/shared';
 import { Form, Input, InputNumber, Select, Switch } from 'antd';
-import { EntityFormModal } from '../../../admin/EntityFormModal';
+import { EntityFormModal } from '../../../components/crud/EntityFormModal';
 import { useCreateSection, useUpdateSection } from '../../../admin/templates-api';
-import type { EntityModal } from '../../../admin/use-entity-modal';
+import type { EntityModal } from '../../../components/crud/use-entity-modal';
 import { toSectionRequest, type SectionFormValues } from './section-payload';
 import { FILLED_BY_OPTIONS } from './template-labels';
 

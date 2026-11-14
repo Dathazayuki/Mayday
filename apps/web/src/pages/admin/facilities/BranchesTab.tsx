@@ -1,17 +1,17 @@
 import { isValidVietnamPhone, type BranchListItem } from '@drmayday/shared';
 import { Button, Form, Input } from 'antd';
-import { EntityFormModal } from '../../../admin/EntityFormModal';
-import { EntityTable } from '../../../admin/EntityTable';
+import { EntityFormModal } from '../../../components/crud/EntityFormModal';
+import { EntityTable } from '../../../components/crud/EntityTable';
 import {
   useBranches,
   useCreateBranch,
   useDeleteBranch,
   useUpdateBranch,
 } from '../../../admin/facilities-api';
-import { QueryErrorAlert } from '../../../admin/QueryErrorAlert';
+import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
 import { RowActions } from '../../../admin/RowActions';
-import { useEntityModal } from '../../../admin/use-entity-modal';
-import { useDeleteAction } from '../../../admin/use-run-action';
+import { useEntityModal } from '../../../components/crud/use-entity-modal';
+import { useDeleteAction } from '../../../components/crud/use-run-action';
 
 interface BranchFormValues {
   name: string;

@@ -2,7 +2,7 @@ import type { AdminUserDetailData, AdminUserListItem } from '@drmayday/shared';
 import type { FormInstance } from 'antd';
 import { useEffect, useEffectEvent, useRef } from 'react';
 import { useAdminUser } from '../../../admin/users-api';
-import type { EntityModal } from '../../../admin/use-entity-modal';
+import type { EntityModal } from '../../../components/crud/use-entity-modal';
 
 /**
  * Danh sách không có giới tính và nơi công tác: khi sửa/phân công một người dùng, nạp phần còn thiếu

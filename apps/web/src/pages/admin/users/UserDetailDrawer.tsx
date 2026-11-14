@@ -10,7 +10,7 @@ import {
 import { Descriptions, Drawer, Skeleton } from 'antd';
 import type { ReactNode } from 'react';
 import { useBranches, useDepartments, useRooms } from '../../../admin/facilities-api';
-import { QueryErrorAlert } from '../../../admin/QueryErrorAlert';
+import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
 import { useAdminUser } from '../../../admin/users-api';
 import { PATIENT_FIELD_LABELS } from '../../../profile/profile-form';
 

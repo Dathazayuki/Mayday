@@ -1,7 +1,7 @@
 import { describeError } from '@drmayday/shared';
 import { App, Button, Checkbox, Select, Space } from 'antd';
 import { useState } from 'react';
-import { QueryErrorAlert } from '../../../admin/QueryErrorAlert';
+import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
 import {
   usePermissions,
   useRolePermissions,

@@ -1,5 +1,5 @@
 import type { AdminUserListItem } from '@drmayday/shared';
-import { useEntityModal } from '../../../admin/use-entity-modal';
+import { useEntityModal } from '../../../components/crud/use-entity-modal';
 import type { AccountValues } from './AccountFields';
 import type { PlacementValues } from './PlacementFields';
 

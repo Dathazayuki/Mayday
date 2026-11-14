@@ -1,11 +1,11 @@
 import { LIMIT_DEFAULT, PAGE_DEFAULT, type AdminUserListItem } from '@drmayday/shared';
 import { Button, Card, Select, Tag } from 'antd';
 import { useState } from 'react';
-import { EntityTable } from '../../admin/EntityTable';
-import { QueryErrorAlert } from '../../admin/QueryErrorAlert';
+import { EntityTable } from '../../components/crud/EntityTable';
+import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { RowActions } from '../../admin/RowActions';
 import { useRoles } from '../../admin/rbac-api';
-import { useDeleteAction } from '../../admin/use-run-action';
+import { useDeleteAction } from '../../components/crud/use-run-action';
 import { isPatientRole, useAdminUsers, useDeleteUser } from '../../admin/users-api';
 import { useAuth } from '../../auth/useAuth';
 import { AssignUserModal } from './users/AssignUserModal';

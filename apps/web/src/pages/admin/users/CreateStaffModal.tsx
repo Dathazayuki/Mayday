@@ -1,6 +1,6 @@
 import type { AdminUserListItem, RoleData } from '@drmayday/shared';
 import { Form, Select } from 'antd';
-import { EntityFormModal } from '../../../admin/EntityFormModal';
+import { EntityFormModal } from '../../../components/crud/EntityFormModal';
 import { isPatientRole, useCreateStaff } from '../../../admin/users-api';
 import { AccountFields } from './AccountFields';
 import { PlacementFields } from './PlacementFields';

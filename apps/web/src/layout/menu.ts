@@ -1,5 +1,7 @@
 import type { ComponentType } from 'react';
 import { FacilitiesPage } from '../pages/admin/FacilitiesPage';
+import { MedicalRecordsPage } from '../pages/clinical/MedicalRecordsPage';
+import { PatientsPage } from '../pages/clinical/PatientsPage';
 import { RolesPage } from '../pages/admin/RolesPage';
 import { TemplatesPage } from '../pages/admin/TemplatesPage';
 import { UsersPage } from '../pages/admin/UsersPage';
@@ -16,6 +18,8 @@ export interface NavGroup {
   items: NavItem[];
   /** Chỉ hiện khi useIsAdmin() là true. */
   adminOnly?: boolean;
+  /** Chỉ hiện với nhân viên: ẩn khi người đăng nhập là bệnh nhân (useIsPatient). */
+  staffOnly?: boolean;
 }
 
 /**
@@ -25,9 +29,10 @@ export interface NavGroup {
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Khám và điều trị',
+    staffOnly: true,
     items: [
-      { key: '/patients', label: 'Bệnh nhân' },
-      { key: '/medical-records', label: 'Bệnh án' },
+      { key: '/patients', label: 'Bệnh nhân', page: PatientsPage },
+      { key: '/medical-records', label: 'Bệnh án', page: MedicalRecordsPage },
     ],
   },
   {

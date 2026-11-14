@@ -156,6 +156,42 @@ describe('Định tuyến và đăng nhập', () => {
     expect(screen.getByText('Nguyễn Văn An')).toBeInTheDocument();
   });
 
+  it('menu "Khám và điều trị" ẩn với bệnh nhân (hồ sơ có trường bệnh nhân)', async () => {
+    seedSession();
+    const fetchMock = vi.fn((url: string) =>
+      Promise.resolve(
+        String(url).endsWith('/profile')
+          ? okResponse({ user_id: 1, full_name: 'Nguyễn Văn An', year_of_birth: 1990 })
+          : errorResponse(403, '3102'),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    renderAt('/');
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText('Khám và điều trị')).not.toBeInTheDocument());
+  });
+
+  it('vào /medical-records hiện danh sách bệnh án thay vì trang "Sắp ra mắt"', async () => {
+    seedSession();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse([])));
+    renderAt('/medical-records');
+    expect(await screen.findByText('Tất cả trạng thái')).toBeInTheDocument();
+  });
+
+  it('vào /patients hiện trang tìm bệnh nhân', async () => {
+    seedSession();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse([])));
+    renderAt('/patients');
+    expect(await screen.findByRole('button', { name: 'Thêm bệnh nhân' })).toBeInTheDocument();
+  });
+
+  it('vào /medical-records/:id hiện màn khám', async () => {
+    seedSession();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(errorResponse(404, '4001')));
+    renderAt('/medical-records/5');
+    expect(await screen.findByText('Không tìm thấy bệnh án')).toBeInTheDocument();
+  });
+
   it('vào /admin/facilities hiện trang quản lý cơ sở vật chất', async () => {
     seedSession();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse([])));
