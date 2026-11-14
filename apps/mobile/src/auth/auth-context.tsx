@@ -17,9 +17,6 @@ import {
 } from 'react';
 import { apiClient, subscribeUnauthenticated } from '@/lib/api';
 import { clearSession, loadSession, saveSession } from '@/lib/session-store';
-import { withTimeout } from '@/lib/with-timeout';
-
-const LOGOUT_TIMEOUT_MS = 5000;
 
 type AuthStatus = 'loading' | 'signed-in' | 'signed-out';
 
@@ -87,11 +84,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await withTimeout(apiClient.post('/auth/logout'), LOGOUT_TIMEOUT_MS);
+      await apiClient.post('/auth/logout');
     } catch {
-      // Lỗi mạng, quá thời gian chờ hay token hết hạn vẫn phải đăng xuất trên máy.
+      // Bỏ qua lỗi mạng hay token hết hạn: vẫn phải đăng xuất trên máy.
+    } finally {
+      await endSession();
     }
-    await endSession();
   }, [endSession]);
 
   const changePassword = useCallback(async (input: ChangePasswordRequest) => {
