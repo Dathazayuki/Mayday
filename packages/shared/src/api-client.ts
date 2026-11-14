@@ -4,6 +4,7 @@ import {
   DEFAULT_TIMEOUT_MS,
   NETWORK_ERROR_CODE,
   type ApiResponse,
+  type PageResult,
 } from './api-types.js';
 import { SUCCESS_CODES, UNAUTHENTICATED_CODES } from './response-codes.js';
 
@@ -33,6 +34,11 @@ export interface ApiClientOptions {
 export interface ApiClient {
   request<T>(method: HttpMethod, path: string, options?: RequestOptions): Promise<T>;
   get<T>(path: string, query?: Record<string, QueryValue>, options?: CallOptions): Promise<T>;
+  getPage<T>(
+    path: string,
+    query?: Record<string, QueryValue>,
+    options?: CallOptions,
+  ): Promise<PageResult<T>>;
   post<T>(path: string, body?: unknown, options?: CallOptions): Promise<T>;
   put<T>(path: string, body?: unknown, options?: CallOptions): Promise<T>;
   patch<T>(path: string, body?: unknown, options?: CallOptions): Promise<T>;
@@ -53,11 +59,11 @@ export function buildUrl(baseUrl: string, path: string, query?: Record<string, Q
 export function createApiClient(options: ApiClientOptions): ApiClient {
   const fetchImpl: typeof fetch = options.fetchImpl ?? ((input, init) => fetch(input, init));
 
-  async function request<T>(
+  async function send<T>(
     method: HttpMethod,
     path: string,
     { query, body, timeoutMs }: RequestOptions = {},
-  ): Promise<T> {
+  ): Promise<ApiResponse<T>> {
     const headers: Record<string, string> = { Accept: 'application/json' };
     const token = await options.getToken?.();
     if (token) headers.Authorization = `Bearer ${token}`;
@@ -109,7 +115,9 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     }
 
     const code = typeof envelope.code === 'string' ? envelope.code : '9901';
-    if ((SUCCESS_CODES as readonly string[]).includes(code)) return envelope.data as T;
+    if ((SUCCESS_CODES as readonly string[]).includes(code)) {
+      return { ...envelope, code, message: envelope.message ?? '' } as ApiResponse<T>;
+    }
 
     const error = new ApiError(
       code,
@@ -123,10 +131,27 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     throw error;
   }
 
+  async function request<T>(
+    method: HttpMethod,
+    path: string,
+    requestOptions?: RequestOptions,
+  ): Promise<T> {
+    const envelope = await send<T>(method, path, requestOptions);
+    return envelope.data as T;
+  }
+
   return {
     request,
     get<T>(path: string, query?: Record<string, QueryValue>, options?: CallOptions) {
       return request<T>('GET', path, { query, ...options });
+    },
+    async getPage<T>(
+      path: string,
+      query?: Record<string, QueryValue>,
+      options?: CallOptions,
+    ): Promise<PageResult<T>> {
+      const envelope = await send<T[]>('GET', path, { query, ...options });
+      return { items: envelope.data ?? [], total: envelope.total ?? 0 };
     },
     post<T>(path: string, body?: unknown, options?: CallOptions) {
       return request<T>('POST', path, { body, ...options });
