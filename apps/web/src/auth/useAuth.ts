@@ -5,7 +5,10 @@ export interface AuthContextValue {
   user: LoginUserInfo | null;
   isAuthenticated: boolean;
   login: (input: LoginRequest) => Promise<void>;
-  logout: () => void;
+  /** Người dùng chủ động đăng xuất: gọi API (bỏ qua lỗi) rồi xoá phiên. */
+  logout: () => Promise<void>;
+  /** Chỉ xoá phiên cục bộ (hết phiên, hoặc server đã thu hồi token như sau đổi mật khẩu). */
+  clearSession: () => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
