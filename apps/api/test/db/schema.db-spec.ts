@@ -296,14 +296,23 @@ describe('CSDL thật: schema, seed và làm sạch dữ liệu (PostgreSQL th�
       expect(await prisma.chinhanh.count()).toBe(branches);
     });
 
-    it('SEED_SAMPLE_PASSWORD → 2 nhân viên ở chi nhánh dev và 2 bệnh nhân; số đã có tài khoản thì bỏ qua', async () => {
+    it('SEED_SAMPLE_PASSWORD → 3 nhân viên ở chi nhánh dev (có bác sĩ mẫu hai, spec B mục 10.1) và 6 bệnh nhân; số đã có tài khoản thì bỏ qua', async () => {
       const result = await seedDevData(prisma, { samplePassword: 'mau123', appEnv: 'test' });
       expect(result.sampleAccounts).toEqual([
         '0900000002',
         '0900000003',
         '0900000004',
         '0900000005',
+        '0900000006',
+        '0900000103',
+        '0900000104',
+        '0900000105',
+        '0900000106',
       ]);
+      const secondDoctor = await findAccount(prisma, '0900000006');
+      expect(secondDoctor.vaitro.ten_vai_tro).toBe('bac_si');
+      expect(secondDoctor.nguoi.ho_ten).toBe('BÁC SĨ MẪU HAI');
+      expect(secondDoctor.nguoi.nhanvien?.ma_chi_nhanh).toBe(BigInt(result.branchId));
       const doctor = await findAccount(prisma, '0900000002');
       expect(doctor.vaitro.ten_vai_tro).toBe('bac_si');
       expect(doctor.nguoi.nhanvien?.ma_chi_nhanh).toBe(BigInt(result.branchId));
@@ -316,13 +325,14 @@ describe('CSDL thật: schema, seed và làm sạch dữ liệu (PostgreSQL th�
 
       const again = await seedDevData(prisma, { samplePassword: 'mau123', appEnv: 'test' });
       expect(again.sampleAccounts).toEqual([]);
-      expect(await prisma.taikhoan.count()).toBe(4);
+      expect(await prisma.taikhoan.count()).toBe(9);
     });
 
-    it('không có SEED_SAMPLE_PASSWORD → không tạo tài khoản mẫu', async () => {
+    it('không có SEED_SAMPLE_PASSWORD → không tạo tài khoản mẫu, bỏ qua seed lâm sàng', async () => {
       await expect(seedDevData(prisma, { appEnv: 'test' })).resolves.toMatchObject({
         sampleAccounts: [],
         adminId: null,
+        clinical: null,
       });
       expect(await prisma.taikhoan.count()).toBe(0);
     });
