@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { UpdateUserRequest } from '@drmayday/shared';
+import type { PageResult, UpdateUserRequest } from '@drmayday/shared';
 import { AppException } from '../common/app.exception.js';
 import type { PageWindow } from '../common/paginated.js';
 import type { Placement } from '../facilities/placement.js';
@@ -44,19 +44,27 @@ export class UsersRepository {
     return this.prisma.db.users.findUnique({ where: { user_id: userId }, include: WITH_SUBTYPES });
   }
 
-  /** Một trang người dùng theo `filter`, sắp xếp user_id tăng dần. */
-  list(filter: UserFilter, { skip, take }: PageWindow): Promise<UserRecord[]> {
-    return this.prisma.db.users.findMany({
-      where: whereOf(filter),
-      include: WITH_SUBTYPES,
-      orderBy: { user_id: 'asc' },
-      skip,
-      take,
-    });
+  /**
+   * Người dùng của token cho JwtAuthGuard. Chưa cấu hình CSDL thì không tra được (như
+   * TokenBlacklistRepository.has) → undefined; người dùng không còn → null.
+   */
+  async findSessionUser(userId: number): Promise<UserRecord | null | undefined> {
+    if (!this.prisma.configured) return undefined;
+    return this.findById(userId);
   }
 
-  count(filter: UserFilter): Promise<number> {
-    return this.prisma.db.users.count({ where: whereOf(filter) });
+  /**
+   * Một trang người dùng theo `filter` (user_id tăng dần) và tổng số người dùng khớp `filter`, đọc
+   * trong cùng một transaction để `total` khớp với trang.
+   */
+  async listPage(filter: UserFilter, { skip, take }: PageWindow): Promise<PageResult<UserRecord>> {
+    const db = this.prisma.db;
+    const where = whereOf(filter);
+    const [items, total] = await db.$transaction([
+      db.users.findMany({ where, include: WITH_SUBTYPES, orderBy: { user_id: 'asc' }, skip, take }),
+      db.users.count({ where }),
+    ]);
+    return { items, total };
   }
 
   async phoneExists(phone: string): Promise<boolean> {

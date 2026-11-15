@@ -1,15 +1,23 @@
 import type { Logger } from '@nestjs/common';
 import { corruptData } from '../common/app.exception.js';
-import { roleIdOf, type UserRecord } from './user-mapping.js';
+import {
+  isPatient,
+  isStaff,
+  roleIdOf,
+  type SubtypedUser,
+  type UserRecord,
+} from './user-mapping.js';
 
 /**
- * role_id của người dùng (login, profile). Không có bản ghi staffs/patients là dữ liệu hỏng → ghi
- * log vào `logger` của service gọi, client nhận 9901.
+ * Người dùng phải có bản ghi `staffs` hoặc `patients`; không có là dữ liệu hỏng → ghi log vào
+ * `logger` của nơi gọi, client nhận 9901.
  */
+export function requireSubtype(record: UserRecord, logger: Logger): SubtypedUser {
+  if (isStaff(record) || isPatient(record)) return record;
+  throw corruptData(logger, `Người dùng ${record.user_id} không có bản ghi staffs hoặc patients`);
+}
+
+/** role_id của người dùng (login, profile, phiên đăng nhập); thiếu bản ghi subtype → 9901. */
 export function requireRoleId(record: UserRecord, logger: Logger): number {
-  const roleId = roleIdOf(record);
-  if (roleId === null) {
-    throw corruptData(logger, `Người dùng ${record.user_id} không có bản ghi staffs hoặc patients`);
-  }
-  return roleId;
+  return roleIdOf(requireSubtype(record, logger));
 }

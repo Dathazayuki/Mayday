@@ -57,6 +57,10 @@ Bảng `branches`/`departments`/`rooms` giữ đúng cột của tài liệu CSD
   - toàn bộ `/permissions*`, `/role_permissions*`;
   - `POST`/`PUT`/`DELETE` của branches/departments/rooms.
 - **Mọi người đã đăng nhập:** `GET` danh sách và chi tiết branches/departments/rooms (Sheet ghi "Bearer Token xác thực").
+- **Phiên đăng nhập theo trạng thái hiện tại:** mỗi request đã xác thực (sau khi kiểm chữ ký và `token_blacklist`), `JwtAuthGuard` đọc lại người dùng trong CSDL (một lần tra theo khoá chính, kèm `staffs`/`patients`):
+  - người dùng đã bị xoá hoặc bị khoá (`is_active` = 0) → 3001, client đăng xuất như token bị thu hồi. Điều này cũng phủ token đã đăng xuất mà dòng `token_blacklist` mất theo CASCADE khi xoá người dùng;
+  - `role_id` dùng cho RolesGuard và RBAC động lấy từ CSDL, không lấy từ token, nên đổi vai trò có hiệu lực ngay với token cũ;
+  - chưa cấu hình CSDL → bỏ qua bước này (giữ `role_id` của token); CSDL lỗi → 9902.
 - **RBAC động:** xem mục 4. Lớp này chạy sau kiểm tra vai trò tĩnh; admin luôn được qua.
 
 ### 3.3. Quản trị người dùng
@@ -66,7 +70,7 @@ Bảng `branches`/`departments`/`rooms` giữ đúng cột của tài liệu CSD
 | `GET /admin/users` | `page?`, `limit?`, `role_id?` (int) | `[{user_id:int, full_name, phone, role_id:int, is_active:int}]`, sắp xếp `user_id` tăng dần; `total` ngoài `data` |
 | `GET /admin/users/:id` | `id` int (sai kiểu → 2002) | Bệnh nhân: đúng dạng `PatientProfileData` của giai đoạn 1. Nhân viên: `ProfileBase` + `branch_id`, `department_id`, `room_id` (int\|null), cần để màn phân công hiển thị. Không tồn tại → 3007 |
 | `POST /admin/users` (1001) | `full_name`, `phone`, `password` (như signup), `gender?`, `role_id` int bắt buộc, `is_active?` ∈ {0,1} (mặc định 1) | `{user_id, full_name, phone, role_id, is_active}` (sửa `ffull_name`, MT-30). Vai trò `patient` thì tạo bản ghi `patients`, vai trò khác thì tạo `staffs` chưa có nơi công tác (phân công sau bằng `assign`). Vai trò không tồn tại → 2003; trùng số → 3006 |
-| `PUT /admin/users/:id` | `full_name?`, `gender?`, `role_id?`, `is_active?` ∈ {0,1}; cần ít nhất 1 trường (2001) | Dạng giống `GET /admin/users/:id` (theo vai trò, đúng ghi chú của Sheet). Chỉ được đổi vai trò trong cùng nhóm (nhân viên ↔ nhân viên); đổi từ hoặc sang `patient` → 2003 (**MT-65**). Khoá tài khoản (`is_active`=0) không thu hồi token đang dùng, nhưng lần đăng nhập sau bị 3101 |
+| `PUT /admin/users/:id` | `full_name?`, `gender?`, `role_id?`, `is_active?` ∈ {0,1}; cần ít nhất 1 trường (2001) | Dạng giống `GET /admin/users/:id` (theo vai trò, đúng ghi chú của Sheet). Chỉ được đổi vai trò trong cùng nhóm (nhân viên ↔ nhân viên); đổi từ hoặc sang `patient` → 2003 (**MT-65**). Admin tự khoá (`is_active`=0) hoặc tự đổi vai trò → 2003 (field `id`). Khoá tài khoản (`is_active`=0) có hiệu lực ngay: token đang dùng bị từ chối 3001 (mục 3.2), lần đăng nhập sau bị 3101 |
 | `DELETE /admin/users/:id` | `id` | `{}`. Trong một transaction: xoá `user_fcm_tokens` (Sheet ghi CASCADE, bảng FK ghi RESTRICT, **MT-66**) rồi xoá `users`; `staffs`/`patients`/`token_blacklist` tự CASCADE. Admin xoá chính mình → 2003. Không tồn tại → 3007 |
 | `PUT /admin/users/:id/assign` | `branch_id`, `department_id` int bắt buộc, `room_id?` int\|null | `{user_id, branch_id, department_id, room_id\|null}`. Kiểm tra như create-staff (khoa thuộc chi nhánh, phòng thuộc khoa → 2003). Người dùng không phải nhân viên → 2003; không tồn tại → 3007 |
 

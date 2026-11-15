@@ -1,20 +1,20 @@
-import {
-  isPatientProfile,
-  type AdminUserDetailData,
-  type AdminUserListItem,
-  type AssignUserResponseData,
-  type Career,
-  type CreateStaffResponseData,
-  type Gender,
-  type LoginUserInfo,
-  type PatientEditableField,
-  type PatientProfileFields,
-  type ProfileBase,
-  type ProfileData,
-  type SignupResponseData,
-  type UpdateUserRequest,
+import type {
+  AdminUserDetailData,
+  AdminUserListItem,
+  AssignUserResponseData,
+  Career,
+  CreateStaffResponseData,
+  Gender,
+  LoginUserInfo,
+  PatientEditableField,
+  PatientProfileData,
+  PatientProfileFields,
+  ProfileBase,
+  ProfileData,
+  SignupResponseData,
+  UpdateUserRequest,
 } from '@drmayday/shared';
-import type { Placement } from '../facilities/placement.js';
+import type { Placement, StoredPlacement } from '../facilities/placement.js';
 import type {
   Prisma,
   patients,
@@ -33,6 +33,10 @@ import type {
 
 /** Người dùng đọc từ CSDL kèm bản ghi subtype: nhân viên có `staffs`, bệnh nhân có `patients`. */
 export type UserRecord = users & { staffs: staffs | null; patients: patients | null };
+export type StaffRecord = UserRecord & { staffs: staffs };
+export type PatientRecord = UserRecord & { patients: patients };
+/** Người dùng hợp lệ: có bản ghi subtype (requireSubtype đã kiểm tra). */
+export type SubtypedUser = StaffRecord | PatientRecord;
 
 /** Dữ liệu tạo tài khoản theo API: họ tên chưa chuẩn hoá, gender theo Sheet. */
 export interface NewUser {
@@ -57,11 +61,8 @@ export interface StaffAssignment extends Placement {
  * Nhân viên mới: create-staff có đủ nơi công tác; POST admin/users chưa phân công nên cả ba là null
  * (gán sau bằng PUT admin/users/:id/assign).
  */
-export interface NewStaff extends NewUser {
+export interface NewStaff extends NewUser, StoredPlacement {
   roleId: number;
-  branchId: number | null;
-  departmentId: number | null;
-  roomId: number | null;
 }
 
 /** Bộ lọc của GET admin/users; vắng = không lọc. */
@@ -234,18 +235,18 @@ export function userUpdateToDb(
 
 // ---- Đọc ----
 
-/** role_id nằm ở bảng subtype `staffs` hoặc `patients` (MT-62); không có cả hai → null. */
-export function roleIdOf(record: UserRecord): number | null {
-  return record.staffs?.role_id ?? record.patients?.role_id ?? null;
-}
-
 /** Bệnh nhân có bản ghi `patients`; nhân viên chỉ có `staffs`. */
-export function isPatient(record: UserRecord): record is UserRecord & { patients: patients } {
+export function isPatient(record: UserRecord): record is PatientRecord {
   return record.patients !== null;
 }
 
-export function isStaff(record: UserRecord): record is UserRecord & { staffs: staffs } {
+export function isStaff(record: UserRecord): record is StaffRecord {
   return record.staffs !== null;
+}
+
+/** role_id nằm ở bảng subtype `staffs` hoặc `patients` (MT-62); nhân viên xét trước. */
+export function roleIdOf(user: SubtypedUser): number {
+  return isStaff(user) ? user.staffs.role_id : user.patients.role_id;
 }
 
 /** data của signup (1001): ID và is_active kiểu int (MT-06). */
@@ -294,17 +295,23 @@ export function toLoginUserInfo(record: UserRecord, roleId: number): LoginUserIn
  * trị → null); nhân viên chỉ có 5 trường chung vì tab ghi "dưới đây là của bệnh nhân".
  */
 export function toProfileData(record: UserRecord, roleId: number): ProfileData {
-  const base: ProfileBase = {
+  return isPatient(record) ? toPatientProfile(record, roleId) : toProfileBase(record, roleId);
+}
+
+function toProfileBase(record: UserRecord, roleId: number): ProfileBase {
+  return {
     user_id: record.user_id,
     full_name: record.ho_ten,
     phone: record.so_dien_thoai,
     role_id: roleId,
     gender: genderFromDb(record.gioi_tinh),
   };
-  if (!isPatient(record)) return base;
+}
+
+function toPatientProfile(record: PatientRecord, roleId: number): PatientProfileData {
   const patient = record.patients;
   return {
-    ...base,
+    ...toProfileBase(record, roleId),
     year_of_birth: yearFromDate(patient.ngay_sinh),
     career: careerFromDb(patient.nghe_nghiep),
     ethnic: patient.dan_toc,
@@ -335,19 +342,13 @@ export function toUserSummary(record: UserRecord, roleId: number): AdminUserList
 }
 
 /**
- * data của GET/PUT admin/users/:id: bệnh nhân đúng dạng GET profile; nhân viên thêm nơi công tác
- * (int|null) cho màn phân công.
+ * data của GET/PUT admin/users/:id, role_id lấy từ bản ghi subtype: bệnh nhân đúng dạng GET profile;
+ * nhân viên thêm nơi công tác (int|null) cho màn phân công.
  */
-export function toAdminUserDetail(record: UserRecord, roleId: number): AdminUserDetailData {
-  const profile = toProfileData(record, roleId);
-  if (isPatientProfile(profile)) return profile;
-  const staff = record.staffs;
-  return {
-    ...profile,
-    branch_id: staff?.branch_id ?? null,
-    department_id: staff?.department_id ?? null,
-    room_id: staff?.room_id ?? null,
-  };
+export function toAdminUserDetail(user: SubtypedUser): AdminUserDetailData {
+  if (!isStaff(user)) return toPatientProfile(user, user.patients.role_id);
+  const { role_id, branch_id, department_id, room_id } = user.staffs;
+  return { ...toProfileBase(user, role_id), branch_id, department_id, room_id };
 }
 
 /** data của PUT admin/users/:id/assign: nơi công tác vừa ghi vào `staffs`. */

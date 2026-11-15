@@ -10,7 +10,10 @@ import { isBlank } from './text.js';
  * phân trang, và kết quả `Paginated` mà ResponseInterceptor trải `total` ra ngoài `data`.
  */
 
-/** Số nguyên viết bằng chữ số, cho phép dấu trừ để "-1" bị `@Min` báo 2003 (≤ 0) thay vì 2002. */
+/**
+ * Như DIGITS_PATTERN của parseIdText (id.ts) nhưng cho phép dấu trừ: "-1" là số nguyên ≤ 0 nên
+ * `@Min` báo 2003, đúng spec phân trang, thay vì 2002 như id.
+ */
 const INTEGER_PATTERN = /^-?\d+$/;
 
 /**

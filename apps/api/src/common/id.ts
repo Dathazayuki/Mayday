@@ -1,6 +1,7 @@
 import { applyDecorators } from '@nestjs/common';
 import { Transform } from 'class-transformer';
 import { IsInt, IsOptional, Max } from 'class-validator';
+import { isBlank } from './text.js';
 
 /** Giá trị lớn nhất của cột `INT` (khoá chính) trong MySQL. */
 export const MAX_ID = 2_147_483_647;
@@ -30,7 +31,7 @@ export const IdQuery = () =>
   applyDecorators(
     IsOptional(),
     Transform(({ value }: { value: unknown }) => {
-      if (typeof value === 'string' && value.trim() === '') return undefined;
+      if (isBlank(value)) return undefined;
       return parseIdText(value) ?? value;
     }),
     IdRule(),

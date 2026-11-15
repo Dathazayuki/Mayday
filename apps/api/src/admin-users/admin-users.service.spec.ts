@@ -66,8 +66,7 @@ function findIn<T extends { id: number }>(rows: T[]) {
 
 function setup() {
   const users = {
-    list: vi.fn<UsersRepository['list']>().mockResolvedValue([]),
-    count: vi.fn<UsersRepository['count']>().mockResolvedValue(0),
+    listPage: vi.fn<UsersRepository['listPage']>().mockResolvedValue({ items: [], total: 0 }),
     findById: vi.fn<UsersRepository['findById']>().mockResolvedValue(PATIENT),
     phoneExists: vi.fn<UsersRepository['phoneExists']>().mockResolvedValue(false),
     // Như repository thật: ghi cột qua user-mapping rồi trả lại bản ghi.
@@ -123,12 +122,10 @@ describe('AdminUsersService', () => {
   describe('list', () => {
     it('mặc định trang 1, 20 bản ghi, không lọc; trả Paginated với total của cả bộ lọc', async () => {
       const { service, users } = setup();
-      users.list.mockResolvedValue([PATIENT, { ...DOCTOR, user_id: 8 }]);
-      users.count.mockResolvedValue(41);
+      users.listPage.mockResolvedValue({ items: [PATIENT, { ...DOCTOR, user_id: 8 }], total: 41 });
 
       const result = await service.list(plainToInstance(ListUsersQuery, {}));
-      expect(users.list).toHaveBeenCalledWith({ roleId: undefined }, { skip: 0, take: 20 });
-      expect(users.count).toHaveBeenCalledWith({ roleId: undefined });
+      expect(users.listPage).toHaveBeenCalledWith({ roleId: undefined }, { skip: 0, take: 20 });
       const summary = { full_name: 'NGUYỄN VĂN A', phone: '0912345678', is_active: 1 };
       expect(result).toStrictEqual(
         new Paginated(
@@ -150,13 +147,15 @@ describe('AdminUsersService', () => {
           role_id: String(DOCTOR_ROLE_ID),
         }),
       );
-      expect(users.list).toHaveBeenCalledWith({ roleId: DOCTOR_ROLE_ID }, { skip: 20, take: 10 });
-      expect(users.count).toHaveBeenCalledWith({ roleId: DOCTOR_ROLE_ID });
+      expect(users.listPage).toHaveBeenCalledWith(
+        { roleId: DOCTOR_ROLE_ID },
+        { skip: 20, take: 10 },
+      );
     });
 
     it('người dùng không có bản ghi staffs/patients → 9901 và ghi log', async () => {
       const { service, users, logError } = setup();
-      users.list.mockResolvedValue([userRecord({ patients: null })]);
+      users.listPage.mockResolvedValue({ items: [userRecord({ patients: null })], total: 1 });
       await expect(service.list(plainToInstance(ListUsersQuery, {}))).rejects.toMatchObject({
         code: '9901',
       });
@@ -270,7 +269,7 @@ describe('AdminUsersService', () => {
       ['mọi trường đều vắng', { full_name: undefined, role_id: undefined }],
     ])('%s → 2001, không đọc/ghi CSDL', async (_name, dto) => {
       const { service, users } = setup();
-      await expect(service.update(7, dto)).rejects.toMatchObject({ code: '2001' });
+      await expect(service.update(7, dto, ADMIN_ID)).rejects.toMatchObject({ code: '2001' });
       expect(users.findById).not.toHaveBeenCalled();
       expect(users.update).not.toHaveBeenCalled();
     });
@@ -281,7 +280,7 @@ describe('AdminUsersService', () => {
     ])('full_name %s → 2003 (họ tên không xoá được)', async (_name, fullName) => {
       const { service, users } = setup();
       const dto = { full_name: fullName } as UpdateUserRequest;
-      await expect(service.update(7, dto)).rejects.toMatchObject({
+      await expect(service.update(7, dto, ADMIN_ID)).rejects.toMatchObject({
         code: '2003',
         data: { field: 'full_name' },
       });
@@ -291,7 +290,9 @@ describe('AdminUsersService', () => {
     it('không tồn tại → 3007, không ghi CSDL', async () => {
       const { service, users } = setup();
       users.findById.mockResolvedValue(null);
-      await expect(service.update(99, { is_active: 0 })).rejects.toMatchObject({ code: '3007' });
+      await expect(service.update(99, { is_active: 0 }, ADMIN_ID)).rejects.toMatchObject({
+        code: '3007',
+      });
       expect(users.update).not.toHaveBeenCalled();
     });
 
@@ -302,7 +303,7 @@ describe('AdminUsersService', () => {
     ])('%s → 2003 (field role_id, MT-65), không ghi CSDL', async (_name, current, roleId) => {
       const { service, users } = setup();
       users.findById.mockResolvedValue(current);
-      await expect(service.update(7, { role_id: roleId })).rejects.toMatchObject({
+      await expect(service.update(7, { role_id: roleId }, ADMIN_ID)).rejects.toMatchObject({
         code: '2003',
         data: { field: 'role_id' },
       });
@@ -314,7 +315,7 @@ describe('AdminUsersService', () => {
       users.findById.mockResolvedValue(DOCTOR);
       users.update.mockResolvedValue(staffUserRecord({ role_id: NURSE_ROLE_ID }));
       const dto: UpdateUserRequest = { role_id: NURSE_ROLE_ID, is_active: 0 };
-      await expect(service.update(7, dto)).resolves.toStrictEqual({
+      await expect(service.update(7, dto, ADMIN_ID)).resolves.toStrictEqual({
         ...PROFILE_BASE,
         role_id: NURSE_ROLE_ID,
         branch_id: BRANCH_ID,
@@ -327,12 +328,56 @@ describe('AdminUsersService', () => {
     it('bệnh nhân giữ vai trò patient, sửa họ tên → trả dạng bệnh nhân', async () => {
       const { service, users } = setup();
       const dto: UpdateUserRequest = { full_name: 'Trần Văn B', role_id: PATIENT_ROLE_ID };
-      await expect(service.update(7, dto)).resolves.toStrictEqual({
+      await expect(service.update(7, dto, ADMIN_ID)).resolves.toStrictEqual({
         ...PROFILE_BASE,
         role_id: PATIENT_ROLE_ID,
         ...EMPTY_PATIENT_FIELDS,
       });
       expect(users.update).toHaveBeenCalledWith(PATIENT, dto);
+    });
+
+    it('người dùng không có bản ghi staffs/patients → 9901 trước khi ghi', async () => {
+      const { service, users } = setup();
+      users.findById.mockResolvedValue(userRecord({ patients: null }));
+      await expect(service.update(7, { full_name: 'B' }, ADMIN_ID)).rejects.toMatchObject({
+        code: '9901',
+      });
+      expect(users.update).not.toHaveBeenCalled();
+    });
+
+    describe('admin sửa chính mình', () => {
+      const SELF = staffUserRecord({
+        user_id: ADMIN_ID,
+        role_id: ADMIN_ROLE_ID,
+        branch_id: null,
+        department_id: null,
+        room_id: null,
+      });
+
+      it.each<[string, UpdateUserRequest]>([
+        ['tự khoá (is_active = 0)', { is_active: 0 }],
+        ['tự đổi vai trò', { role_id: DOCTOR_ROLE_ID }],
+      ])('%s → 2003 (field id), không ghi CSDL', async (_name, dto) => {
+        const { service, users } = setup();
+        users.findById.mockResolvedValue(SELF);
+        await expect(service.update(ADMIN_ID, dto, ADMIN_ID)).rejects.toMatchObject({
+          code: '2003',
+          data: { field: 'id' },
+        });
+        expect(users.update).not.toHaveBeenCalled();
+      });
+
+      it('sửa họ tên, giữ nguyên vai trò và trạng thái đang hoạt động → ghi CSDL', async () => {
+        const { service, users } = setup();
+        users.findById.mockResolvedValue(SELF);
+        const dto: UpdateUserRequest = {
+          full_name: 'Quản trị',
+          role_id: ADMIN_ROLE_ID,
+          is_active: 1,
+        };
+        await service.update(ADMIN_ID, dto, ADMIN_ID);
+        expect(users.update).toHaveBeenCalledWith(SELF, dto);
+      });
     });
   });
 
@@ -366,6 +411,13 @@ describe('AdminUsersService', () => {
       const { service, users } = setup();
       users.findById.mockResolvedValue(null);
       await expect(service.assign(99, dto)).rejects.toMatchObject({ code: '3007' });
+      expect(users.assign).not.toHaveBeenCalled();
+    });
+
+    it('người dùng không có bản ghi staffs/patients → 9901 trước khi ghi', async () => {
+      const { service, users } = setup();
+      users.findById.mockResolvedValue(userRecord({ patients: null }));
+      await expect(service.assign(7, dto)).rejects.toMatchObject({ code: '9901' });
       expect(users.assign).not.toHaveBeenCalled();
     });
 

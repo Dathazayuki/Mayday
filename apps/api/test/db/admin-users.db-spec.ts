@@ -307,6 +307,25 @@ describe('quản trị người dùng /admin/users (MySQL thật)', () => {
       },
     );
 
+    it('admin tự khoá hoặc tự đổi vai trò → 400 / 2003 (id), không ghi; tự sửa họ tên được', async () => {
+      for (const body of [{ is_active: 0 }, { role_id: seed.roles.doctor }]) {
+        const res = await api('put', `/admin/users/${adminId}`).send(body).expect(400);
+        expect(res.body).toMatchObject({ code: '2003', data: { field: 'id' } });
+      }
+      expect(await findUser(adminId)).toMatchObject({
+        is_active: true,
+        staffs: { role_id: seed.roles.admin },
+      });
+
+      const renamed = await api('put', `/admin/users/${adminId}`)
+        .send({ full_name: 'quản trị mới', role_id: seed.roles.admin, is_active: 1 })
+        .expect(200);
+      expect(renamed.body.data).toMatchObject({
+        full_name: 'QUẢN TRỊ MỚI',
+        role_id: seed.roles.admin,
+      });
+    });
+
     it('body rỗng → 400 / 2001; không tồn tại → 404 / 3007', async () => {
       const empty = await api('put', `/admin/users/${adminId}`).send({}).expect(400);
       expect(empty.body).toEqual({ code: '2001', message: 'Missing required parameter' });
@@ -394,6 +413,50 @@ describe('quản trị người dùng /admin/users (MySQL thật)', () => {
         .send(placement)
         .expect(404);
       expect(missing.body.code).toBe('3007');
+    });
+  });
+
+  describe('phiên đăng nhập theo trạng thái hiện tại của người dùng trong CSDL', () => {
+    const profile = (token: string) => api('get', '/profile', token);
+    /** Tạo bệnh nhân rồi đăng nhập; trả user_id và token. */
+    const patientSession = async () => {
+      const id = await createUser('0911111111', seed.roles.patient);
+      const token: string = (await login('0911111111').expect(200)).body.data.token;
+      await profile(token).expect(200);
+      return { id, token };
+    };
+
+    it('người dùng bị xoá → token cũ bị từ chối 401 / 3001', async () => {
+      const { id, token } = await patientSession();
+      await api('delete', `/admin/users/${id}`).expect(200);
+      const res = await profile(token).expect(401);
+      expect(res.body).toEqual({ code: '3001', message: 'Token is invalid' });
+    });
+
+    it('token đã đăng xuất, dòng blacklist mất theo CASCADE khi xoá người dùng → vẫn 3001', async () => {
+      const { id, token } = await patientSession();
+      await api('post', '/auth/logout', token).expect(200);
+      await api('delete', `/admin/users/${id}`).expect(200);
+      expect(await prisma.token_blacklist.count({ where: { user_id: id } })).toBe(0);
+      expect((await profile(token).expect(401)).body.code).toBe('3001');
+    });
+
+    it('tài khoản bị khoá → token đang dùng bị từ chối 401 / 3001 ngay', async () => {
+      const { id, token } = await patientSession();
+      await api('put', `/admin/users/${id}`).send({ is_active: 0 }).expect(200);
+      expect((await profile(token).expect(401)).body.code).toBe('3001');
+    });
+
+    it('admin bị đổi sang bác sĩ → token cũ gọi /admin/* bị 403 / 3102', async () => {
+      const otherAdminId = await createUser('0922222222', seed.roles.admin);
+      const token: string = (await login('0922222222').expect(200)).body.data.token;
+      await api('get', '/admin/users', token).expect(200);
+
+      await api('put', `/admin/users/${otherAdminId}`)
+        .send({ role_id: seed.roles.doctor })
+        .expect(200);
+      const res = await api('get', '/admin/users', token).expect(403);
+      expect(res.body).toEqual({ code: '3102', message: 'Admin role required' });
     });
   });
 

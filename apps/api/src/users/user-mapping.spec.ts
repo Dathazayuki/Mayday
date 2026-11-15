@@ -23,7 +23,6 @@ import {
   toUserSummary,
   userUpdateToDb,
   yearFromDate,
-  type UserRecord,
 } from './user-mapping.js';
 import { patientRecord, staffUserRecord, userRecord } from './user-record.fixture.js';
 
@@ -98,19 +97,9 @@ describe('ngày giờ → chuỗi API', () => {
 });
 
 describe('roleIdOf', () => {
-  const subtypes = (staffRole: number | null, patientRole: number | null) =>
-    ({
-      staffs: staffRole === null ? null : { role_id: staffRole },
-      patients: patientRole === null ? null : { role_id: patientRole },
-    }) as UserRecord;
-
-  it('lấy role_id từ staffs hoặc patients', () => {
-    expect(roleIdOf(subtypes(1, null))).toBe(1);
-    expect(roleIdOf(subtypes(null, 2))).toBe(2);
-  });
-
-  it('không có bản ghi subtype → null', () => {
-    expect(roleIdOf(subtypes(null, null))).toBeNull();
+  it('nhân viên lấy role_id từ staffs, bệnh nhân từ patients (MT-62)', () => {
+    expect(roleIdOf(staffUserRecord({ role_id: 1 }))).toBe(1);
+    expect(roleIdOf({ ...userRecord(), patients: patientRecord({ role_id: 2 }) })).toBe(2);
   });
 });
 
@@ -378,12 +367,13 @@ describe('UserRecord → data trả về', () => {
 });
 
 describe('toAdminUserDetail (GET/PUT admin/users/:id)', () => {
-  it('bệnh nhân: đúng dạng GET profile của bệnh nhân', () => {
-    expect(toAdminUserDetail(userRecord(), 2)).toStrictEqual(toProfileData(userRecord(), 2));
+  it('bệnh nhân: đúng dạng GET profile của bệnh nhân, role_id từ patients', () => {
+    const patient = { ...userRecord(), patients: patientRecord() };
+    expect(toAdminUserDetail(patient)).toStrictEqual(toProfileData(patient, 2));
   });
 
-  it('nhân viên: 5 trường chung cùng nơi công tác kiểu int|null', () => {
-    expect(toAdminUserDetail(staffUserRecord({ room_id: null }), 6)).toStrictEqual({
+  it('nhân viên: 5 trường chung cùng nơi công tác kiểu int|null, role_id từ staffs', () => {
+    expect(toAdminUserDetail(staffUserRecord({ room_id: null }))).toStrictEqual({
       user_id: 7,
       full_name: 'NGUYỄN VĂN A',
       phone: '0912345678',

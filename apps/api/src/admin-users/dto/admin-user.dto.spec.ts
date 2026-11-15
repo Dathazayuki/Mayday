@@ -1,7 +1,8 @@
 import { plainToInstance, type ClassConstructor } from 'class-transformer';
 import { validate } from 'class-validator';
 import { validationErrorsToException } from '../../common/validation.js';
-import { AssignUserDto, CreateUserDto, ListUsersQuery, UpdateUserDto } from './admin-user.dto.js';
+import { PlacementDto } from '../../facilities/dto/placement.dto.js';
+import { CreateUserDto, ListUsersQuery, UpdateUserDto } from './admin-user.dto.js';
 
 /** Mã phản hồi mà ValidationPipe toàn cục trả cho body/query này (null = hợp lệ). */
 async function codeFor<T extends object>(type: ClassConstructor<T>, body: Record<string, unknown>) {
@@ -78,13 +79,13 @@ describe('UpdateUserDto', () => {
   });
 });
 
-describe('AssignUserDto', () => {
+describe('PlacementDto (PUT admin/users/:id/assign)', () => {
   const valid = { branch_id: 1, department_id: 2 };
 
   it('room_id không bắt buộc, có thể null', async () => {
-    expect(await codeFor(AssignUserDto, valid)).toBeNull();
-    expect(await codeFor(AssignUserDto, { ...valid, room_id: 3 })).toBeNull();
-    expect(await codeFor(AssignUserDto, { ...valid, room_id: null })).toBeNull();
+    expect(await codeFor(PlacementDto, valid)).toBeNull();
+    expect(await codeFor(PlacementDto, { ...valid, room_id: 3 })).toBeNull();
+    expect(await codeFor(PlacementDto, { ...valid, room_id: null })).toBeNull();
   });
 
   it.each([
@@ -94,6 +95,6 @@ describe('AssignUserDto', () => {
     ['room_id là chuỗi số', { room_id: '3' }, '2002'],
     ['branch_id vượt INT tối đa', { branch_id: 2147483648 }, '2003'],
   ])('%s → %s', async (_name, override, code) => {
-    expect(await codeFor(AssignUserDto, { ...valid, ...override })).toBe(code);
+    expect(await codeFor(PlacementDto, { ...valid, ...override })).toBe(code);
   });
 });

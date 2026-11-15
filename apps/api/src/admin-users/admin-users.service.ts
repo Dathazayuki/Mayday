@@ -17,15 +17,16 @@ import type { Placement } from '../facilities/placement.js';
 import { PATIENT_ROLE } from '../roles/role-names.js';
 import { RolesRepository } from '../roles/roles.repository.js';
 import { assertFullNameNotBlank } from '../users/assert-full-name.js';
-import { requireRoleId } from '../users/require-role-id.js';
+import { requireRoleId, requireSubtype } from '../users/require-role-id.js';
 import {
   isPatient,
   isStaff,
+  roleIdOf,
   toAdminUserDetail,
   toAssignUserData,
   toUserSummary,
   type NewUser,
-  type UserRecord,
+  type SubtypedUser,
 } from '../users/user-mapping.js';
 import { UsersRepository } from '../users/users.repository.js';
 import type { ListUsersQuery } from './dto/admin-user.dto.js';
@@ -47,19 +48,15 @@ export class AdminUsersService {
 
   /** Một trang người dùng (user_id tăng dần); `total` đếm mọi người dùng khớp bộ lọc. */
   async list(query: ListUsersQuery): Promise<Paginated<AdminUserListItem>> {
-    const filter = { roleId: query.role_id };
-    const [records, total] = await Promise.all([
-      this.users.list(filter, pageWindow(query)),
-      this.users.count(filter),
-    ]);
-    const items = records.map((record) =>
+    const page = await this.users.listPage({ roleId: query.role_id }, pageWindow(query));
+    const items = page.items.map((record) =>
       toUserSummary(record, requireRoleId(record, this.logger)),
     );
-    return new Paginated(items, total);
+    return new Paginated(items, page.total);
   }
 
   async get(userId: number): Promise<AdminUserDetailData> {
-    return this.toDetail(await this.findUser(userId));
+    return toAdminUserDetail(await this.findUser(userId));
   }
 
   /**
@@ -93,14 +90,24 @@ export class AdminUsersService {
 
   /**
    * Kiểm tra theo thứ tự: có ít nhất 1 trường (2001) → full_name không trống (2003) → người dùng tồn
-   * tại (3007) → vai trò mới tồn tại và cùng nhóm (2003). Trả chi tiết theo vai trò sau khi ghi.
+   * tại (3007) và có bản ghi subtype (9901) → admin không tự khoá, không tự đổi vai trò (2003) → vai
+   * trò mới tồn tại và cùng nhóm (2003). Trả chi tiết theo vai trò sau khi ghi.
    */
-  async update(userId: number, dto: UpdateUserRequest): Promise<AdminUserDetailData> {
+  async update(
+    userId: number,
+    dto: UpdateUserRequest,
+    currentUserId: number,
+  ): Promise<AdminUserDetailData> {
     requireChanges(dto);
     assertFullNameNotBlank(dto.full_name);
     const user = await this.findUser(userId);
+    const roleChanged = dto.role_id !== undefined && dto.role_id !== roleIdOf(user);
+    if (userId === currentUserId && (dto.is_active === 0 || roleChanged)) {
+      throw new AppException('2003', { field: 'id' });
+    }
     if (dto.role_id !== undefined) await this.assertSameGroupRole(user, dto.role_id);
-    return this.toDetail(await this.users.update(user, dto));
+    const updated = requireSubtype(await this.users.update(user, dto), this.logger);
+    return toAdminUserDetail(updated);
   }
 
   /** Admin không được xoá chính mình (2003); người dùng không tồn tại → 3007. */
@@ -110,8 +117,8 @@ export class AdminUsersService {
   }
 
   /**
-   * Kiểm tra theo thứ tự: người dùng tồn tại (3007) → là nhân viên (2003) → nơi công tác hợp lệ
-   * (FacilitiesService, dùng chung với create-staff; 2003).
+   * Kiểm tra theo thứ tự: người dùng tồn tại (3007) và có bản ghi subtype (9901) → là nhân viên
+   * (2003) → nơi công tác hợp lệ (FacilitiesService, dùng chung với create-staff; 2003).
    */
   async assign(userId: number, dto: AssignUserRequest): Promise<AssignUserResponseData> {
     if (!isStaff(await this.findUser(userId))) throw new AppException('2003', { field: 'id' });
@@ -125,22 +132,18 @@ export class AdminUsersService {
     return toAssignUserData(userId, placement);
   }
 
-  private async findUser(userId: number): Promise<UserRecord> {
+  /** Không tồn tại → 3007; thiếu bản ghi staffs/patients → 9901, kiểm tra trước mọi thao tác ghi. */
+  private async findUser(userId: number): Promise<SubtypedUser> {
     const user = await this.users.findById(userId);
     if (!user) throw new AppException('3007');
-    return user;
+    return requireSubtype(user, this.logger);
   }
 
   /** Chỉ đổi vai trò trong cùng nhóm: bệnh nhân ↔ patient, nhân viên ↔ vai trò khác (MT-65). */
-  private async assertSameGroupRole(user: UserRecord, roleId: number): Promise<void> {
+  private async assertSameGroupRole(user: SubtypedUser, roleId: number): Promise<void> {
     const role = await this.roles.findById(roleId);
     if (!role || (role.name === PATIENT_ROLE) !== isPatient(user)) {
       throw invalidReference('role_id');
     }
-  }
-
-  /** Chi tiết theo vai trò; thiếu bản ghi staffs/patients → 9901 (requireRoleId). */
-  private toDetail(record: UserRecord): AdminUserDetailData {
-    return toAdminUserDetail(record, requireRoleId(record, this.logger));
   }
 }

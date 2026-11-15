@@ -11,14 +11,10 @@ import type { VerifiedJwt } from '../auth/jwt-payload.js';
 import type { Paginated } from '../common/paginated.js';
 import { parseIdPipe } from '../common/parse-id.pipe.js';
 import { ResponseCode } from '../common/response-code.decorator.js';
+import { PlacementDto } from '../facilities/dto/placement.dto.js';
 import { RequireRole } from '../roles/require-role.decorator.js';
 import { AdminUsersService } from './admin-users.service.js';
-import {
-  AssignUserDto,
-  CreateUserDto,
-  ListUsersQuery,
-  UpdateUserDto,
-} from './dto/admin-user.dto.js';
+import { CreateUserDto, ListUsersQuery, UpdateUserDto } from './dto/admin-user.dto.js';
 
 /** Sheet admin01–admin06: quản trị người dùng, chỉ admin (3102). */
 @ApiTags('admin-users')
@@ -46,10 +42,11 @@ export class AdminUsersController {
 
   @Put(':id')
   update(
+    @CurrentUser() user: VerifiedJwt,
     @Param('id', parseIdPipe()) id: number,
     @Body() dto: UpdateUserDto,
   ): Promise<AdminUserDetailData> {
-    return this.adminUsers.update(id, dto);
+    return this.adminUsers.update(id, dto, Number(user.sub));
   }
 
   @Delete(':id')
@@ -64,7 +61,7 @@ export class AdminUsersController {
   @Put(':id/assign')
   assign(
     @Param('id', parseIdPipe()) id: number,
-    @Body() dto: AssignUserDto,
+    @Body() dto: PlacementDto,
   ): Promise<AssignUserResponseData> {
     return this.adminUsers.assign(id, dto);
   }
