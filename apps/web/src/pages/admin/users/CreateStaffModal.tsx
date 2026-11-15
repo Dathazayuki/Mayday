@@ -1,6 +1,7 @@
 import type { AdminUserListItem, RoleData } from '@drmayday/shared';
 import { Form, Select } from 'antd';
 import { EntityFormModal } from '../../../components/crud/EntityFormModal';
+import { roleLabel } from '../../../admin/rbac-api';
 import { isPatientRole, useCreateStaff } from '../../../admin/users-api';
 import { AccountFields } from '../../../components/account/AccountFields';
 import { PlacementFields } from './PlacementFields';
@@ -17,7 +18,7 @@ export function CreateStaffModal({
   const create = useCreateStaff();
   const roleOptions = roles
     .filter((r) => !isPatientRole(r))
-    .map((r) => ({ value: r.id, label: r.name }));
+    .map((r) => ({ value: r.id, label: roleLabel(r) }));
 
   return (
     <EntityFormModal<StaffFormValues, AdminUserListItem>

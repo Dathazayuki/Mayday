@@ -6,6 +6,7 @@ import {
   usePermissions,
   useRolePermissions,
   useRoles,
+  roleLabel,
   useSaveRolePermissions,
 } from '../../../admin/rbac-api';
 import { diffPermissions } from './permission-diff';
@@ -68,7 +69,7 @@ export function AssignmentTab() {
           aria-label="Chọn vai trò"
           style={{ minWidth: 240 }}
           loading={roles.isPending}
-          options={(roles.data ?? []).map((role) => ({ value: role.id, label: role.name }))}
+          options={(roles.data ?? []).map((role) => ({ value: role.id, label: roleLabel(role) }))}
           value={roleId}
           onChange={(value: number) => {
             setRoleId(value);

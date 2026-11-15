@@ -130,6 +130,27 @@ describe('FacilitiesPage', () => {
     expect(screen.getByText('Phòng 202')).toBeInTheDocument();
   });
 
+  it('sửa chi nhánh gửi PUT /branches/:id với đúng body', async () => {
+    const calls = setup();
+    const user = userEvent.setup();
+    const row = (await screen.findByText('Bệnh viện A')).closest('tr')!;
+    await user.click(within(row).getByRole('button', { name: /Sửa/ }));
+    const name = await screen.findByLabelText('Tên chi nhánh');
+    expect(name).toHaveValue('Bệnh viện A');
+    await user.clear(name);
+    await user.type(name, 'Bệnh viện A2');
+    await user.click(screen.getByRole('button', { name: /Lưu/ }));
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT')).toBe(true));
+    expect(calls.find((c) => c.method === 'PUT')!.url).toBe(
+      'http://localhost:3000/api/v1/branches/1',
+    );
+    expect(bodyOf(calls, 'PUT')).toEqual({
+      name: 'Bệnh viện A2',
+      address: 'Hà Nội',
+      phone: '0912345678',
+    });
+  });
+
   it('tạo phòng gửi {name, branch_id} kiểu số', async () => {
     const calls = setup();
     const user = userEvent.setup();

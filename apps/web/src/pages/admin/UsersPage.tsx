@@ -5,7 +5,7 @@ import { EntityTable } from '../../components/crud/EntityTable';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { usePageClamp } from '../../components/crud/use-page-clamp';
 import { RowActions } from '../../admin/RowActions';
-import { useRoles } from '../../admin/rbac-api';
+import { roleLabel, useRoles } from '../../admin/rbac-api';
 import { useDeleteAction } from '../../components/crud/use-run-action';
 import { isPatientRole, useAdminUsers, useDeleteUser } from '../../admin/users-api';
 import { useAuth } from '../../auth/useAuth';
@@ -44,6 +44,10 @@ export function UsersPage() {
   usePageClamp({ data, isPlaceholderData, page, limit, setPage });
 
   const roleOf = (id: number) => roleList.find((r) => r.id === id);
+  const roleName = (id: number) => {
+    const role = roleOf(id);
+    return role ? roleLabel(role) : roles.isPending ? '…' : id;
+  };
 
   return (
     <Page
@@ -65,7 +69,7 @@ export function UsersPage() {
             placeholder="Tất cả vai trò"
             aria-label="Lọc theo vai trò"
             style={{ minWidth: 200 }}
-            options={roleList.map((r) => ({ value: r.id, label: r.name }))}
+            options={roleList.map((r) => ({ value: r.id, label: roleLabel(r) }))}
             value={roleFilter}
             onChange={(value: number | undefined) => {
               setRoleFilter(value);
@@ -94,7 +98,7 @@ export function UsersPage() {
               title: 'Vai trò',
               dataIndex: 'role_id',
               // Trong lúc tải vai trò, không lộ id số.
-              render: (id: number) => roleOf(id)?.name ?? (roles.isPending ? '…' : id),
+              render: roleName,
             },
             {
               title: 'Trạng thái',

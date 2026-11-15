@@ -133,7 +133,7 @@ describe('RolesPage', () => {
     const save = screen.getByRole('button', { name: /Lưu phân quyền/ });
     expect(save).toBeDisabled();
     await user.click(screen.getByLabelText('Chọn vai trò'));
-    const options = await screen.findAllByTitle('bac_si');
+    const options = await screen.findAllByTitle('Bác sĩ');
     await user.click(options[options.length - 1]!);
 
     const manageUsers = await screen.findByRole('checkbox', { name: 'manage_users' });
@@ -160,7 +160,7 @@ describe('RolesPage', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('tab', { name: 'Phân quyền' }));
     await user.click(screen.getByLabelText('Chọn vai trò'));
-    const options = await screen.findAllByTitle('bac_si');
+    const options = await screen.findAllByTitle('Bác sĩ');
     await user.click(options[options.length - 1]!);
     const manageUsers = await screen.findByRole('checkbox', { name: 'manage_users' });
     await waitFor(() => expect(manageUsers).toBeChecked());
@@ -184,7 +184,7 @@ describe('RolesPage', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('tab', { name: 'Phân quyền' }));
     await user.click(screen.getByLabelText('Chọn vai trò'));
-    const options = await screen.findAllByTitle('bac_si');
+    const options = await screen.findAllByTitle('Bác sĩ');
     await user.click(options[options.length - 1]!);
     await waitFor(() =>
       expect(calls.some((c) => c.url === `${BASE}/role_permissions/role/2`)).toBe(true),
@@ -202,7 +202,7 @@ describe('RolesPage', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('tab', { name: 'Phân quyền' }));
     await user.click(screen.getByLabelText('Chọn vai trò'));
-    const options = await screen.findAllByTitle('bac_si');
+    const options = await screen.findAllByTitle('Bác sĩ');
     await user.click(options[options.length - 1]!);
     const manageUsers = await screen.findByRole('checkbox', { name: 'manage_users' });
     await waitFor(() => expect(manageUsers).toBeChecked());

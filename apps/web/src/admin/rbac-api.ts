@@ -17,6 +17,9 @@ export const ROLES_KEY = ['roles'] as const;
 const PERMISSIONS_KEY = ['permissions'] as const;
 const ROLE_PERMISSIONS_KEY = ['role-permissions'] as const;
 
+/** Tên vai trò hiển thị cho người dùng (`ten_hien_thi`); thiếu thì dùng mã `name`. */
+export const roleLabel = (role: RoleData) => role.display_name || role.name;
+
 export const fetchRoles = () => apiClient.get<RoleData[]>('/roles');
 
 export function useRoles() {

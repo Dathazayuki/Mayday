@@ -12,6 +12,7 @@ import type { ReactNode } from 'react';
 import { formatDateTime } from '../../../lib/format-date';
 import { useBranches } from '../../../admin/facilities-api';
 import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
+import { roleLabel } from '../../../admin/rbac-api';
 import { useAdminUser } from '../../../admin/users-api';
 import { PATIENT_FIELD_LABELS } from '../../../profile/profile-form';
 
@@ -34,13 +35,19 @@ function nameOf(items: { id: string; name: string }[] | undefined, id: number | 
   return items?.find((i) => i.id === String(id))?.name ?? String(id);
 }
 
+/** Tên hiển thị của vai trò; chưa có trong danh sách thì hiện id. */
+function roleName(roles: RoleData[], id: number): ReactNode {
+  const role = roles.find((r) => r.id === id);
+  return role ? roleLabel(role) : id;
+}
+
 function DetailBody({ detail, roles }: { detail: AdminUserDetailData; roles: RoleData[] }) {
   const branches = useBranches();
 
   const items: { label: string; value: ReactNode }[] = [
     { label: 'Họ và tên', value: detail.full_name },
     { label: 'Số điện thoại', value: detail.phone },
-    { label: 'Vai trò', value: roles.find((r) => r.id === detail.role_id)?.name ?? detail.role_id },
+    { label: 'Vai trò', value: roleName(roles, detail.role_id) },
     {
       label: 'Giới tính',
       value: GENDER_OPTIONS.find((g) => g.value === detail.gender)?.label ?? EMPTY,

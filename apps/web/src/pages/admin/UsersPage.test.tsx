@@ -25,7 +25,7 @@ const BRANCHES = [
 ];
 /** Người đăng nhập (seedSession) là user_id 1. */
 const USERS = [
-  { user_id: 1, full_name: 'Quản trị viên', phone: '0900000001', role_id: 1, is_active: 1 },
+  { user_id: 1, full_name: 'Quản trị Hà', phone: '0900000001', role_id: 1, is_active: 1 },
   { user_id: 2, full_name: 'Bác sĩ Lan', phone: '0900000002', role_id: 2, is_active: 1 },
   { user_id: 3, full_name: 'Bệnh nhân Nam', phone: '0900000003', role_id: 4, is_active: 0 },
 ];
@@ -120,7 +120,7 @@ describe('UsersPage', () => {
   it('gọi danh sách với page/limit mặc định và hiện tên vai trò, trạng thái', async () => {
     const calls = setup();
     const row = await rowOf('Bác sĩ Lan');
-    expect(await within(row).findByText('bac_si')).toBeInTheDocument();
+    expect(await within(row).findByText('Bác sĩ')).toBeInTheDocument();
     expect(within(await rowOf('Bệnh nhân Nam')).getByText('Đã khoá')).toBeInTheDocument();
     expect(calls.some((c) => c.url === `${BASE}/admin/users?page=1&limit=20`)).toBe(true);
   });
@@ -141,7 +141,7 @@ describe('UsersPage', () => {
     await rowOf('Bác sĩ Lan');
     await user.click(screen.getByRole('button', { name: 'Page 2' }));
     await user.click(screen.getByLabelText('Lọc theo vai trò'));
-    await user.click(await screen.findByTitle('bac_si'));
+    await user.click(await screen.findByTitle('Bác sĩ'));
     await waitFor(() =>
       expect(calls.some((c) => c.url === `${BASE}/admin/users?page=1&limit=20&role_id=2`)).toBe(
         true,
@@ -161,6 +161,16 @@ describe('UsersPage', () => {
     const drawer = await screen.findByRole('dialog');
     expect(await within(drawer).findByText('Bệnh viện A')).toBeInTheDocument();
     expect(calls.some((c) => c.url === `${BASE}/admin/users/2`)).toBe(true);
+  });
+
+  it('Xem: nhân viên chưa phân công hiện "Chưa phân công"', async () => {
+    setup({
+      'GET /admin/users/2': () => okResponse({ ...STAFF_DETAIL, branch_id: null }),
+    });
+    const user = userEvent.setup();
+    await user.click(within(await rowOf('Bác sĩ Lan')).getByRole('button', { name: 'Xem' }));
+    const drawer = await screen.findByRole('dialog');
+    expect(await within(drawer).findByText('Chưa phân công')).toBeInTheDocument();
   });
 
   it('Xem: Drawer bệnh nhân hiện hồ sơ', async () => {
@@ -185,7 +195,7 @@ describe('UsersPage', () => {
     await user.type(within(dialog).getByLabelText('Họ và tên'), 'Bệnh nhân Mới');
     await user.type(within(dialog).getByLabelText('Số điện thoại'), '0912345679');
     await user.type(within(dialog).getByLabelText('Mật khẩu'), 'secret1');
-    await pick(user, 'Vai trò', 'benh_nhan');
+    await pick(user, 'Vai trò', 'Bệnh nhân');
     await user.click(screen.getByRole('button', { name: /Lưu/ }));
 
     await waitFor(() => expect(bodyOf(calls, 'POST', '/admin/users')).toBeDefined());
@@ -208,7 +218,7 @@ describe('UsersPage', () => {
     await user.type(within(dialog).getByLabelText('Họ và tên'), 'X');
     await user.type(within(dialog).getByLabelText('Số điện thoại'), '123');
     await user.type(within(dialog).getByLabelText('Mật khẩu'), '123');
-    await pick(user, 'Vai trò', 'dieu_duong');
+    await pick(user, 'Vai trò', 'Điều dưỡng');
     await user.click(screen.getByRole('button', { name: /Lưu/ }));
     expect(await screen.findByText(/Số điện thoại không đúng định dạng/)).toBeInTheDocument();
     expect(screen.getByText(/Mật khẩu tối thiểu 6 ký tự/)).toBeInTheDocument();
@@ -229,9 +239,9 @@ describe('UsersPage', () => {
     await user.type(within(dialog).getByLabelText('Mật khẩu'), 'secret1');
     // Vai trò bệnh nhân không được phép tạo qua create-staff.
     await user.click(within(dialog).getByLabelText('Vai trò'));
-    expect(await screen.findAllByTitle('dieu_duong')).not.toHaveLength(0);
-    expect(screen.queryAllByTitle('benh_nhan')).toHaveLength(0);
-    await user.click((await screen.findAllByTitle('dieu_duong')).at(-1)!);
+    expect(await screen.findAllByTitle('Điều dưỡng')).not.toHaveLength(0);
+    expect(screen.queryAllByTitle('Bệnh nhân')).toHaveLength(0);
+    await user.click((await screen.findAllByTitle('Điều dưỡng')).at(-1)!);
     expect(within(dialog).queryByLabelText('Khoa')).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText('Phòng')).not.toBeInTheDocument();
     await pick(user, 'Chi nhánh', 'Bệnh viện B');
@@ -271,9 +281,9 @@ describe('UsersPage', () => {
     await user.clear(name);
     await user.type(name, 'Bác sĩ Lan 2');
     await user.click(within(dialog).getByLabelText('Vai trò'));
-    expect((await screen.findAllByTitle('dieu_duong')).length).toBeGreaterThan(0);
-    expect(screen.queryAllByTitle('benh_nhan')).toHaveLength(0);
-    await user.click((await screen.findAllByTitle('dieu_duong')).at(-1)!);
+    expect((await screen.findAllByTitle('Điều dưỡng')).length).toBeGreaterThan(0);
+    expect(screen.queryAllByTitle('Bệnh nhân')).toHaveLength(0);
+    await user.click((await screen.findAllByTitle('Điều dưỡng')).at(-1)!);
     await user.click(screen.getByRole('button', { name: /Lưu/ }));
 
     await waitFor(() => expect(bodyOf(calls, 'PUT', '/admin/users/2')).toBeDefined());
@@ -292,9 +302,9 @@ describe('UsersPage', () => {
     await user.click(within(await rowOf('Bệnh nhân Nam')).getByRole('button', { name: 'Sửa' }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByLabelText('Vai trò'));
-    expect(screen.queryAllByTitle('bac_si')).toHaveLength(0);
-    expect(screen.queryAllByTitle('admin')).toHaveLength(0);
-    expect(screen.queryAllByTitle('benh_nhan').length).toBeGreaterThan(0);
+    expect(screen.queryAllByTitle('Bác sĩ')).toHaveLength(0);
+    expect(screen.queryAllByTitle('Quản trị viên')).toHaveLength(0);
+    expect(screen.queryAllByTitle('Bệnh nhân').length).toBeGreaterThan(0);
   });
 
   it('Phân công nhân viên gửi PUT assign; bệnh nhân không có nút Phân công', async () => {
@@ -330,9 +340,7 @@ describe('UsersPage', () => {
 
   it('không cho xoá chính tài khoản đang đăng nhập', async () => {
     setup();
-    expect(
-      within(await rowOf('Quản trị viên')).getByRole('button', { name: 'Xoá' }),
-    ).toBeDisabled();
+    expect(within(await rowOf('Quản trị Hà')).getByRole('button', { name: 'Xoá' })).toBeDisabled();
     expect(within(await rowOf('Bác sĩ Lan')).getByRole('button', { name: 'Xoá' })).toBeEnabled();
   });
 

@@ -1,6 +1,7 @@
 import type { AdminUserListItem, RoleData } from '@drmayday/shared';
 import { Form, Select } from 'antd';
 import { EntityFormModal } from '../../../components/crud/EntityFormModal';
+import { roleLabel } from '../../../admin/rbac-api';
 import { isPatientRole, useCreateUser, useUpdateUser } from '../../../admin/users-api';
 import { AccountFields } from '../../../components/account/AccountFields';
 import { usePrefillFromDetail } from './use-prefill-from-detail';
@@ -34,7 +35,7 @@ export function UserFormModal({
     roles.some((r) => r.id === editing.role_id && isPatientRole(r));
   const roleOptions = roles
     .filter((r) => creating || isPatientRole(r) === editedIsPatient)
-    .map((r) => ({ value: r.id, label: r.name }));
+    .map((r) => ({ value: r.id, label: roleLabel(r) }));
 
   return (
     <EntityFormModal<UserFormValues, AdminUserListItem>
