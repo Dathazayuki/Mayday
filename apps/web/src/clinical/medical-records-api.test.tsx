@@ -11,8 +11,11 @@ import {
   useCloseMedicalRecord,
   useColumnRecords,
   useCreateMedicalRecord,
+  useDeleteMedicalRecord,
   useStatusCounts,
+  useUpdateMedicalRecord,
 } from './medical-records-api';
+import { useAddVisit, useUpdateVisit, useVisits } from './visits-api';
 
 const BASE = 'http://localhost:3000/api/v1';
 
@@ -125,6 +128,29 @@ describe('medical-records-api (spec B, mục 8.5, 8.6)', () => {
       path: '/medical_records/12/status',
       body: { status: 'cancelled' },
     },
+    {
+      name: 'sửa hồ sơ',
+      run: (hooks: Hooks) =>
+        hooks.update.mutateAsync({ id: 12, body: { chronic: { main_diagnosis: 'CSU' } } }),
+      method: 'PATCH',
+      path: '/medical_records/12',
+      body: { chronic: { main_diagnosis: 'CSU' } },
+    },
+    {
+      name: 'thêm phiên khám',
+      run: (hooks: Hooks) => hooks.addVisit.mutateAsync({ recordId: 12, body: { room_id: 2 } }),
+      method: 'POST',
+      path: '/medical_records/12/visits',
+      body: { room_id: 2 },
+    },
+    {
+      name: 'sửa phiên khám',
+      run: (hooks: Hooks) =>
+        hooks.updateVisit.mutateAsync({ id: 31, body: { instructions: 'Tái khám' } }),
+      method: 'PATCH',
+      path: '/visits/31',
+      body: { instructions: 'Tái khám' },
+    },
   ])(
     '$name: $method $path rồi làm mới mọi query bệnh án và Tổng quan',
     async ({ run, method, path, body }) => {
@@ -140,6 +166,33 @@ describe('medical-records-api (spec B, mục 8.5, 8.6)', () => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['dashboard'] });
     },
   );
+
+  it('xoá: DELETE /medical_records/:id; làm mới danh sách, cột, số đếm, lịch sử, Tổng quan nhưng không tải lại chi tiết vừa xoá', async () => {
+    const calls = stubFetch();
+    const { client, wrapper } = setup();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(useWriteHooks, { wrapper });
+
+    await act(() => result.current.remove.mutateAsync(12));
+
+    expect(calls).toEqual([{ method: 'DELETE', url: `${BASE}/medical_records/12` }]);
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
+      ['medical-records', 'list'],
+      ['medical-records', 'column'],
+      ['medical-records', 'status-counts'],
+      ['medical-records', 'history'],
+      ['dashboard'],
+    ]);
+  });
+
+  it('useVisits: GET /medical_records/:id/visits, khoá query nằm dưới tiền tố bệnh án', async () => {
+    const calls = stubFetch(() => okResponse([]));
+    const { client, wrapper } = setup();
+    const { result } = renderHook(() => useVisits(12), { wrapper });
+    await waitFor(() => expect(result.current.data).toEqual([]));
+    expect(calls[0]!.url).toBe(`${BASE}/medical_records/12/visits`);
+    expect(client.getQueryData(['medical-records', 'visits', 12])).toEqual([]);
+  });
 
   it('useDashboardSummary: enabled false không gọi; true → GET /dashboard/summary', async () => {
     const calls = stubFetch(() => okResponse({ today: '2026-11-16' }));
@@ -164,6 +217,10 @@ function useWriteHooks() {
     accept: useAcceptMedicalRecord(),
     close: useCloseMedicalRecord(),
     cancel: useCancelMedicalRecord(),
+    update: useUpdateMedicalRecord(),
+    remove: useDeleteMedicalRecord(),
+    addVisit: useAddVisit(),
+    updateVisit: useUpdateVisit(),
   };
 }
 type Hooks = ReturnType<typeof useWriteHooks>;

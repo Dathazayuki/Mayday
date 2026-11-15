@@ -11,6 +11,7 @@ import type {
   MedicalRecordStatus,
   MedicalRecordStatusCounts,
   MedicalRecordStatusData,
+  UpdateMedicalRecordRequest,
   UpdateMedicalRecordStatusRequest,
 } from '@drmayday/shared';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -18,11 +19,23 @@ import { apiClient } from '../api';
 import { useInvalidatingMutation } from '../components/crud/use-invalidating-mutation';
 import { DASHBOARD_KEY } from './dashboard-api';
 
-/** Tiền tố của mọi query bệnh án (danh sách, cột, số đếm, chi tiết, lịch sử). */
-const RECORDS_KEY = ['medical-records'] as const;
+/** Tiền tố của mọi query bệnh án (danh sách, cột, số đếm, chi tiết, lịch sử, phiên khám). */
+export const RECORDS_KEY = ['medical-records'] as const;
 
 /** Sau mọi thao tác ghi: làm mới mọi query bệnh án và Tổng quan (spec B, mục 8.6). */
-const AFTER_WRITE = [RECORDS_KEY, DASHBOARD_KEY] as const;
+export const AFTER_WRITE = [RECORDS_KEY, DASHBOARD_KEY] as const;
+
+/**
+ * Sau khi xoá: làm mới danh sách, cột, số đếm, lịch sử và Tổng quan; không tải lại chi tiết và phiên của
+ * hồ sơ vừa xoá (màn chi tiết rời đi ngay, tải lại chỉ ra 4001).
+ */
+const AFTER_DELETE = [
+  [...RECORDS_KEY, 'list'],
+  [...RECORDS_KEY, 'column'],
+  [...RECORDS_KEY, 'status-counts'],
+  [...RECORDS_KEY, 'history'],
+  DASHBOARD_KEY,
+] as const;
 
 /** Số thẻ mỗi lần tải của một cột (spec B, mục 8.5). */
 export const BOARD_PAGE_SIZE = 20;
@@ -120,4 +133,18 @@ export const useCancelMedicalRecord = () =>
     apiClient.patch<MedicalRecordStatusData>(`/medical_records/${id}/status`, {
       status: 'cancelled',
     } satisfies UpdateMedicalRecordStatusRequest),
+  );
+
+/** PATCH /medical_records/:id (thay medrec10): chỉ các trường đã đổi (spec B, mục 8.7). */
+export const useUpdateMedicalRecord = () =>
+  useInvalidatingMutation(
+    AFTER_WRITE,
+    ({ id, body }: { id: number; body: UpdateMedicalRecordRequest }) =>
+      apiClient.patch<MedicalRecordData>(`/medical_records/${id}`, body),
+  );
+
+/** medrec14: admin xoá bệnh án (D-B22); còn dữ liệu tham chiếu → 2003 (409). */
+export const useDeleteMedicalRecord = () =>
+  useInvalidatingMutation(AFTER_DELETE, (id: number) =>
+    apiClient.delete<Record<string, never>>(`/medical_records/${id}`),
   );
