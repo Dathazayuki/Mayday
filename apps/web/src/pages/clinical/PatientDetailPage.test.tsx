@@ -3,9 +3,30 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { errorResponse, okResponse, renderApp, seedSession } from '../../test/helpers';
+import { medicalRecord } from '../../test/medical-record-fixture';
 import { PatientDetailPage } from './PatientDetailPage';
 
 const BASE = 'http://localhost:3000/api/v1';
+
+/** Lịch sử bệnh án của bệnh nhân 7 (medrec13), mã hồ sơ giảm dần. */
+const HISTORY = [
+  {
+    medical_record_id: 31,
+    record_type: 'CAP',
+    status: 'pending',
+    instructions: null,
+    first_visit_at: null,
+    last_visit_date: null,
+  },
+  {
+    medical_record_id: 12,
+    record_type: 'MAN',
+    status: 'in_progress',
+    instructions: 'Uống thuốc đều',
+    first_visit_at: '2026-11-15T01:00:00.000Z',
+    last_visit_date: '2026-11-15',
+  },
+];
 
 const PATIENT = {
   user_id: 7,
@@ -42,6 +63,12 @@ function setup(overrides: Record<string, Handler> = {}) {
       const handler = overrides[route];
       if (handler) return Promise.resolve(handler(call));
       if (route === 'GET /doctor/patients/7') return Promise.resolve(okResponse(PATIENT));
+      if (route === 'GET /medical_records/patients/7/history') {
+        return Promise.resolve(okResponse(HISTORY));
+      }
+      if (route === 'POST /medical_records') {
+        return Promise.resolve(okResponse(medicalRecord({ medical_record_id: 55 })));
+      }
       return Promise.resolve(okResponse({}));
     }),
   );
@@ -50,6 +77,7 @@ function setup(overrides: Record<string, Handler> = {}) {
     <App>
       <Routes>
         <Route path="/patients/:id" element={<PatientDetailPage />} />
+        <Route path="/medical-records/:id" element={<div>Màn chi tiết bệnh án</div>} />
       </Routes>
     </App>,
     '/patients/7',
@@ -128,5 +156,37 @@ describe('PatientDetailPage (spec B, mục 8.3)', () => {
     await user.click(within(dialog).getByRole('button', { name: /Lưu/ }));
     expect(await screen.findByText('Đã cập nhật bệnh nhân')).toBeInTheDocument();
     expect(calls.some((c) => c.method === 'PUT')).toBe(false);
+  });
+
+  it('panel "Bệnh án": lịch sử của bệnh nhân (mã, loại, trạng thái, khám lần đầu, lần khám gần nhất, dặn dò); bấm dòng → màn chi tiết', async () => {
+    setup();
+    const user = userEvent.setup();
+    const pending = (await screen.findByText('#31')).closest('tr')!;
+    expect(within(pending).getByText('Cấp')).toBeInTheDocument();
+    expect(within(pending).getByText('Chờ tiếp nhận')).toBeInTheDocument();
+    expect(within(pending).getByText('Chưa đến khám')).toBeInTheDocument();
+    const examining = screen.getByText('#12').closest('tr')!;
+    expect(within(examining).getByText('Mạn')).toBeInTheDocument();
+    expect(within(examining).getByText('Đang khám')).toBeInTheDocument();
+    expect(within(examining).getByText('15/11/2026')).toBeInTheDocument();
+    expect(within(examining).getByText('Uống thuốc đều')).toBeInTheDocument();
+
+    await user.click(within(examining).getByText('#12'));
+    expect(await screen.findByText('Màn chi tiết bệnh án')).toBeInTheDocument();
+  });
+
+  it('"Tạo bệnh án": hộp có bệnh nhân điền sẵn; tạo xong mở màn chi tiết bệnh án mới', async () => {
+    const calls = setup();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Tạo bệnh án' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('LÊ THỊ MAI · 0911111111')).toBeInTheDocument();
+    await user.click(within(dialog).getByLabelText('Mày đay mạn'));
+    await user.click(within(dialog).getByRole('button', { name: 'Tạo bệnh án' }));
+
+    expect(await screen.findByText('Màn chi tiết bệnh án')).toBeInTheDocument();
+    const post = calls.find((c) => c.method === 'POST')!;
+    expect(post.url).toBe(`${BASE}/medical_records`);
+    expect(JSON.parse(post.body!)).toEqual({ patient_id: 7, record_type: 'MAN' });
   });
 });
