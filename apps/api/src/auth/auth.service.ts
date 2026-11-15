@@ -6,8 +6,9 @@ import type {
   LoginResponseData,
   SignupResponseData,
 } from '@drmayday/shared';
-import { AppException, corruptData, invalidReference } from '../common/app.exception.js';
+import { AppException, invalidReference } from '../common/app.exception.js';
 import { FacilitiesService } from '../facilities/facilities.service.js';
+import { requirePatientRoleId } from '../roles/patient-role.js';
 import { PATIENT_ROLE_NAME } from '../roles/role-names.js';
 import { RolesRepository } from '../roles/roles.repository.js';
 import {
@@ -48,14 +49,8 @@ export class AuthService {
   /** Bệnh nhân = nguoi + benhnhan + taikhoan vai trò benh_nhan, một nested create. Số đã có tài khoản → 3006. */
   async signup(dto: SignupDto): Promise<SignupResponseData> {
     if (await this.users.loginExists(dto.phone)) throw new AppException('3006');
-    const role = await this.roles.findByName(PATIENT_ROLE_NAME);
-    if (!role) {
-      throw corruptData(
-        this.logger,
-        `Bảng vaitro chưa có vai trò "${PATIENT_ROLE_NAME}" (CSDL chưa nạp schema?)`,
-      );
-    }
-    const user = await this.users.create(await this.newAccount(dto, role.id), { kind: 'patient' });
+    const roleId = await requirePatientRoleId(this.roles, this.logger);
+    const user = await this.users.create(await this.newAccount(dto, roleId), { kind: 'patient' });
     return toSignupData(user);
   }
 
