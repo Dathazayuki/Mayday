@@ -11,8 +11,8 @@ import { RolesRepository } from './roles.repository.js';
 /** Mã lỗi khi route chỉ dành cho đúng một vai trò có mã riêng trong bảng mã; còn lại → 3101. */
 const ROLE_REQUIRED_CODES: Partial<Record<RoleName, ResponseCode>> = {
   admin: '3102',
-  doctor: '3103',
-  patient: '3104',
+  bac_si: '3103',
+  benh_nhan: '3104',
 };
 
 function deniedCode(required: RoleName[]): ResponseCode {
@@ -24,7 +24,7 @@ function deniedCode(required: RoleName[]): ResponseCode {
  * Guard toàn cục cho @RequireRole (vai trò tĩnh, chạy trước PermissionsGuard). Phải chạy sau
  * JwtAuthGuard vì đọc request.user; tra tên vai trò theo role_id hiện tại mà JwtAuthGuard đọc từ CSDL
  * (RolesRepository có cache).
- * Vai trò không còn trong bảng roles → 3101.
+ * Vai trò không còn trong bảng vaitro → 3101.
  */
 @Injectable()
 export class RolesGuard implements CanActivate {

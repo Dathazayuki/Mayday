@@ -3,14 +3,13 @@ import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { VerifiedJwt } from '../auth/jwt-payload.js';
 import { Public } from '../auth/public.decorator.js';
-import type { roles } from '../generated/prisma/client.js';
 import type { RoleName } from './role-names.js';
 import type { RolesRepository } from './roles.repository.js';
 import { RequireRole } from './require-role.decorator.js';
 import { RolesGuard } from './roles.guard.js';
 
-/** role_id giả của từng vai trò. */
-const ROLE_IDS: Partial<Record<RoleName, number>> = { admin: 1, patient: 2, doctor: 6, nurse: 8 };
+/** id của 4 vai trò do file SQL seed. */
+const ROLE_IDS: Record<RoleName, number> = { admin: 1, bac_si: 2, dieu_duong: 3, benh_nhan: 4 };
 
 class SampleController {
   plain() {}
@@ -18,16 +17,16 @@ class SampleController {
   @RequireRole('admin')
   adminOnly() {}
 
-  @RequireRole('doctor')
+  @RequireRole('bac_si')
   doctorOnly() {}
 
-  @RequireRole('patient')
+  @RequireRole('benh_nhan')
   patientOnly() {}
 
-  @RequireRole('doctor', 'nurse')
+  @RequireRole('bac_si', 'dieu_duong')
   doctorOrNurse() {}
 
-  @RequireRole('nurse')
+  @RequireRole('dieu_duong')
   nurseOnly() {}
 }
 
@@ -42,7 +41,7 @@ class AdminController {
 function setup() {
   const findById = vi.fn<RolesRepository['findById']>(async (roleId) => {
     const name = Object.entries(ROLE_IDS).find(([, id]) => id === roleId)?.[0];
-    return name ? ({ role_id: roleId, name } as roles) : null;
+    return name ? { id: roleId, name, displayName: name, description: null } : null;
   });
   const guard = new RolesGuard(new Reflector(), { findById } as unknown as RolesRepository);
   return { guard, findById };
@@ -83,9 +82,9 @@ describe('RolesGuard', () => {
 
   it.each<[string, (...args: never[]) => unknown, RoleName]>([
     ['admin', SampleController.prototype.adminOnly, 'admin'],
-    ['doctor', SampleController.prototype.doctorOnly, 'doctor'],
-    ['patient', SampleController.prototype.patientOnly, 'patient'],
-    ['doctor hoặc nurse, token là nurse', SampleController.prototype.doctorOrNurse, 'nurse'],
+    ['bac_si', SampleController.prototype.doctorOnly, 'bac_si'],
+    ['benh_nhan', SampleController.prototype.patientOnly, 'benh_nhan'],
+    ['doctor hoặc nurse, token là nurse', SampleController.prototype.doctorOrNurse, 'dieu_duong'],
   ])('đúng vai trò (%s) → cho qua', async (_name, handler, role) => {
     const { guard, findById } = setup();
     await expect(guard.canActivate(contextFor(handler, ROLE_IDS[role]))).resolves.toBe(true);
@@ -94,16 +93,20 @@ describe('RolesGuard', () => {
 
   it('@RequireRole ở controller áp dụng cho mọi route của nó', async () => {
     const { guard } = setup();
-    const context = contextFor(AdminController.prototype.manage, ROLE_IDS.patient, AdminController);
+    const context = contextFor(
+      AdminController.prototype.manage,
+      ROLE_IDS.benh_nhan,
+      AdminController,
+    );
     await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '3102' });
   });
 
   it.each<[string, (...args: never[]) => unknown, RoleName, string]>([
-    ['chỉ admin', SampleController.prototype.adminOnly, 'patient', '3102'],
+    ['chỉ admin', SampleController.prototype.adminOnly, 'benh_nhan', '3102'],
     ['chỉ doctor', SampleController.prototype.doctorOnly, 'admin', '3103'],
-    ['chỉ patient', SampleController.prototype.patientOnly, 'doctor', '3104'],
-    ['nhiều vai trò', SampleController.prototype.doctorOrNurse, 'patient', '3101'],
-    ['một vai trò không có mã riêng', SampleController.prototype.nurseOnly, 'doctor', '3101'],
+    ['chỉ patient', SampleController.prototype.patientOnly, 'bac_si', '3104'],
+    ['nhiều vai trò', SampleController.prototype.doctorOrNurse, 'benh_nhan', '3101'],
+    ['một vai trò không có mã riêng', SampleController.prototype.nurseOnly, 'bac_si', '3101'],
   ])('sai vai trò, route %s → %s', async (_name, handler, role, code) => {
     const { guard } = setup();
     await expect(guard.canActivate(contextFor(handler, ROLE_IDS[role]))).rejects.toMatchObject({

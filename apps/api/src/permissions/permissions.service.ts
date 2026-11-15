@@ -2,27 +2,11 @@ import { Injectable } from '@nestjs/common';
 import type { PermissionData, PermissionSummary } from '@drmayday/shared';
 import { notFound } from '../common/app.exception.js';
 import { requireChanges } from '../common/require-changes.js';
-import type { permissions } from '../generated/prisma/client.js';
 import type { CreatePermissionDto } from './dto/create-permission.dto.js';
 import type { UpdatePermissionDto } from './dto/update-permission.dto.js';
 import { PermissionCache } from './permission-cache.js';
+import { toPermissionData, toPermissionSummary } from './permission-mapping.js';
 import { PermissionsRepository } from './permissions.repository.js';
-
-function toPermissionSummary(permission: permissions): PermissionSummary {
-  return {
-    id: permission.permission_id,
-    name: permission.name,
-    description: permission.description,
-  };
-}
-
-function toPermissionData(permission: permissions): PermissionData {
-  return {
-    ...toPermissionSummary(permission),
-    created_at: permission.created_at.toISOString(),
-    updated_at: permission.updated_at.toISOString(),
-  };
-}
 
 /** Sheet perm01–04 (spec giai đoạn 2, mục 3.4). Mọi thao tác ghi đều xoá cache của PermissionsGuard. */
 @Injectable()

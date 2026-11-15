@@ -1,17 +1,21 @@
-import type { roles } from '../generated/prisma/client.js';
+import { invalidReference } from '../common/app.exception.js';
 import type { RolesRepository } from '../roles/roles.repository.js';
 import type { PermissionCache } from './permission-cache.js';
-import type { GrantedPermission, PermissionsRepository } from './permissions.repository.js';
+import type { GrantRecord } from './permission-mapping.js';
+import type { PermissionsRepository } from './permissions.repository.js';
 import { RolePermissionsService } from './role-permissions.service.js';
 
 const DOCTOR = 6;
+const ADMIN_ID = 1;
 /** Quyền 1, 2, 3 tồn tại. */
 const EXISTING = new Set([1, 2, 3]);
 
 function setup() {
   const roles = {
     findById: vi.fn<RolesRepository['findById']>(async (id) =>
-      id === DOCTOR ? ({ role_id: DOCTOR, name: 'doctor' } as roles) : null,
+      id === DOCTOR
+        ? { id: DOCTOR, name: 'bac_si', displayName: 'Bác sĩ', description: null }
+        : null,
     ),
   };
   const repository = {
@@ -36,16 +40,18 @@ describe('RolePermissionsService', () => {
     it('gán các quyền (bỏ id trùng trong request), xoá cache', async () => {
       const { service, repository, cache } = setup();
       await expect(
-        service.assign({ role_id: DOCTOR, permissions: [1, 2, 2] }),
+        service.assign({ role_id: DOCTOR, permissions: [1, 2, 2] }, ADMIN_ID),
       ).resolves.toBeUndefined();
       expect(repository.countExisting).toHaveBeenCalledWith([1, 2]);
-      expect(repository.grant).toHaveBeenCalledWith(DOCTOR, [1, 2]);
+      expect(repository.grant).toHaveBeenCalledWith(DOCTOR, [1, 2], ADMIN_ID);
       expect(cache.invalidate).toHaveBeenCalledTimes(1);
     });
 
     it('vai trò không tồn tại → 2003 kèm tên trường, không gán', async () => {
       const { service, repository, cache } = setup();
-      await expect(service.assign({ role_id: 99, permissions: [1] })).rejects.toMatchObject({
+      await expect(
+        service.assign({ role_id: 99, permissions: [1] }, ADMIN_ID),
+      ).rejects.toMatchObject({
         code: '2003',
         data: { field: 'role_id' },
       });
@@ -55,34 +61,48 @@ describe('RolePermissionsService', () => {
 
     it('một quyền nào đó không tồn tại → 2003 kèm tên trường, không gán quyền nào', async () => {
       const { service, repository } = setup();
-      await expect(service.assign({ role_id: DOCTOR, permissions: [1, 99] })).rejects.toMatchObject(
-        {
-          code: '2003',
-          data: { field: 'permissions' },
-        },
-      );
+      await expect(
+        service.assign({ role_id: DOCTOR, permissions: [1, 99] }, ADMIN_ID),
+      ).rejects.toMatchObject({
+        code: '2003',
+        data: { field: 'permissions' },
+      });
       expect(repository.grant).not.toHaveBeenCalled();
     });
   });
 
+  describe('assign (lỗi đồng thời)', () => {
+    it('repository báo vai trò bị xoá đồng thời (2003 role_id) → ném tiếp, không xoá cache', async () => {
+      const { service, repository, cache } = setup();
+      repository.grant.mockRejectedValue(invalidReference('role_id'));
+      await expect(
+        service.assign({ role_id: DOCTOR, permissions: [1] }, ADMIN_ID),
+      ).rejects.toMatchObject({ code: '2003', data: { field: 'role_id' } });
+      expect(cache.invalidate).not.toHaveBeenCalled();
+    });
+  });
+
   describe('listByRole', () => {
-    it('role_permission_id luôn null (MT-64), assigned_at = created_at dạng ISO', async () => {
+    it('role_permission_id luôn null (MT-64), assigned_at = thoi_diem_gan dạng ISO', async () => {
       const { service, repository } = setup();
       const assignedAt = new Date('2026-11-15T03:00:00.000Z');
       repository.findGranted.mockResolvedValue([
         {
-          role_id: DOCTOR,
-          permission_id: 2,
-          created_at: assignedAt,
-          updated_at: assignedAt,
-          permission: { permission_id: 2, name: 'manage_users', description: null },
-        } as GrantedPermission,
+          id: 2,
+          name: 'manage_roles',
+          description: null,
+          group: null,
+          createdAt: assignedAt,
+          updatedAt: assignedAt,
+          assignedAt,
+          assignedBy: ADMIN_ID,
+        } satisfies GrantRecord,
       ]);
       await expect(service.listByRole(DOCTOR)).resolves.toEqual([
         {
           role_permission_id: null,
           permission_id: 2,
-          name: 'manage_users',
+          name: 'manage_roles',
           description: null,
           assigned_at: '2026-11-15T03:00:00.000Z',
         },

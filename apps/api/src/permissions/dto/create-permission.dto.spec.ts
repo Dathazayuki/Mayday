@@ -21,7 +21,8 @@ describe('CreatePermissionDto', () => {
     ['thiếu name', { name: undefined }, '2001'],
     ['name rỗng', { name: '' }, '2001'],
     ['name không phải chuỗi', { name: 1 }, '2002'],
-    ['name dài quá 255 ký tự', { name: 'a'.repeat(256) }, '2003'],
+    ['name chỉ có khoảng trắng', { name: '   ' }, '2003'],
+    ['name dài quá 100 ký tự (quyenhan.ten_quyen_han)', { name: 'a'.repeat(101) }, '2003'],
     ['description không phải chuỗi', { description: 1 }, '2002'],
     ['description dài quá 255 ký tự', { description: 'a'.repeat(256) }, '2003'],
   ])('%s → %s', async (_name, override, code) => {

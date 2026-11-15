@@ -3,7 +3,7 @@ import { Controller, Delete, Get, Post, type ExecutionContext, type Type } from 
 import { Reflector } from '@nestjs/core';
 import type { VerifiedJwt } from '../auth/jwt-payload.js';
 import { Public } from '../auth/public.decorator.js';
-import { Prisma, type roles } from '../generated/prisma/client.js';
+import { connectionError } from '../prisma/prisma-error.fixture.js';
 import { isDatabaseConnectionError } from '../prisma/prisma-errors.js';
 import type { RolesRepository } from '../roles/roles.repository.js';
 import { PermissionCache } from './permission-cache.js';
@@ -16,8 +16,8 @@ const PATIENT = 2;
 const DOCTOR = 6;
 const ROLE_NAMES: Record<number, string> = {
   [ADMIN]: 'admin',
-  [PATIENT]: 'patient',
-  [DOCTOR]: 'doctor',
+  [PATIENT]: 'benh_nhan',
+  [DOCTOR]: 'bac_si',
 };
 
 /**
@@ -68,7 +68,9 @@ function setup(rules: AccessRules = RULES) {
     .fn<PermissionsRepository['findAccessRules']>()
     .mockResolvedValue(rules);
   const findById = vi.fn<RolesRepository['findById']>(async (roleId) =>
-    ROLE_NAMES[roleId] ? ({ role_id: roleId, name: ROLE_NAMES[roleId] } as roles) : null,
+    ROLE_NAMES[roleId]
+      ? { id: roleId, name: ROLE_NAMES[roleId], displayName: ROLE_NAMES[roleId], description: null }
+      : null,
   );
   const cache = new PermissionCache({ findAccessRules } as unknown as PermissionsRepository);
   const guard = new PermissionsGuard(
@@ -178,12 +180,9 @@ describe('PermissionsGuard (quyền khai báo trong code, spec A mục 6.5)', ()
 
   it('lỗi kết nối CSDL được ném tiếp (filter trả 9902), không thành 3101', async () => {
     const { guard, findAccessRules } = setup();
-    const connectionError = new Prisma.PrismaClientKnownRequestError(
-      "Can't reach database server",
-      { code: 'P1001', clientVersion: Prisma.prismaVersion.client },
-    );
-    findAccessRules.mockRejectedValue(connectionError);
-    await expect(guard.canActivate(contextFor(create, DOCTOR))).rejects.toBe(connectionError);
-    expect(isDatabaseConnectionError(connectionError)).toBe(true);
+    const error = connectionError();
+    findAccessRules.mockRejectedValue(error);
+    await expect(guard.canActivate(contextFor(create, DOCTOR))).rejects.toBe(error);
+    expect(isDatabaseConnectionError(error)).toBe(true);
   });
 });

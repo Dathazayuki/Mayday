@@ -1,32 +1,20 @@
 import { conflict } from '../common/app.exception.js';
-import type { roles } from '../generated/prisma/client.js';
 import type { PermissionCache } from '../permissions/permission-cache.js';
+import type { RoleRecord } from './role-mapping.js';
 import type { RolesRepository } from './roles.repository.js';
 import { RolesService } from './roles.service.js';
 
-function role(id: number, name: string, parentId: number | null = null): roles {
-  return {
-    role_id: id,
-    name,
-    description: `Vai trò ${name}`,
-    parent_role_id: parentId,
-    created_at: new Date(),
-    updated_at: new Date(),
-  };
-}
-
-const doctor = role(6, 'doctor', 5);
+const DOCTOR: RoleRecord = {
+  id: 2,
+  name: 'bac_si',
+  displayName: 'Bác sĩ',
+  description: 'Khám bệnh',
+};
 
 function setup() {
   const roles = {
-    findById: vi.fn<RolesRepository['findById']>(async (id) =>
-      id === doctor.role_id ? doctor : null,
-    ),
     list: vi.fn<RolesRepository['list']>(),
-    create: vi.fn<RolesRepository['create']>(async ({ name, description, parentRoleId }) => ({
-      ...role(10, name, parentRoleId),
-      description,
-    })),
+    create: vi.fn<RolesRepository['create']>(async (role) => ({ id: 5, ...role })),
   };
   const cache = { invalidate: vi.fn<PermissionCache['invalidate']>() };
   const service = new RolesService(
@@ -38,49 +26,47 @@ function setup() {
 
 describe('RolesService', () => {
   describe('create', () => {
-    it('tạo vai trò con của vai trò có sẵn → data theo Sheet; xoá cache quyền', async () => {
+    it('ghi name, display_name, description → RoleData; xoá cache quyền', async () => {
       const { service, roles, cache } = setup();
       await expect(
-        service.create({ name: 'intern', description: 'Thực tập sinh', parent_role_id: 6 }),
+        service.create({
+          name: 'thuc_tap',
+          display_name: 'Thực tập sinh',
+          description: 'Học việc',
+        }),
       ).resolves.toEqual({
-        id: 10,
-        name: 'intern',
-        description: 'Thực tập sinh',
-        parent_role_id: 6,
+        id: 5,
+        name: 'thuc_tap',
+        display_name: 'Thực tập sinh',
+        description: 'Học việc',
       });
       expect(roles.create).toHaveBeenCalledWith({
-        name: 'intern',
-        description: 'Thực tập sinh',
-        parentRoleId: 6,
+        name: 'thuc_tap',
+        displayName: 'Thực tập sinh',
+        description: 'Học việc',
       });
       expect(cache.invalidate).toHaveBeenCalledTimes(1);
     });
 
-    it('không gửi description, parent_role_id → null, không tra vai trò cha', async () => {
+    it('không gửi display_name → lấy bằng name (MT-105); không gửi description → null', async () => {
       const { service, roles } = setup();
-      await expect(service.create({ name: 'intern' })).resolves.toEqual({
-        id: 10,
-        name: 'intern',
+      await expect(service.create({ name: 'thuc_tap' })).resolves.toEqual({
+        id: 5,
+        name: 'thuc_tap',
+        display_name: 'thuc_tap',
         description: null,
-        parent_role_id: null,
       });
-      expect(roles.findById).not.toHaveBeenCalled();
-    });
-
-    it('parent_role_id không tồn tại → 2003 kèm tên trường, không tạo', async () => {
-      const { service, roles, cache } = setup();
-      await expect(service.create({ name: 'intern', parent_role_id: 99 })).rejects.toMatchObject({
-        code: '2003',
-        data: { field: 'parent_role_id' },
+      expect(roles.create).toHaveBeenCalledWith({
+        name: 'thuc_tap',
+        displayName: 'thuc_tap',
+        description: null,
       });
-      expect(roles.create).not.toHaveBeenCalled();
-      expect(cache.invalidate).not.toHaveBeenCalled();
     });
 
     it('trùng tên (repository ném 2003/409) → ném tiếp, không xoá cache', async () => {
       const { service, roles, cache } = setup();
       roles.create.mockRejectedValue(conflict());
-      await expect(service.create({ name: 'doctor' })).rejects.toMatchObject({
+      await expect(service.create({ name: 'bac_si' })).rejects.toMatchObject({
         code: '2003',
         httpStatus: 409,
       });
@@ -88,12 +74,15 @@ describe('RolesService', () => {
     });
   });
 
-  it('list → mọi vai trò theo thứ tự repository, có parent_role_id (MT-37)', async () => {
+  it('list → mọi vai trò theo thứ tự repository, có display_name, không có parent_role_id', async () => {
     const { service, roles } = setup();
-    roles.list.mockResolvedValue([role(1, 'admin'), doctor]);
-    await expect(service.list()).resolves.toEqual([
-      { id: 1, name: 'admin', description: 'Vai trò admin', parent_role_id: null },
-      { id: 6, name: 'doctor', description: 'Vai trò doctor', parent_role_id: 5 },
+    roles.list.mockResolvedValue([
+      { id: 1, name: 'admin', displayName: 'Quản trị viên', description: null },
+      DOCTOR,
+    ]);
+    await expect(service.list()).resolves.toStrictEqual([
+      { id: 1, name: 'admin', display_name: 'Quản trị viên', description: null },
+      { id: 2, name: 'bac_si', display_name: 'Bác sĩ', description: 'Khám bệnh' },
     ]);
   });
 });

@@ -1,13 +1,13 @@
-import type { permissions } from '../generated/prisma/client.js';
 import type { PermissionCache } from './permission-cache.js';
+import type { PermissionRecord } from './permission-mapping.js';
 import type { PermissionsRepository } from './permissions.repository.js';
 import { PermissionsService } from './permissions.service.js';
 
 const CREATED_AT = new Date('2026-11-15T01:00:00.000Z');
 const UPDATED_AT = new Date('2026-11-15T02:00:00.000Z');
 
-function permission(id: number, name: string, description: string | null = null): permissions {
-  return { permission_id: id, name, description, created_at: CREATED_AT, updated_at: UPDATED_AT };
+function permission(id: number, name: string, description: string | null = null): PermissionRecord {
+  return { id, name, description, group: null, createdAt: CREATED_AT, updatedAt: UPDATED_AT };
 }
 
 function setup() {

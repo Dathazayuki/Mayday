@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 import type { AuthenticatedRequest } from '../auth/jwt-auth.guard.js';
 import { IS_PUBLIC_KEY } from '../auth/public.decorator.js';
 import { AppException } from '../common/app.exception.js';
-import { ADMIN_ROLE } from '../roles/role-names.js';
+import { ADMIN_ROLE_NAME } from '../roles/role-names.js';
 import { RolesRepository } from '../roles/roles.repository.js';
 import { PermissionCache } from './permission-cache.js';
 import { declaredPermissions } from './require-permission.decorator.js';
@@ -33,7 +33,7 @@ export class PermissionsGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
     if (!user) throw new AppException('3003');
     const roleId = Number(user.role_id);
-    if ((await this.roles.findById(roleId))?.name === ADMIN_ROLE) return true;
+    if ((await this.roles.findById(roleId))?.name === ADMIN_ROLE_NAME) return true;
     const [required, held] = await Promise.all([
       this.cache.permissionIds(declared),
       this.cache.rolePermissions(roleId),

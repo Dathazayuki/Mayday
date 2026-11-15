@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { RolePermissionData } from '@drmayday/shared';
+import { CurrentUser } from '../auth/current-user.decorator.js';
+import type { VerifiedJwt } from '../auth/jwt-payload.js';
 import { parseIdPipe } from '../common/parse-id.pipe.js';
 import { RequireRole } from '../roles/require-role.decorator.js';
 import { RequirePermission } from './require-permission.decorator.js';
@@ -17,8 +19,11 @@ export class RolePermissionsController {
   constructor(private readonly rolePermissions: RolePermissionsService) {}
 
   @Post()
-  async assign(@Body() dto: SetRolePermissionsDto): Promise<Record<string, never>> {
-    await this.rolePermissions.assign(dto);
+  async assign(
+    @CurrentUser() user: VerifiedJwt,
+    @Body() dto: SetRolePermissionsDto,
+  ): Promise<Record<string, never>> {
+    await this.rolePermissions.assign(dto, Number(user.sub));
     return {};
   }
 

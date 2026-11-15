@@ -1,71 +1,64 @@
 import { Injectable } from '@nestjs/common';
 import { conflict } from '../common/app.exception.js';
-import type { roles } from '../generated/prisma/client.js';
+import { toDbId } from '../prisma/db-id.js';
 import { isUniqueViolation } from '../prisma/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { RoleName } from './role-names.js';
+import { newRoleToDb, toRoleRecord, type NewRole, type RoleRecord } from './role-mapping.js';
 
-/** Tên index mặc định của Prisma cho `roles.name @unique` (kiểm lại khi có schema thật, MT-57). */
-const NAME_UNIQUE_INDEX = 'roles_name_key';
-
-export interface NewRole {
-  name: string;
-  description: string | null;
-  parentRoleId: number | null;
-}
+/** Unique trên tên vai trò (SQL:76). */
+const NAME_UNIQUE = 'uq_vai_tro_ten';
 
 /**
- * Bảng `roles`. Vai trò hầu như không đổi nên được nhớ trong bộ nhớ, tra được theo id lẫn theo tên.
- * Chỉ nhớ vai trò đã tìm thấy, để vai trò được seed sau vẫn tra ra.
+ * Bảng `vaitro`. Vai trò hầu như không đổi nên được nhớ trong bộ nhớ, tra được theo id lẫn theo tên.
+ * Chỉ nhớ vai trò đã tìm thấy.
  */
 @Injectable()
 export class RolesRepository {
-  private readonly byId = new Map<number, roles>();
-  private readonly byName = new Map<string, roles>();
+  private readonly byId = new Map<number, RoleRecord>();
+  private readonly byName = new Map<string, RoleRecord>();
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async findById(roleId: number): Promise<roles | null> {
-    return (
-      this.byId.get(roleId) ??
-      this.remember(await this.prisma.db.roles.findUnique({ where: { role_id: roleId } }))
-    );
+  async findById(roleId: number): Promise<RoleRecord | null> {
+    const cached = this.byId.get(roleId);
+    if (cached) return cached;
+    const row = await this.prisma.db.vaitro.findUnique({ where: { ma_vai_tro: toDbId(roleId) } });
+    return this.remember(row && toRoleRecord(row));
   }
 
-  async findByName(name: RoleName): Promise<roles | null> {
-    return (
-      this.byName.get(name) ??
-      this.remember(await this.prisma.db.roles.findUnique({ where: { name } }))
-    );
+  async findByName(name: string): Promise<RoleRecord | null> {
+    const cached = this.byName.get(name);
+    if (cached) return cached;
+    const row = await this.prisma.db.vaitro.findUnique({ where: { ten_vai_tro: name } });
+    return this.remember(row && toRoleRecord(row));
   }
 
-  list(): Promise<roles[]> {
-    return this.prisma.db.roles.findMany({ orderBy: { role_id: 'asc' } });
+  async list(): Promise<RoleRecord[]> {
+    const rows = await this.prisma.db.vaitro.findMany({ orderBy: { ma_vai_tro: 'asc' } });
+    return rows.map(toRoleRecord);
   }
 
-  /** Trùng tên → 2003 (409). Mọi thay đổi bảng roles đều xoá cache (spec giai đoạn 2, mục 3.4). */
-  async create({ name, description, parentRoleId }: NewRole): Promise<roles> {
+  /** Trùng tên → 2003 (409). Mọi thay đổi bảng vaitro đều xoá cache. */
+  async create(role: NewRole): Promise<RoleRecord> {
     try {
-      const role = await this.prisma.db.roles.create({
-        data: { name, description, parent_role_id: parentRoleId },
-      });
+      const row = await this.prisma.db.vaitro.create({ data: newRoleToDb(role) });
       this.clearCache();
-      return role;
+      return toRoleRecord(row);
     } catch (error) {
-      if (isUniqueViolation(error, NAME_UNIQUE_INDEX)) throw conflict();
+      if (isUniqueViolation(error, NAME_UNIQUE)) throw conflict();
       throw error;
     }
   }
 
-  /** Sau khi ghi bảng roles, và cho test tích hợp (mỗi lần seed lại, role_id đổi). */
+  /** Sau khi ghi bảng vaitro, và cho test tích hợp (resetData). */
   clearCache(): void {
     this.byId.clear();
     this.byName.clear();
   }
 
-  private remember(role: roles | null): roles | null {
+  private remember(role: RoleRecord | null): RoleRecord | null {
     if (role) {
-      this.byId.set(role.role_id, role);
+      this.byId.set(role.id, role);
       this.byName.set(role.name, role);
     }
     return role;

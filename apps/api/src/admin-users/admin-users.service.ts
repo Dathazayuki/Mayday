@@ -14,7 +14,7 @@ import { pageWindow, Paginated } from '../common/paginated.js';
 import { requireChanges } from '../common/require-changes.js';
 import { FacilitiesService } from '../facilities/facilities.service.js';
 import type { Placement } from '../facilities/placement.js';
-import { PATIENT_ROLE } from '../roles/role-names.js';
+import { PATIENT_ROLE_NAME } from '../roles/role-names.js';
 import { RolesRepository } from '../roles/roles.repository.js';
 import { assertFullNameNotBlank } from '../users/assert-full-name.js';
 import { requireRoleId, requireSubtype } from '../users/require-role-id.js';
@@ -76,7 +76,7 @@ export class AdminUsersService {
       isActive: dto.is_active !== 0,
     };
     const user =
-      role.name === PATIENT_ROLE
+      role.name === PATIENT_ROLE_NAME
         ? await this.users.createPatient({ ...account, patientRoleId: role.role_id })
         : await this.users.createStaff({
             ...account,
@@ -142,7 +142,7 @@ export class AdminUsersService {
   /** Chỉ đổi vai trò trong cùng nhóm: bệnh nhân ↔ patient, nhân viên ↔ vai trò khác (MT-65). */
   private async assertSameGroupRole(user: SubtypedUser, roleId: number): Promise<void> {
     const role = await this.roles.findById(roleId);
-    if (!role || (role.name === PATIENT_ROLE) !== isPatient(user)) {
+    if (!role || (role.name === PATIENT_ROLE_NAME) !== isPatient(user)) {
       throw invalidReference('role_id');
     }
   }

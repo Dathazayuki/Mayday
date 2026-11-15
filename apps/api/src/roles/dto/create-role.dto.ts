@@ -1,21 +1,29 @@
-import type { CreateRoleRequest } from '@drmayday/shared';
-import { IsDefined, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
-import { IdRule } from '../../common/id.js';
+import { FIELD_LIMITS, type CreateRoleRequest } from '@drmayday/shared';
+import { IsDefined, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
-/** POST /roles — Sheet tab "POST /api/roles" (role01). Vai trò cha tồn tại hay không do RolesService kiểm tra (2003). */
+/** Cột TEXT `vaitro.mo_ta_vai_tro`: giữ giới hạn API. */
+const DESCRIPTION_MAX_LENGTH = 255;
+
+/**
+ * POST /roles — Sheet role01. Không còn parent_role_id (spec A, quyết định 7): client vẫn gửi thì bị
+ * whitelist lược bỏ. Tên không chỉ gồm khoảng trắng (khớp `ck_vai_tro_ten`, `ck_vai_tro_hien_thi`).
+ */
 export class CreateRoleDto implements CreateRoleRequest {
   @IsDefined()
   @IsString()
   @IsNotEmpty()
-  @MaxLength(255) // roles.name varchar(255)
+  @MaxLength(FIELD_LIMITS.role_name)
+  @Matches(/\S/)
   name: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(255)
-  description?: string;
+  @MaxLength(FIELD_LIMITS.role_display_name)
+  @Matches(/\S/)
+  display_name?: string;
 
   @IsOptional()
-  @IdRule()
-  parent_role_id?: number | null;
+  @IsString()
+  @MaxLength(DESCRIPTION_MAX_LENGTH)
+  description?: string;
 }
