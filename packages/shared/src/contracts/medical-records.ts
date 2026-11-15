@@ -248,7 +248,12 @@ export interface MedicalRecordHistoryItem {
   last_visit_date: string | null;
 }
 
-/** data của POST /medical_records/:id/accept (medrec07; API ở B3). */
+/** Body tuỳ chọn của POST /medical_records/:id/accept (medrec07, MT-115): phòng của phiên đầu; vắng hoặc null = chưa phân phòng. */
+export interface AcceptMedicalRecordRequest {
+  room_id?: number | null;
+}
+
+/** data của POST /medical_records/:id/accept (medrec07): bác sĩ phụ trách = bác sĩ của phiên đầu (D-B6). */
 export interface AcceptMedicalRecordData {
   medical_record_id: number;
   assigned_doctor_id: number;
@@ -256,13 +261,13 @@ export interface AcceptMedicalRecordData {
   visit_id: number;
 }
 
-/** PUT /medical_records/:id (medrec11; API ở B3): chốt hoặc huỷ khi đang khám. */
+/** PUT /medical_records/:id (medrec11): hoàn tất hoặc huỷ khi đang khám; `instructions` ghi vào dặn dò của phiên mới nhất (D-B8). */
 export interface CloseMedicalRecordRequest {
   status: 'completed' | 'cancelled';
   instructions?: string | null;
 }
 
-/** PATCH /medical_records/:id/status (tab chỉ có trong Sheet; API ở B3): chỉ `cancelled`. */
+/** PATCH /medical_records/:id/status (tab chỉ có trong Sheet): chỉ `cancelled`. */
 export interface UpdateMedicalRecordStatusRequest {
   status: 'cancelled';
 }

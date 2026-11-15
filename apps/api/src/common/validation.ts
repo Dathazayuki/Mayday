@@ -20,6 +20,8 @@ const FORMAT_CONSTRAINTS: Record<string, Code> = {
   isIso8601: '2006',
   isIsoDate: '2006',
   isIsoDateTime: '2006',
+  // `status` của API chuyển trạng thái bệnh án ngoài tập cho phép (IsStatusTarget; spec B, mục 5.3).
+  isStatusTarget: '4009',
 };
 
 function firstLeaf(
@@ -45,7 +47,7 @@ function isEmptyValue(value: unknown): boolean {
   );
 }
 
-/** Thứ tự ưu tiên: thiếu trường (2001) → sai kiểu (2002) → sai định dạng (2004/2005/2006) → 2003. */
+/** Thứ tự ưu tiên: thiếu trường (2001) → sai kiểu (2002) → sai định dạng (2004/2005/2006) hoặc trạng thái đích (4009) → 2003. */
 export function codeForValidationError(error: ValidationError): Code {
   const constraints = Object.keys(error.constraints ?? {});
   if (isEmptyValue(error.value)) return '2001';

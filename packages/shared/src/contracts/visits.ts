@@ -1,5 +1,5 @@
 /**
- * Contract phiên khám (spec B, mục 3.5–3.7, 5.4); API ở B3. Bệnh nhân nhận `details: null` (D-B21):
+ * Contract phiên khám (spec B, mục 3.5–3.7, 5.4). Bệnh nhân nhận `details: null` (D-B21):
  * không thấy tóm tắt buổi khám (#181), hướng xử trí (#182) và trường lâm sàng (MT-126).
  */
 
