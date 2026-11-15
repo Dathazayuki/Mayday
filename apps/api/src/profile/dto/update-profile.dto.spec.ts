@@ -13,7 +13,6 @@ const full = {
   hamlet_address: 'Thôn 1',
   commune_address: 'Xã A',
   city_address: 'Hà Nội',
-  work_place: 'Công ty B',
   health_insurance_number: 'HS4010123456789',
   health_insurance_validate: '2027-03-31',
   next_of_kin_name: 'Nguyễn Văn C, Thôn 1',
@@ -59,8 +58,9 @@ describe('UpdateProfileDto', () => {
   const nextYear = new Date().getFullYear() + 1;
   it.each<[string, Record<string, unknown>, string]>([
     ['full_name không phải chuỗi', { full_name: 123 }, '2002'],
-    ['full_name dài quá 255 ký tự', { full_name: 'A'.repeat(256) }, '2003'],
+    ['full_name dài quá 150 ký tự', { full_name: 'A'.repeat(151) }, '2003'],
     ['gender ngoài danh sách', { gender: 'x' }, '2003'],
+    ['gender other (MT-59)', { gender: 'other' }, '2003'],
     ['year_of_birth chứa chữ', { year_of_birth: 'abc' }, '2002'],
     ['year_of_birth là chuỗi số', { year_of_birth: '1990' }, '2002'],
     ['year_of_birth là số thực', { year_of_birth: 1990.5 }, '2002'],
@@ -68,7 +68,14 @@ describe('UpdateProfileDto', () => {
     ['year_of_birth sau năm hiện tại', { year_of_birth: nextYear }, '2003'],
     ['career ngoài 5 giá trị CSDL', { career: 'Bác sĩ' }, '2003'],
     ['ethnic không phải chuỗi', { ethnic: 1 }, '2002'],
-    ['ethnic dài quá 100 ký tự', { ethnic: 'A'.repeat(101) }, '2003'],
+    ['ethnic dài quá 50 ký tự', { ethnic: 'A'.repeat(51) }, '2003'],
+    ['hamlet_address dài quá 255 ký tự', { hamlet_address: 'A'.repeat(256) }, '2003'],
+    ['commune_address dài quá 100 ký tự', { commune_address: 'A'.repeat(101) }, '2003'],
+    [
+      'health_insurance_number dài quá 30 ký tự',
+      { health_insurance_number: 'A'.repeat(31) },
+      '2003',
+    ],
     ['next_of_kin_name dài quá 100 ký tự', { next_of_kin_name: 'A'.repeat(101) }, '2003'],
     [
       'health_insurance_validate không có thật',
@@ -84,6 +91,13 @@ describe('UpdateProfileDto', () => {
   });
 
   it('chuỗi ở giới hạn độ dài cột vẫn hợp lệ', async () => {
-    expect(await errorFor({ full_name: 'A'.repeat(255), ethnic: 'A'.repeat(100) })).toBeNull();
+    expect(
+      await errorFor({
+        full_name: 'A'.repeat(150),
+        ethnic: 'A'.repeat(50),
+        hamlet_address: 'A'.repeat(255),
+        health_insurance_number: 'A'.repeat(30),
+      }),
+    ).toBeNull();
   });
 });

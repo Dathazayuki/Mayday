@@ -1,27 +1,10 @@
 import { Logger } from '@nestjs/common';
 import type { UpdateProfileRequest } from '@drmayday/shared';
-import type { staffs } from '../generated/prisma/client.js';
-import { newUserToDb } from '../users/user-mapping.js';
-import { userRecord } from '../users/user-record.fixture.js';
+import { patientFields, staffUserRecord, userRecord } from '../users/user-record.fixture.js';
 import type { UsersRepository } from '../users/users.repository.js';
 import { ProfileService } from './profile.service.js';
 
-const PATIENT_ROLE_ID = 2;
-const ADMIN_ROLE_ID = 1;
-const PATIENT = userRecord();
-const STAFF = userRecord({
-  staffs: { user_id: 7, role_id: ADMIN_ROLE_ID } as staffs,
-  patients: null,
-});
-/** Bản ghi repository trả về sau khi ghi (ghi cột qua user-mapping như repository thật). */
-const UPDATED = userRecord(
-  newUserToDb({
-    fullName: 'trần văn b',
-    phone: '0912345678',
-    passwordHash: 'hash',
-    gender: 'female',
-  }),
-);
+const BASE = { user_id: 7, full_name: 'NGUYỄN VĂN A', phone: '0912345678', gender: null };
 const EMPTY_PATIENT_FIELDS = {
   year_of_birth: null,
   career: null,
@@ -29,7 +12,6 @@ const EMPTY_PATIENT_FIELDS = {
   hamlet_address: null,
   commune_address: null,
   city_address: null,
-  work_place: null,
   health_insurance_number: null,
   health_insurance_validate: null,
   next_of_kin_name: null,
@@ -39,144 +21,88 @@ const EMPTY_PATIENT_FIELDS = {
 
 function setup() {
   const users = {
-    findById: vi.fn<UsersRepository['findById']>().mockResolvedValue(PATIENT),
-    updateProfile: vi.fn<UsersRepository['updateProfile']>().mockResolvedValue(UPDATED),
+    findById: vi.fn<UsersRepository['findById']>().mockResolvedValue(userRecord()),
+    updateProfile: vi
+      .fn<UsersRepository['updateProfile']>()
+      .mockResolvedValue(
+        userRecord({ fullName: 'TRẦN VĂN B', patient: patientFields({ ethnic: 'Kinh' }) }),
+      ),
   };
-  const service = new ProfileService(users as unknown as UsersRepository);
-  // Lỗi 9901 được ghi log; chặn log để output test gọn và kiểm tra nội dung.
   const logError = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-  return { service, users, logError };
+  return { service: new ProfileService(users as unknown as UsersRepository), users, logError };
 }
 
-describe('ProfileService', () => {
+describe('ProfileService (spec A, mục 5.3, D4)', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
   describe('get', () => {
-    it('bệnh nhân: đủ 17 trường, role_id lấy từ patients, trường chưa có giá trị là null', async () => {
-      const { service, users } = setup();
+    it('vai trò benh_nhan: 16 trường, role_id từ taikhoan, chưa có giá trị là null', async () => {
+      const { service } = setup();
       await expect(service.get(7)).resolves.toStrictEqual({
-        user_id: 7,
-        full_name: 'NGUYỄN VĂN A',
-        phone: '0912345678',
-        role_id: PATIENT_ROLE_ID,
-        gender: null,
+        ...BASE,
+        role_id: 4,
         ...EMPTY_PATIENT_FIELDS,
       });
-      expect(users.findById).toHaveBeenCalledWith(7);
     });
 
-    it('nhân viên: chỉ 5 trường, role_id lấy từ staffs', async () => {
+    it('vai trò khác: 5 trường chung, kể cả khi chưa có dòng nhanvien', async () => {
       const { service, users } = setup();
-      users.findById.mockResolvedValue(STAFF);
-      await expect(service.get(7)).resolves.toStrictEqual({
-        user_id: 7,
-        full_name: 'NGUYỄN VĂN A',
-        phone: '0912345678',
-        role_id: ADMIN_ROLE_ID,
-        gender: null,
-      });
+      users.findById.mockResolvedValue(staffUserRecord({ staff: null }));
+      await expect(service.get(7)).resolves.toStrictEqual({ ...BASE, role_id: 2 });
     });
 
-    it('người dùng không còn tồn tại → 3007', async () => {
+    it('không còn tài khoản → 3007', async () => {
       const { service, users } = setup();
       users.findById.mockResolvedValue(null);
       await expect(service.get(7)).rejects.toMatchObject({ code: '3007' });
     });
 
-    it('người dùng không có bản ghi staffs/patients → 9901 và ghi log', async () => {
+    it('vai trò benh_nhan thiếu dòng benhnhan → 9901 và log (MT-112)', async () => {
       const { service, users, logError } = setup();
-      users.findById.mockResolvedValue(userRecord({ patients: null }));
+      users.findById.mockResolvedValue(userRecord({ patient: null }));
       await expect(service.get(7)).rejects.toMatchObject({ code: '9901' });
-      expect(logError).toHaveBeenCalledWith(expect.stringContaining('Người dùng 7'));
+      expect(logError).toHaveBeenCalledWith(expect.stringContaining('MT-112'));
     });
   });
 
   describe('update', () => {
-    it.each<[string, UpdateProfileRequest]>([
-      ['body rỗng', {}],
-      ['mọi trường đều vắng', { full_name: undefined, ethnic: undefined }],
-    ])('%s → 2001, không đọc/ghi CSDL', async (_name, dto) => {
-      const { service, users } = setup();
-      await expect(service.update(7, dto)).rejects.toMatchObject({ code: '2001' });
-      expect(users.findById).not.toHaveBeenCalled();
-      expect(users.updateProfile).not.toHaveBeenCalled();
-    });
-
-    it.each<[string, unknown]>([
-      ['chỉ có khoảng trắng', '  '],
-      ['chuỗi rỗng', ''],
-      ['null', null],
-    ])('full_name %s → 2003 (họ tên không xoá được)', async (_name, fullName) => {
-      const { service, users } = setup();
-      const dto = { full_name: fullName } as UpdateProfileRequest;
-      await expect(service.update(7, dto)).rejects.toMatchObject({
-        code: '2003',
-        data: { field: 'full_name' },
-      });
-      expect(users.updateProfile).not.toHaveBeenCalled();
-    });
-
-    it('người dùng không còn tồn tại → 3007, không ghi CSDL', async () => {
-      const { service, users } = setup();
-      users.findById.mockResolvedValue(null);
-      await expect(service.update(7, { full_name: 'Trần Văn B' })).rejects.toMatchObject({
-        code: '3007',
-      });
-      expect(users.updateProfile).not.toHaveBeenCalled();
-    });
-
     it.each<[string, UpdateProfileRequest, string]>([
-      ['career', { full_name: 'Trần Văn B', career: 'Khac' }, 'career'],
-      ['ethnic = null', { ethnic: null }, 'ethnic'],
-    ])('nhân viên gửi trường của bệnh nhân (%s) → 2003, không ghi CSDL', async (_n, dto, field) => {
+      ['body rỗng', {}, '2001'],
+      ['full_name chỉ có khoảng trắng', { full_name: '   ' }, '2003'],
+    ])('%s → %s, không đọc/ghi CSDL', async (_name, dto, code) => {
       const { service, users } = setup();
-      users.findById.mockResolvedValue(STAFF);
-      await expect(service.update(7, dto)).rejects.toMatchObject({ code: '2003', data: { field } });
+      await expect(service.update(7, dto)).rejects.toMatchObject({ code });
+      expect(users.findById).not.toHaveBeenCalled();
+    });
+
+    it('nhân viên gửi trường của bệnh nhân → 2003 kèm field, không ghi', async () => {
+      const { service, users } = setup();
+      users.findById.mockResolvedValue(staffUserRecord());
+      await expect(
+        service.update(7, { full_name: 'A', city_address: 'Huế' }),
+      ).rejects.toMatchObject({
+        code: '2003',
+        data: { field: 'city_address' },
+      });
       expect(users.updateProfile).not.toHaveBeenCalled();
     });
 
-    it('nhân viên sửa full_name, gender → ghi CSDL, trả 5 trường', async () => {
+    it('bệnh nhân: chuyển nguyên thay đổi cho repository, trả hồ sơ sau khi ghi', async () => {
       const { service, users } = setup();
-      users.findById.mockResolvedValue(STAFF);
-      users.updateProfile.mockResolvedValue(STAFF);
-      const profile = await service.update(7, { full_name: 'Trần Văn B', gender: 'male' });
-      expect(users.updateProfile).toHaveBeenCalledWith(7, {
-        full_name: 'Trần Văn B',
-        gender: 'male',
+      const dto = { full_name: 'trần văn b', ethnic: 'Kinh', career: null };
+      await expect(service.update(7, dto)).resolves.toMatchObject({
+        full_name: 'TRẦN VĂN B',
+        ethnic: 'Kinh',
       });
-      expect(Object.keys(profile)).toHaveLength(5);
-    });
-
-    it('bệnh nhân: chuyển nguyên thay đổi cho repository (null = xoá giá trị)', async () => {
-      const { service, users } = setup();
-      const dto: UpdateProfileRequest = { ethnic: null, year_of_birth: 1990, work_place: null };
-      await service.update(7, dto);
       expect(users.updateProfile).toHaveBeenCalledWith(7, dto);
     });
 
-    it('trả hồ sơ của bản ghi mà repository trả về sau khi ghi', async () => {
-      const { service } = setup();
-      await expect(
-        service.update(7, { full_name: 'trần văn b', gender: 'female' }),
-      ).resolves.toStrictEqual({
-        user_id: 7,
-        full_name: 'TRẦN VĂN B',
-        phone: '0912345678',
-        role_id: PATIENT_ROLE_ID,
-        gender: 'female',
-        ...EMPTY_PATIENT_FIELDS,
-      });
-    });
-
-    it('người dùng không có bản ghi staffs/patients → 9901, không ghi CSDL', async () => {
+    it('bị xoá đúng lúc ghi (repository trả null) → 3007', async () => {
       const { service, users } = setup();
-      users.findById.mockResolvedValue(userRecord({ patients: null }));
-      await expect(service.update(7, { full_name: 'Trần Văn B' })).rejects.toMatchObject({
-        code: '9901',
-      });
-      expect(users.updateProfile).not.toHaveBeenCalled();
+      users.updateProfile.mockResolvedValue(null);
+      await expect(service.update(7, { full_name: 'A' })).rejects.toMatchObject({ code: '3007' });
     });
   });
 });

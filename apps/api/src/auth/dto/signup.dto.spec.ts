@@ -21,11 +21,12 @@ describe('SignupDto', () => {
     ['thiếu full_name', { full_name: undefined }, '2001'],
     ['full_name rỗng', { full_name: '' }, '2001'],
     ['full_name chỉ có khoảng trắng', { full_name: '   ' }, '2003'],
-    ['full_name dài quá 255 ký tự', { full_name: 'A'.repeat(256) }, '2003'],
+    ['full_name dài quá 150 ký tự (nguoi.ho_ten)', { full_name: 'A'.repeat(151) }, '2003'],
     ['full_name không phải chuỗi', { full_name: 123 }, '2002'],
     ['phone sai định dạng', { phone: '12345' }, '2004'],
     ['password ngắn hơn 6 ký tự', { password: '12345' }, '2003'],
     ['gender ngoài danh sách', { gender: 'x' }, '2003'],
+    ['gender other (CSDL chỉ có Nam/Nu, MT-59)', { gender: 'other' }, '2003'],
   ])('%s → %s', async (_name, override, code) => {
     expect(await codeFor({ ...valid, ...override })).toBe(code);
   });

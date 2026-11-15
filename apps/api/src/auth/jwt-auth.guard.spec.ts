@@ -1,9 +1,9 @@
 /* oxlint-disable typescript/unbound-method -- method chỉ được dùng làm khoá metadata, không được gọi */
-import { Logger, type ExecutionContext } from '@nestjs/common';
+import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { Prisma } from '../generated/prisma/client.js';
-import { staffUserRecord, userRecord } from '../users/user-record.fixture.js';
+import { connectionError } from '../prisma/prisma-error.fixture.js';
+import { isDatabaseConnectionError } from '../prisma/prisma-errors.js';
 import type { UsersRepository } from '../users/users.repository.js';
 import { JwtAuthGuard, extractBearerToken } from './jwt-auth.guard.js';
 import type { JwtPayload, VerifiedJwt } from './jwt-payload.js';
@@ -21,18 +21,22 @@ class SampleController {
   }
 }
 
-let denylist: TokenDenylist | undefined;
-
 const jwt = new JwtService({ secret: 'jwt-secret-cho-unit-test' });
 const payload: JwtPayload = { sub: '12', role_id: '3', jti: 'jti-1' };
+/** iat của token mẫu (giây); mốc thu hồi so theo mili giây (D8). */
+const IAT = 1_900_000_000;
+
+let denylist: TokenDenylist | undefined;
 
 function setup() {
   denylist = new TokenDenylist();
-  // Mặc định: người dùng 12 vẫn tồn tại, đang hoạt động, vai trò trong CSDL trùng token (role_id 3).
+  // Mặc định: tài khoản 12 đang hoạt động, vai trò 3, mốc cập nhật trước iat.
   const users = {
-    findSessionUser: vi
-      .fn<UsersRepository['findSessionUser']>()
-      .mockResolvedValue(staffUserRecord({ user_id: 12, role_id: 3 })),
+    findSessionAccount: vi.fn<UsersRepository['findSessionAccount']>().mockResolvedValue({
+      roleId: 3,
+      isActive: true,
+      updatedAt: new Date((IAT - 60) * 1000),
+    }),
   };
   const guard = new JwtAuthGuard(
     jwt,
@@ -40,8 +44,6 @@ function setup() {
     denylist,
     users as unknown as UsersRepository,
   );
-  // Lỗi 9901 được ghi log; chặn log để output test gọn.
-  vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
   return { guard, denylist, users };
 }
 
@@ -57,127 +59,118 @@ function contextFor(handler: (...args: never[]) => unknown, authorization?: stri
   return { context, request };
 }
 
+/** Token hợp lệ có iat = IAT (thời gian giả lập nằm trong hạn của token). */
 async function contextWithValidToken() {
-  const token = await jwt.signAsync(payload, { expiresIn: 60 });
+  const token = await jwt.signAsync({ ...payload, iat: IAT }, { expiresIn: 60 });
   return contextFor(SampleController.prototype.secret, `Bearer ${token}`);
 }
 
 describe('extractBearerToken', () => {
-  it('lấy token sau "Bearer "', () => {
+  it('lấy token sau "Bearer "; thiếu hoặc sai scheme → undefined', () => {
     expect(extractBearerToken('Bearer abc.def')).toBe('abc.def');
     expect(extractBearerToken('bearer abc')).toBe('abc');
-  });
-
-  it('trả undefined khi thiếu hoặc sai scheme', () => {
     expect(extractBearerToken(undefined)).toBeUndefined();
     expect(extractBearerToken('Basic abc')).toBeUndefined();
     expect(extractBearerToken('Bearer')).toBeUndefined();
   });
 });
 
-describe('JwtAuthGuard', () => {
+describe('JwtAuthGuard (spec A, mục 6.1)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ now: (IAT + 10) * 1000 });
+  });
+
   afterEach(() => {
     denylist?.onModuleDestroy();
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
-  it('cho qua route @Public() không cần token', async () => {
+  it('route @Public() → qua không cần token', async () => {
     const { guard } = setup();
-    const { context } = contextFor(SampleController.prototype.open);
-    await expect(guard.canActivate(context)).resolves.toBe(true);
+    await expect(
+      guard.canActivate(contextFor(SampleController.prototype.open).context),
+    ).resolves.toBe(true);
   });
 
-  it('thiếu token → 3003', async () => {
+  it('thiếu token → 3003; token sai → 3001; hết hạn → 3002', async () => {
     const { guard } = setup();
-    const { context } = contextFor(SampleController.prototype.secret);
-    await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '3003' });
+    await expect(
+      guard.canActivate(contextFor(SampleController.prototype.secret).context),
+    ).rejects.toMatchObject({ code: '3003' });
+    await expect(
+      guard.canActivate(
+        contextFor(SampleController.prototype.secret, 'Bearer khong-phai-jwt').context,
+      ),
+    ).rejects.toMatchObject({ code: '3001' });
+    const expired = await jwt.signAsync({ ...payload, iat: IAT - 120 }, { expiresIn: 60 });
+    await expect(
+      guard.canActivate(contextFor(SampleController.prototype.secret, `Bearer ${expired}`).context),
+    ).rejects.toMatchObject({ code: '3002' });
   });
 
-  it('token sai → 3001', async () => {
-    const { guard } = setup();
-    const { context } = contextFor(SampleController.prototype.secret, 'Bearer khong-phai-jwt');
+  it('jti trong denylist → 3001 trước khi tra CSDL', async () => {
+    const { guard, denylist, users } = setup();
+    denylist.add('jti-1', (IAT + 3600) * 1000);
+    const { context, request } = await contextWithValidToken();
     await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '3001' });
+    expect(users.findSessionAccount).not.toHaveBeenCalled();
+    expect(request.user).toBeUndefined();
   });
 
-  it('token hết hạn → 3002', async () => {
-    const { guard } = setup();
-    const token = await jwt.signAsync(payload, { expiresIn: -10 });
-    const { context } = contextFor(SampleController.prototype.secret, `Bearer ${token}`);
-    await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '3002' });
-  });
-
-  it('token hợp lệ → gắn request.user là payload đã verify, có exp/iat', async () => {
-    const { guard } = setup();
+  it('hợp lệ: role_id lấy từ taikhoan.ma_vai_tro hiện tại', async () => {
+    const { guard, users } = setup();
+    users.findSessionAccount.mockResolvedValue({
+      roleId: 8,
+      isActive: true,
+      updatedAt: new Date((IAT - 60) * 1000),
+    });
     const { context, request } = await contextWithValidToken();
     await expect(guard.canActivate(context)).resolves.toBe(true);
-    expect(request.user).toMatchObject({
-      ...payload,
-      exp: expect.any(Number),
-      iat: expect.any(Number),
-    });
+    expect(users.findSessionAccount).toHaveBeenCalledWith(12);
+    expect(request.user).toMatchObject({ sub: '12', jti: 'jti-1', role_id: '8', iat: IAT });
   });
 
-  it('jti đã đăng xuất (TokenDenylist) → 3001', async () => {
-    const { guard, denylist } = setup();
-    denylist.add('jti-1', Date.now() + 60_000);
+  it.each<[string, Awaited<ReturnType<UsersRepository['findSessionAccount']>>]>([
+    ['không còn tài khoản', null],
+    ['tài khoản bị khoá', { roleId: 3, isActive: false, updatedAt: new Date((IAT - 60) * 1000) }],
+    [
+      'iat * 1000 nhỏ hơn mốc thu hồi (1 ms)',
+      { roleId: 3, isActive: true, updatedAt: new Date(IAT * 1000 + 1) },
+    ],
+  ])('%s → 3001, không gắn request.user', async (_name, account) => {
+    const { guard, users } = setup();
+    users.findSessionAccount.mockResolvedValue(account);
     const { context, request } = await contextWithValidToken();
     await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '3001' });
     expect(request.user).toBeUndefined();
   });
 
-  describe('phiên theo trạng thái hiện tại của người dùng trong CSDL', () => {
-    it('request.user.role_id lấy từ CSDL: đổi vai trò có hiệu lực ngay với token cũ', async () => {
-      const { guard, users } = setup();
-      users.findSessionUser.mockResolvedValue(staffUserRecord({ user_id: 12, role_id: 8 }));
-      const { context, request } = await contextWithValidToken();
-      await expect(guard.canActivate(context)).resolves.toBe(true);
-      expect(users.findSessionUser).toHaveBeenCalledWith(12);
-      expect(request.user).toMatchObject({ sub: '12', jti: 'jti-1', role_id: '8' });
+  it('iat * 1000 bằng đúng mốc → qua', async () => {
+    const { guard, users } = setup();
+    users.findSessionAccount.mockResolvedValue({
+      roleId: 3,
+      isActive: true,
+      updatedAt: new Date(IAT * 1000),
     });
+    const { context } = await contextWithValidToken();
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+  });
 
-    it.each([
-      ['người dùng đã bị xoá', null],
-      ['tài khoản bị khoá (is_active = 0)', userRecord({ user_id: 12, is_active: false })],
-    ])('%s → 3001 (client đăng xuất), không gắn request.user', async (_name, record) => {
-      const { guard, users } = setup();
-      users.findSessionUser.mockResolvedValue(record);
-      const { context, request } = await contextWithValidToken();
-      await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '3001' });
-      expect(request.user).toBeUndefined();
-    });
+  it('chưa cấu hình CSDL → qua, giữ role_id của token', async () => {
+    const { guard, users } = setup();
+    users.findSessionAccount.mockResolvedValue(undefined);
+    const { context, request } = await contextWithValidToken();
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(request.user).toMatchObject({ role_id: '3' });
+  });
 
-    it('jti đã bị thu hồi → 3001 trước khi tra người dùng', async () => {
-      const { guard, denylist, users } = setup();
-      denylist.add('jti-1', Date.now() + 60_000);
-      const { context } = await contextWithValidToken();
-      await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '3001' });
-      expect(users.findSessionUser).not.toHaveBeenCalled();
-    });
-
-    it('chưa cấu hình CSDL (không tra được) → qua, giữ role_id của token', async () => {
-      const { guard, users } = setup();
-      users.findSessionUser.mockResolvedValue(undefined);
-      const { context, request } = await contextWithValidToken();
-      await expect(guard.canActivate(context)).resolves.toBe(true);
-      expect(request.user).toMatchObject({ role_id: '3' });
-    });
-
-    it('người dùng không có bản ghi staffs/patients → 9901', async () => {
-      const { guard, users } = setup();
-      users.findSessionUser.mockResolvedValue(userRecord({ user_id: 12, patients: null }));
-      const { context } = await contextWithValidToken();
-      await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '9901' });
-    });
-
-    it('lỗi kết nối khi tra người dùng được ném tiếp (filter trả 9902)', async () => {
-      const { guard, users } = setup();
-      const connectionError = new Prisma.PrismaClientKnownRequestError('timeout', {
-        code: 'P1008',
-        clientVersion: Prisma.prismaVersion.client,
-      });
-      users.findSessionUser.mockRejectedValue(connectionError);
-      const { context } = await contextWithValidToken();
-      await expect(guard.canActivate(context)).rejects.toBe(connectionError);
-    });
+  it('lỗi kết nối khi tra tài khoản được ném tiếp (filter trả 9902)', async () => {
+    const { guard, users } = setup();
+    const error = connectionError();
+    users.findSessionAccount.mockRejectedValue(error);
+    const { context } = await contextWithValidToken();
+    await expect(guard.canActivate(context)).rejects.toBe(error);
+    expect(isDatabaseConnectionError(error)).toBe(true);
   });
 });

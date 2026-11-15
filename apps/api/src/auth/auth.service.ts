@@ -10,12 +10,11 @@ import { AppException, corruptData, invalidReference } from '../common/app.excep
 import { FacilitiesService } from '../facilities/facilities.service.js';
 import { PATIENT_ROLE_NAME } from '../roles/role-names.js';
 import { RolesRepository } from '../roles/roles.repository.js';
-import { requireRoleId } from '../users/require-role-id.js';
 import {
   toCreateStaffData,
   toLoginUserInfo,
   toSignupData,
-  type StaffAssignment,
+  type NewAccount,
 } from '../users/user-mapping.js';
 import { UsersRepository } from '../users/users.repository.js';
 import type { ChangePasswordDto } from './dto/change-password.dto.js';
@@ -23,12 +22,14 @@ import type { CreateStaffDto } from './dto/create-staff.dto.js';
 import type { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { SignupDto } from './dto/signup.dto.js';
-import type { JwtPayload, VerifiedJwt } from './jwt-payload.js';
+import type { SignedJwtPayload, VerifiedJwt } from './jwt-payload.js';
 import { OtpSender } from './otp-sender.js';
 import { PasswordService } from './password.service.js';
 import { ResetOtp } from './reset-otp.js';
+import { issuedAtFor } from './revocation.js';
 import { TokenDenylist } from './token-denylist.js';
 
+/** Xác thực và tài khoản (Sheet tab 1.1–1.6, spec A, mục 5.3, 6). */
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -44,91 +45,77 @@ export class AuthService {
     private readonly otpSender: OtpSender,
   ) {}
 
-  /** Tạo tài khoản bệnh nhân (users + patients). Trùng số điện thoại → 3006. */
+  /** Bệnh nhân = nguoi + benhnhan + taikhoan vai trò benh_nhan, một nested create. Số đã có tài khoản → 3006. */
   async signup(dto: SignupDto): Promise<SignupResponseData> {
-    if (await this.users.phoneExists(dto.phone)) throw new AppException('3006');
+    if (await this.users.loginExists(dto.phone)) throw new AppException('3006');
     const role = await this.roles.findByName(PATIENT_ROLE_NAME);
     if (!role) {
       throw corruptData(
         this.logger,
-        `Bảng roles chưa có vai trò "${PATIENT_ROLE_NAME}" (chưa seed?)`,
+        `Bảng vaitro chưa có vai trò "${PATIENT_ROLE_NAME}" (CSDL chưa nạp schema?)`,
       );
     }
-
-    const user = await this.users.createPatient({
-      fullName: dto.full_name,
-      phone: dto.phone,
-      passwordHash: await this.passwords.hash(dto.password),
-      gender: dto.gender ?? null,
-      patientRoleId: role.role_id,
-    });
-    return toSignupData(user, role.role_id);
+    const user = await this.users.create(await this.newAccount(dto, role.id), { kind: 'patient' });
+    return toSignupData(user);
   }
 
   /**
-   * Admin tạo tài khoản nhân viên (users + staffs). Kiểm tra theo thứ tự: vai trò tồn tại và không
-   * phải patient → nơi công tác (FacilitiesService) → trùng số điện thoại; sai → 2003, trùng → 3006.
+   * Nhân viên = nguoi + nhanvien (chi nhánh) + taikhoan. Kiểm tra theo thứ tự: vai trò tồn tại và
+   * khác benh_nhan (2003) → chi nhánh tồn tại (2003) → trùng số (3006).
    */
   async createStaff(dto: CreateStaffDto): Promise<CreateStaffResponseData> {
     const role = await this.roles.findById(dto.role_id);
     if (!role || role.name === PATIENT_ROLE_NAME) throw invalidReference('role_id');
-    const assignment: StaffAssignment = {
-      roleId: role.role_id,
+    await this.facilities.assertBranchExists(dto.branch_id);
+    if (await this.users.loginExists(dto.phone)) throw new AppException('3006');
+    const user = await this.users.create(await this.newAccount(dto, role.id), {
+      kind: 'staff',
       branchId: dto.branch_id,
-      departmentId: dto.department_id,
-      roomId: dto.room_id ?? null,
-    };
-    await this.facilities.assertPlacement(assignment);
-    if (await this.users.phoneExists(dto.phone)) throw new AppException('3006');
-
-    const user = await this.users.createStaff({
-      fullName: dto.full_name,
-      phone: dto.phone,
-      passwordHash: await this.passwords.hash(dto.password),
-      gender: dto.gender ?? null,
-      ...assignment,
     });
-    return toCreateStaffData(user, assignment);
+    return toCreateStaffData(user, dto.branch_id);
   }
 
-  /** Kiểm tra theo thứ tự: tồn tại (3007) → is_active (3101, MT-61) → mật khẩu (3008). */
+  /**
+   * Thứ tự: tồn tại (3007) → trang_thai_hoat_dong (3101, MT-61) → mật khẩu (3008). Vai trò nằm ở
+   * taikhoan nên không còn 9901 khi thiếu bản ghi subtype. `iat` theo mốc thu hồi (D8).
+   */
   async login(dto: LoginDto): Promise<LoginResponseData> {
-    const user = await this.users.findByPhone(dto.phone);
+    const user = await this.users.findByLogin(dto.phone);
     if (!user) throw new AppException('3007');
-    if (!user.is_active) throw new AppException('3101');
-    if (!(await this.passwords.verify(dto.password, user.password_hash))) {
+    if (!user.isActive) throw new AppException('3101');
+    if (!(await this.passwords.verify(dto.password, user.passwordHash))) {
       throw new AppException('3008');
     }
-    const roleId = requireRoleId(user, this.logger);
-
-    const payload: JwtPayload = {
-      sub: String(user.user_id),
-      role_id: String(roleId),
+    const payload: SignedJwtPayload = {
+      sub: String(user.userId),
+      role_id: String(user.roleId),
       jti: randomUUID(),
+      iat: issuedAtFor(Date.now(), user.accountUpdatedAt),
     };
-    return { token: await this.jwt.signAsync(payload), user_info: toLoginUserInfo(user, roleId) };
+    return { token: await this.jwt.signAsync(payload), user_info: toLoginUserInfo(user) };
   }
 
-  /** Chặn jti của token hiện tại tới lúc hết hạn (spec A, mục 6.3). Không còn xoá FCM token (quyết định 14). */
+  /** Chặn jti của token hiện tại tới lúc hết hạn (spec A, mục 6.3). Không chạm CSDL. */
   async logout(jwt: VerifiedJwt): Promise<void> {
     this.denylist.add(jwt.jti, jwt.exp * 1000);
   }
 
   /**
-   * Gửi OTP khôi phục mật khẩu, không ghi CSDL (spec A, mục 6.4). Chưa có kênh gửi → 9903, kiểm tra
-   * trước tiên; số chưa có tài khoản → 3007.
+   * OTP khôi phục mật khẩu, không ghi CSDL (spec A, mục 6.4). Chưa có kênh gửi → 9903, kiểm tra trước
+   * tiên; số chưa có tài khoản → 3007.
    */
   async forgotPassword(dto: ForgotPasswordDto): Promise<void> {
     if (!this.otpSender.isAvailable()) throw new AppException('9903');
-    const user = await this.users.findByPhone(dto.phone);
+    const user = await this.users.findByLogin(dto.phone);
     if (!user) throw new AppException('3007');
-    const otp = this.resetOtp.issue({ accountId: user.user_id, passwordHash: user.password_hash });
+    const otp = this.resetOtp.issue({ accountId: user.accountId, passwordHash: user.passwordHash });
     await this.otpSender.send(dto.phone, otp);
   }
 
   /**
-   * Kiểm tra theo thứ tự: confirm_password khớp new_password (2003) → người dùng tồn tại (3007) →
-   * mật khẩu cũ (3009). Thành công thì chặn jti hiện tại rồi ghi hash mới.
+   * Thứ tự lỗi: confirm_password (2003) → tài khoản (3007) → mật khẩu cũ (3009). Ghi hash mới làm
+   * trigger đổi thoi_diem_cap_nhat: mọi token cũ của tài khoản bị 3001 (MT-95). Thêm jti hiện tại vào
+   * denylist phòng khi đồng hồ CSDL chậm hơn API (spec A, mục 6.2).
    */
   async changePassword(jwt: VerifiedJwt, dto: ChangePasswordDto): Promise<void> {
     if (dto.confirm_password !== dto.new_password) {
@@ -137,11 +124,21 @@ export class AuthService {
     const userId = Number(jwt.sub);
     const user = await this.users.findById(userId);
     if (!user) throw new AppException('3007');
-    if (!(await this.passwords.verify(dto.old_password, user.password_hash))) {
+    if (!(await this.passwords.verify(dto.old_password, user.passwordHash))) {
       throw new AppException('3009');
     }
     const passwordHash = await this.passwords.hash(dto.new_password);
     this.denylist.add(jwt.jti, jwt.exp * 1000);
     await this.users.updatePasswordHash(userId, passwordHash);
+  }
+
+  private async newAccount(dto: SignupDto, roleId: number): Promise<NewAccount> {
+    return {
+      fullName: dto.full_name,
+      phone: dto.phone,
+      passwordHash: await this.passwords.hash(dto.password),
+      gender: dto.gender ?? null,
+      roleId,
+    };
   }
 }

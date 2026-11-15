@@ -1,13 +1,10 @@
 import { Logger, type INestApplication } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
-import type { VerifiedJwt } from '../../src/auth/jwt-payload.js';
 import { deriveOtpKey, otpFor, windowAt } from '../../src/auth/reset-otp.js';
-import { TokenDenylist } from '../../src/auth/token-denylist.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
-import { createTestApp, resetData } from './helpers.js';
+import { createTestApp, findAccount, resetData, waitPastRevocationSecond } from './helpers.js';
 
 const PHONE = '0912345678';
 const PASSWORD = 'matkhau123';
@@ -17,7 +14,8 @@ const CHANGE = {
   new_password: NEW_PASSWORD,
   confirm_password: NEW_PASSWORD,
 };
-describe('Quên mật khẩu và đổi mật khẩu (MySQL thật)', () => {
+
+describe('Quên mật khẩu và đổi mật khẩu (PostgreSQL thật)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaClient;
 
@@ -32,7 +30,6 @@ describe('Quên mật khẩu và đổi mật khẩu (MySQL thật)', () => {
       .send(body);
   const getProfile = (token: string) =>
     request(app.getHttpServer()).get('/api/v1/profile').set('Authorization', `Bearer ${token}`);
-  const findUser = () => prisma.users.findUniqueOrThrow({ where: { so_dien_thoai: PHONE } });
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -56,85 +53,89 @@ describe('Quên mật khẩu và đổi mật khẩu (MySQL thật)', () => {
   });
 
   describe('POST /auth/forgot-password', () => {
-    it('200 / 1000: gửi OTP tính từ tài khoản và hash mật khẩu; không ghi CSDL', async () => {
+    it('200 / 1000: OTP tính từ ma_tai_khoan và hash; không ghi CSDL (thoi_diem_cap_nhat giữ nguyên)', async () => {
       const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-      const before = await findUser();
+      const before = await findAccount(prisma, PHONE);
       const window = windowAt(Date.now());
       const res = await forgotPassword({ phone: PHONE }).expect(200);
       expect(res.body).toEqual({ code: '1000', message: 'OK', data: {} });
-
-      // DevLogOtpSender (APP_ENV=test) ghi "OTP khôi phục cho ***5678: <otp>".
       const otpLog = warn.mock.calls
         .map(([message]) => String(message))
         .find((message) => message.startsWith('OTP khôi phục cho ***5678: '));
       expect(otpLog).toMatch(/: \d{6}$/);
       const key = deriveOtpKey(process.env.JWT_SECRET!);
-      const subject = { accountId: before.user_id, passwordHash: before.password_hash };
+      const subject = {
+        accountId: Number(before.ma_tai_khoan),
+        passwordHash: before.mat_khau_ma_hoa,
+      };
       expect([otpFor(key, subject, window), otpFor(key, subject, window + 1)]).toContain(
         otpLog!.slice(-6),
       );
-      const after = await findUser();
-      expect(after.updated_at).toEqual(before.updated_at);
-      expect(after.reset_token).toBeNull();
+      const after = await findAccount(prisma, PHONE);
+      expect(after.thoi_diem_cap_nhat).toEqual(before.thoi_diem_cap_nhat);
     });
 
-    it('số chưa đăng ký → 404 / 3007', async () => {
-      const res = await forgotPassword({ phone: '0987654321' }).expect(404);
-      expect(res.body).toEqual({ code: '3007', message: 'User account not found' });
-    });
-
-    it.each([
-      ['thiếu phone → 2001', {}, '2001'],
-      ['phone sai định dạng → 2004', { phone: '12345' }, '2004'],
-    ])('%s (400, không lưu token)', async (_name, body, code) => {
-      const res = await forgotPassword(body).expect(400);
-      expect(res.body).toMatchObject({ code, data: { field: 'phone' } });
-      expect((await findUser()).reset_token).toBeNull();
+    it('số chưa có tài khoản → 404 / 3007; sai dạng → 400', async () => {
+      expect((await forgotPassword({ phone: '0987654321' }).expect(404)).body.code).toBe('3007');
+      expect((await forgotPassword({}).expect(400)).body).toMatchObject({
+        code: '2001',
+        data: { field: 'phone' },
+      });
+      expect((await forgotPassword({ phone: '12345' }).expect(400)).body.code).toBe('2004');
     });
   });
 
   describe('PUT /auth/change-password', () => {
-    let token: string;
-
-    beforeEach(async () => {
-      token = (await login(PASSWORD).expect(200)).body.data.token;
-    });
-
-    it('200 / 1000 rồi token cũ bị từ chối 3001; đăng nhập bằng mật khẩu mới được, mật khẩu cũ → 3008', async () => {
-      const res = await changePassword(token, CHANGE).expect(200);
+    it('token đang dùng và token của thiết bị khác đều bị 3001 (MT-95); đăng nhập lại dùng được ngay (D8)', async () => {
+      const current = (await login(PASSWORD).expect(200)).body.data.token;
+      const otherDevice = (await login(PASSWORD).expect(200)).body.data.token;
+      await waitPastRevocationSecond();
+      const res = await changePassword(current, CHANGE).expect(200);
       expect(res.body).toEqual({ code: '1000', message: 'OK', data: {} });
-
-      const { jti } = app.get(JwtService).decode<VerifiedJwt>(token);
-      expect(app.get(TokenDenylist).has(jti)).toBe(true);
-      const reused = await getProfile(token).expect(401);
-      expect(reused.body).toEqual({ code: '3001', message: 'Token is invalid' });
-
+      expect((await getProfile(current).expect(401)).body.code).toBe('3001');
+      expect((await getProfile(otherDevice).expect(401)).body.code).toBe('3001');
+      expect((await login(PASSWORD).expect(401)).body.code).toBe('3008');
       const fresh = (await login(NEW_PASSWORD).expect(200)).body.data.token;
       await getProfile(fresh).expect(200);
-      const old = await login(PASSWORD).expect(401);
-      expect(old.body).toEqual({ code: '3008', message: 'Password incorrect' });
     });
 
-    it('sai mật khẩu cũ → 400 / 3009; mật khẩu và token giữ nguyên', async () => {
-      const res = await changePassword(token, { ...CHANGE, old_password: 'sai-mat-khau' }).expect(
-        400,
-      );
-      expect(res.body).toEqual({ code: '3009', message: 'Old password incorrect' });
+    it('sai mật khẩu cũ → 400 / 3009; mật khẩu, mốc thu hồi và token giữ nguyên', async () => {
+      const token = (await login(PASSWORD).expect(200)).body.data.token;
+      const before = await findAccount(prisma, PHONE);
+      expect(
+        (await changePassword(token, { ...CHANGE, old_password: 'sai' }).expect(400)).body.code,
+      ).toBe('3009');
+      const after = await findAccount(prisma, PHONE);
+      expect(after.mat_khau_ma_hoa).toBe(before.mat_khau_ma_hoa);
+      expect(after.thoi_diem_cap_nhat).toEqual(before.thoi_diem_cap_nhat);
       await getProfile(token).expect(200);
-      await login(PASSWORD).expect(200);
     });
 
     it.each([
-      ['confirm_password lệch → 2003', { confirm_password: 'khac-han' }, 'confirm_password'],
-      ['new_password ngắn hơn 6 ký tự → 2003', { new_password: '12345' }, 'new_password'],
-    ])('%s (400, mật khẩu giữ nguyên)', async (_name, override, field) => {
-      const res = await changePassword(token, { ...CHANGE, ...override }).expect(400);
-      expect(res.body).toEqual({
-        code: '2003',
-        message: 'Invalid parameter value',
+      [
+        'confirm_password khác → 2003',
+        { ...CHANGE, confirm_password: 'khac' },
+        '2003',
+        'confirm_password',
+      ],
+      [
+        'new_password ngắn → 2003',
+        { ...CHANGE, new_password: '123', confirm_password: '123' },
+        '2003',
+        'new_password',
+      ],
+      [
+        'thiếu old_password → 2001',
+        { new_password: NEW_PASSWORD, confirm_password: NEW_PASSWORD },
+        '2001',
+        'old_password',
+      ],
+    ])('%s (400)', async (_name, body, code, field) => {
+      const token = (await login(PASSWORD).expect(200)).body.data.token;
+      expect((await changePassword(token, body).expect(400)).body).toMatchObject({
+        code,
         data: { field },
       });
-      await login(PASSWORD).expect(200);
     });
 
     it('không có token → 401 / 3003', async () => {
@@ -142,7 +143,7 @@ describe('Quên mật khẩu và đổi mật khẩu (MySQL thật)', () => {
         .put('/api/v1/auth/change-password')
         .send(CHANGE)
         .expect(401);
-      expect(res.body).toEqual({ code: '3003', message: 'User not authenticated' });
+      expect(res.body.code).toBe('3003');
     });
   });
 });

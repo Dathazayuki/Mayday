@@ -1,26 +1,42 @@
 import type { INestApplication } from '@nestjs/common';
 import type { App } from 'supertest/types.js';
-import type { SeedResult } from '../../prisma/seed.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import { PermissionsRepository } from '../../src/permissions/permissions.repository.js';
+import { isUniqueViolation } from '../../src/prisma/prisma-errors.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
-import type { NewUser } from '../../src/users/user-mapping.js';
+import type { NewAccount } from '../../src/users/user-mapping.js';
 import { UsersRepository } from '../../src/users/users.repository.js';
-import { createTestApp, resetData } from './helpers.js';
+import { createTestApp, resetData, type SeedResult } from './helpers.js';
 
-/** Nhánh của repository mà test HTTP không tạo ra được một cách chắc chắn (đồng thời, giai đoạn sau). */
-describe('Repository (MySQL thật)', () => {
+/** Nhánh của repository mà test HTTP không tạo ra được chắc chắn (đồng thời, tên đăng nhập có chữ). */
+describe('Repository (PostgreSQL thật)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaClient;
   let seed: SeedResult;
   let users: UsersRepository;
 
-  const newUser: NewUser = {
+  const account = (phone: string): NewAccount => ({
     fullName: ' lê thị c ',
-    phone: '0933333333',
+    phone,
     passwordHash: 'hash',
     gender: 'female',
-  };
+    roleId: seed.roles.benh_nhan,
+  });
+  /** Tài khoản chèn thẳng với tên đăng nhập có chữ (vd. do nhóm khác tạo, MT-111). */
+  const insertAccount = (login: string) =>
+    prisma.nguoi.create({
+      data: {
+        ho_ten: 'NGƯỜI NHÓM KHÁC',
+        so_dien_thoai: '0900000077',
+        taikhoan: {
+          create: {
+            ten_dang_nhap: login,
+            mat_khau_ma_hoa: 'hash',
+            ma_vai_tro: BigInt(seed.roles.bac_si),
+          },
+        },
+      },
+    });
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -36,102 +52,84 @@ describe('Repository (MySQL thật)', () => {
     await app.close();
   });
 
-  describe('UsersRepository', () => {
-    it('createPatient cùng số lần hai (đã lọt kiểm tra phoneExists) → AppException 3006', async () => {
-      const patient = { ...newUser, patientRoleId: seed.roles.patient };
-      await users.createPatient(patient);
-      await expect(users.createPatient(patient)).rejects.toMatchObject({ code: '3006' });
-      expect(await prisma.users.count()).toBe(1);
+  describe('UsersRepository: tra tên đăng nhập (spec A, mục 4.4)', () => {
+    it('không phân biệt hoa/thường', async () => {
+      await insertAccount('BacSiAn');
+      await expect(users.findByLogin('bacsian')).resolves.toMatchObject({
+        fullName: 'NGƯỜI NHÓM KHÁC',
+      });
+      await expect(users.loginExists('BACSIAN')).resolves.toBe(true);
     });
 
-    it('createStaff ghi users + staffs đúng FK; trùng số → 3006', async () => {
-      const staff = {
-        ...newUser,
-        roleId: seed.roles.doctor,
-        branchId: seed.branchId,
-        departmentId: seed.departmentId,
-        roomId: null,
-      };
-      const created = await users.createStaff(staff);
-      expect(created).toMatchObject({
-        ho_ten: 'LÊ THỊ C',
-        gioi_tinh: 'Nu',
-        patients: null,
-        staffs: {
-          role_id: seed.roles.doctor,
-          branch_id: seed.branchId,
-          department_id: seed.departmentId,
-          room_id: null,
-        },
-      });
-      await expect(users.createStaff(staff)).rejects.toMatchObject({ code: '3006' });
+    it('% và _ không phải ký tự đại diện (chặn lỗi ILIKE)', async () => {
+      await insertAccount('BacSiAn');
+      await expect(users.findByLogin('%')).resolves.toBeNull();
+      await expect(users.findByLogin('BacSi_n')).resolves.toBeNull();
+      await expect(users.loginExists('%')).resolves.toBe(false);
     });
 
-    it('updateProfile bệnh nhân: ghi cột tiếng Việt, năm sinh không đổi thì giữ ngày (MT-13)', async () => {
-      const { user_id } = await users.createPatient({
-        ...newUser,
-        patientRoleId: seed.roles.patient,
-      });
-      await prisma.patients.update({
-        where: { user_id },
-        data: { ngay_sinh: new Date('1990-05-06T00:00:00.000Z'), dan_toc: 'Tày' },
-      });
+    it('hai tên chỉ khác hoa/thường → P2002 trên uq_tai_khoan_ten_dang_nhap', async () => {
+      await insertAccount('BacSiAn');
+      const error = await insertAccount('bacsian').catch((caught: unknown) => caught);
+      expect(isUniqueViolation(error, 'uq_tai_khoan_ten_dang_nhap')).toBe(true);
+    });
+  });
 
-      const updated = await users.updateProfile(user_id, {
-        full_name: 'lê thị d',
-        year_of_birth: 1990,
-        career: 'Can bo cong chuc',
-        ethnic: null,
-        health_insurance_validate: '2027-03-31',
+  describe('UsersRepository.create', () => {
+    it('số đã thuộc tài khoản (lọt qua loginExists khi chạy đồng thời) → AppException 3006, không ghi nguoi thừa', async () => {
+      await users.create(account('0933333333'), { kind: 'patient' });
+      await expect(users.create(account('0933333333'), { kind: 'patient' })).rejects.toMatchObject({
+        code: '3006',
       });
-      expect(updated).toMatchObject({
-        ho_ten: 'LÊ THỊ D',
-        patients: {
-          ngay_sinh: new Date('1990-05-06T00:00:00.000Z'),
-          nghe_nghiep: 'Can_bo_cong_chuc',
-          dan_toc: null,
-          bhyt_gia_tri_den: new Date('2027-03-31T00:00:00.000Z'),
-        },
-      });
-
-      const nextYear = await users.updateProfile(user_id, { year_of_birth: 1991 });
-      expect(nextYear.patients?.ngay_sinh).toEqual(new Date('1991-01-01T00:00:00.000Z'));
+      expect(await prisma.nguoi.count()).toBe(1);
     });
 
-    it('updateProfile nhân viên (không có patients): chỉ ghi users', async () => {
-      const { user_id } = await users.createStaff({
-        ...newUser,
-        roleId: seed.roles.doctor,
-        branchId: seed.branchId,
-        departmentId: seed.departmentId,
-        roomId: seed.roomId,
+    it('vai trò hoặc chi nhánh không tồn tại lúc ghi → 2003 kèm field', async () => {
+      await expect(
+        users.create({ ...account('0944444444'), roleId: 999 }, { kind: 'none' }),
+      ).rejects.toMatchObject({
+        code: '2003',
+        data: { field: 'role_id' },
       });
-      const updated = await users.updateProfile(user_id, { gender: null });
-      expect(updated).toMatchObject({ gioi_tinh: null, patients: null });
+      await expect(
+        users.create(
+          { ...account('0944444444'), roleId: seed.roles.bac_si },
+          { kind: 'staff', branchId: 999 },
+        ),
+      ).rejects.toMatchObject({ code: '2003', data: { field: 'branch_id' } });
+      expect(await prisma.nguoi.count()).toBe(0);
     });
   });
 
   describe('PermissionsRepository.grant', () => {
-    it('quyền đã gán (gán đồng thời) → bỏ qua, không lỗi', async () => {
+    it('gán trùng đồng thời → bỏ qua, giữ thoi_diem_gan và ma_nguoi_gan cũ (ON CONFLICT DO NOTHING)', async () => {
       const permissions = app.get(PermissionsRepository);
+      const assigner = await users.create(account('0955555555'), { kind: 'patient' });
       const ids = [seed.permissions.manage_users, seed.permissions.manage_roles];
       await Promise.all([
-        permissions.grant(seed.roles.doctor, ids),
-        permissions.grant(seed.roles.doctor, ids),
+        permissions.grant(seed.roles.bac_si, ids, assigner.userId),
+        permissions.grant(seed.roles.bac_si, ids, assigner.userId),
       ]);
-      expect(await prisma.role_permissions.count({ where: { role_id: seed.roles.doctor } })).toBe(
-        2,
-      );
+      const rows = await prisma.vaitroquyenhan.findMany({
+        where: { ma_vai_tro: BigInt(seed.roles.bac_si) },
+      });
+      expect(rows).toHaveLength(2);
+      expect(rows.every((row) => row.ma_nguoi_gan === BigInt(assigner.userId))).toBe(true);
     });
 
-    it('vai trò hoặc quyền bị xoá sau khi service kiểm tra → MySQL INSERT IGNORE bỏ qua dòng vi phạm khoá ngoại, không ném P2003', async () => {
+    it('vai trò hoặc quyền không tồn tại lúc ghi → 2003 kèm field (không còn bỏ qua như F.11)', async () => {
       const permissions = app.get(PermissionsRepository);
+      const assigner = await users.create(account('0955555555'), { kind: 'patient' });
       await expect(
-        permissions.grant(999_999, [seed.permissions.manage_users]),
-      ).resolves.toBeUndefined();
-      await expect(permissions.grant(seed.roles.doctor, [999_999])).resolves.toBeUndefined();
-      expect(await prisma.role_permissions.count({ where: { role_id: 999_999 } })).toBe(0);
-      expect(await prisma.role_permissions.count({ where: { permission_id: 999_999 } })).toBe(0);
+        permissions.grant(999_999, [seed.permissions.manage_users], assigner.userId),
+      ).rejects.toMatchObject({
+        data: { field: 'role_id' },
+      });
+      await expect(
+        permissions.grant(seed.roles.bac_si, [999_999], assigner.userId),
+      ).rejects.toMatchObject({
+        data: { field: 'permissions' },
+      });
     });
   });
 });

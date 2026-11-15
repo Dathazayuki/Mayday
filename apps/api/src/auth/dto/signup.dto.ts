@@ -1,4 +1,5 @@
 import {
+  FIELD_LIMITS,
   GENDER_VALUES,
   PASSWORD_MIN_LENGTH,
   type Gender,
@@ -19,7 +20,7 @@ import { IsVietnamPhone } from '../../common/is-vietnam-phone.decorator.js';
 export class SignupDto implements SignupRequest {
   @IsDefined()
   @IsString()
-  @MaxLength(255) // users.ho_ten varchar(255)
+  @MaxLength(FIELD_LIMITS.full_name) // nguoi.ho_ten VARCHAR(150)
   @Matches(/\S/) // chỉ có khoảng trắng → 2003
   full_name: string;
 

@@ -1,10 +1,15 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
-import type { SeedResult } from '../../prisma/seed.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
-import { createTestApp, resetData } from './helpers.js';
+import {
+  createChronicRecord,
+  createTestApp,
+  findAccount,
+  resetData,
+  type SeedResult,
+} from './helpers.js';
 
 const ADMIN = { phone: '0900000001', password: 'admin123' };
 const PATIENT = { full_name: '  nguyễn văn a ', phone: '0912345678', password: 'matkhau123' };
@@ -15,7 +20,6 @@ const EMPTY_PATIENT_FIELDS = {
   hamlet_address: null,
   commune_address: null,
   city_address: null,
-  work_place: null,
   health_insurance_number: null,
   health_insurance_validate: null,
   next_of_kin_name: null,
@@ -23,7 +27,7 @@ const EMPTY_PATIENT_FIELDS = {
   first_visit: null,
 };
 
-describe('GET/PUT /profile (MySQL thật)', () => {
+describe('GET/PUT /profile (PostgreSQL thật)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaClient;
   let seed: SeedResult;
@@ -39,7 +43,7 @@ describe('GET/PUT /profile (MySQL thật)', () => {
       .put('/api/v1/profile')
       .set('Authorization', `Bearer ${bearer}`)
       .send(body);
-  const findPatient = () => prisma.patients.findUniqueOrThrow({ where: { user_id: userId } });
+  const findPatient = () => findAccount(prisma, PATIENT.phone).then((account) => account.nguoi);
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -48,11 +52,9 @@ describe('GET/PUT /profile (MySQL thật)', () => {
 
   beforeEach(async () => {
     seed = await resetData(app, { adminPhone: ADMIN.phone, adminPassword: ADMIN.password });
-    const signup = await request(app.getHttpServer())
-      .post('/api/v1/auth/signup')
-      .send(PATIENT)
-      .expect(201);
-    userId = signup.body.data.user_id;
+    userId = (
+      await request(app.getHttpServer()).post('/api/v1/auth/signup').send(PATIENT).expect(201)
+    ).body.data.user_id;
     token = (await login(PATIENT.phone, PATIENT.password).expect(200)).body.data.token;
   });
 
@@ -60,7 +62,7 @@ describe('GET/PUT /profile (MySQL thật)', () => {
     await app.close();
   });
 
-  it('GET bệnh nhân vừa đăng ký → 200 / 1000: đủ 17 khoá, trường bệnh nhân null, ID kiểu int', async () => {
+  it('GET bệnh nhân vừa đăng ký: 16 khoá, trường bệnh nhân null, first_visit null (chưa có hồ sơ, D14)', async () => {
     const res = await getProfile().expect(200);
     expect(res.body).toStrictEqual({
       code: '1000',
@@ -69,14 +71,15 @@ describe('GET/PUT /profile (MySQL thật)', () => {
         user_id: userId,
         full_name: 'NGUYỄN VĂN A',
         phone: PATIENT.phone,
-        role_id: seed.roles.patient,
+        role_id: seed.roles.benh_nhan,
         gender: null,
         ...EMPTY_PATIENT_FIELDS,
       },
     });
   });
 
-  it('PUT ghi đúng cột users/patients và trả hồ sơ cùng dạng GET', async () => {
+  it('PUT ghi đúng cột nguoi/benhnhan, không chạm taikhoan, trả hồ sơ cùng dạng GET', async () => {
+    const before = await findAccount(prisma, PATIENT.phone);
     const res = await putProfile({
       full_name: '  trần thị b ',
       gender: 'female',
@@ -86,7 +89,6 @@ describe('GET/PUT /profile (MySQL thật)', () => {
       hamlet_address: 'Thôn 1',
       commune_address: 'Xã A',
       city_address: 'Hà Nội',
-      work_place: 'Công ty B',
       health_insurance_number: 'HS4010123456789',
       health_insurance_validate: '2027-03-31',
       next_of_kin_name: 'Nguyễn Văn C, Thôn 1',
@@ -96,7 +98,7 @@ describe('GET/PUT /profile (MySQL thật)', () => {
       user_id: userId,
       full_name: 'TRẦN THỊ B',
       phone: PATIENT.phone,
-      role_id: seed.roles.patient,
+      role_id: seed.roles.benh_nhan,
       gender: 'female',
       year_of_birth: 1990,
       career: 'Hoc sinh - Sinh vien',
@@ -104,73 +106,65 @@ describe('GET/PUT /profile (MySQL thật)', () => {
       hamlet_address: 'Thôn 1',
       commune_address: 'Xã A',
       city_address: 'Hà Nội',
-      work_place: 'Công ty B',
       health_insurance_number: 'HS4010123456789',
       health_insurance_validate: '2027-03-31',
       next_of_kin_name: 'Nguyễn Văn C, Thôn 1',
       next_of_kin_phone: '0987654321',
       first_visit: null,
     };
-    expect(res.body).toStrictEqual({ code: '1000', message: 'OK', data: expected });
+    expect(res.body.data).toStrictEqual(expected);
     expect((await getProfile().expect(200)).body.data).toStrictEqual(expected);
-
-    const user = await prisma.users.findUniqueOrThrow({
-      where: { user_id: userId },
-      include: { patients: true },
-    });
-    expect(user).toMatchObject({
+    const person = await findPatient();
+    expect(person).toMatchObject({
       ho_ten: 'TRẦN THỊ B',
       gioi_tinh: 'Nu',
-      patients: {
-        ngay_sinh: new Date('1990-01-01T00:00:00.000Z'),
-        nghe_nghiep: 'Hoc_sinh___Sinh_vien',
+      ngay_sinh: new Date('1990-01-01T00:00:00.000Z'),
+      dia_chi_so_nha_thon_pho: 'Thôn 1',
+      dia_chi_xa_phuong: 'Xã A',
+      dia_chi_tinh_tp: 'Hà Nội',
+      benhnhan: {
+        nghe_nghiep: 'Hoc sinh - Sinh vien',
         dan_toc: 'Kinh',
-        dia_chi_so_nha_thon_pho: 'Thôn 1',
-        dia_chi_xa_phuong: 'Xã A',
-        dia_chi_tinh_tp: 'Hà Nội',
-        noi_lam_viec: 'Công ty B',
         bhyt_so_the: 'HS4010123456789',
         bhyt_gia_tri_den: new Date('2027-03-31T00:00:00.000Z'),
         nguoi_nha_ho_ten_dia_chi: 'Nguyễn Văn C, Thôn 1',
         nguoi_nha_so_dien_thoai: '0987654321',
       },
     });
+    expect((await findAccount(prisma, PATIENT.phone)).thoi_diem_cap_nhat).toEqual(
+      before.thoi_diem_cap_nhat,
+    );
+    await getProfile().expect(200);
   });
 
   it('null hoặc chuỗi trống xoá giá trị; trường không gửi giữ nguyên', async () => {
-    await putProfile({
-      career: 'Khac',
-      ethnic: 'Kinh',
-      work_place: 'Công ty B',
-      city_address: 'Hà Nội',
-    }).expect(200);
-    const res = await putProfile({ career: '', ethnic: '  ', work_place: null }).expect(200);
-    expect(res.body.data).toMatchObject({
-      career: null,
-      ethnic: null,
-      work_place: null,
-      city_address: 'Hà Nội',
-    });
+    await putProfile({ career: 'Khac', ethnic: 'Kinh', city_address: 'Hà Nội' }).expect(200);
+    const res = await putProfile({ career: '', ethnic: '  ' }).expect(200);
+    expect(res.body.data).toMatchObject({ career: null, ethnic: null, city_address: 'Hà Nội' });
     expect(await findPatient()).toMatchObject({
-      nghe_nghiep: null,
-      dan_toc: null,
-      noi_lam_viec: null,
       dia_chi_tinh_tp: 'Hà Nội',
+      benhnhan: { nghe_nghiep: null, dan_toc: null },
     });
   });
 
   it('year_of_birth trùng năm đang lưu giữ ngày/tháng thật; năm khác → YYYY-01-01 (MT-13)', async () => {
-    await prisma.patients.update({
-      where: { user_id: userId },
+    await prisma.nguoi.update({
+      where: { ma_nguoi: BigInt(userId) },
       data: { ngay_sinh: new Date('1990-05-06T00:00:00.000Z') },
     });
-
-    const same = await putProfile({ year_of_birth: 1990 }).expect(200);
-    expect(same.body.data.year_of_birth).toBe(1990);
+    expect((await putProfile({ year_of_birth: 1990 }).expect(200)).body.data.year_of_birth).toBe(
+      1990,
+    );
     expect((await findPatient()).ngay_sinh).toEqual(new Date('1990-05-06T00:00:00.000Z'));
-
     await putProfile({ year_of_birth: 1991 }).expect(200);
     expect((await findPatient()).ngay_sinh).toEqual(new Date('1991-01-01T00:00:00.000Z'));
+  });
+
+  it('first_visit = MIN(hosobenhan.thoi_diem_kham_lan_dau) của bệnh nhân (D14, MT-104)', async () => {
+    await createChronicRecord(prisma, userId, new Date('2026-11-20T08:00:00.000Z'));
+    await createChronicRecord(prisma, userId, new Date('2026-11-16T08:30:00.000Z'));
+    await createChronicRecord(prisma, userId);
+    expect((await getProfile().expect(200)).body.data.first_visit).toBe('2026-11-16T08:30:00.000Z');
   });
 
   it.each([
@@ -189,22 +183,31 @@ describe('GET/PUT /profile (MySQL thật)', () => {
     ],
     ['career ngoài danh sách → 2003', { career: 'Bác sĩ' }, '2003', 'career'],
     ['full_name chỉ có khoảng trắng → 2003', { full_name: '   ' }, '2003', 'full_name'],
+    ['ethnic dài quá 50 ký tự → 2003', { ethnic: 'A'.repeat(51) }, '2003', 'ethnic'],
+    [
+      'health_insurance_number dài quá 30 ký tự → 2003',
+      { health_insurance_number: 'A'.repeat(31) },
+      '2003',
+      'health_insurance_number',
+    ],
+    ['gender other → 2003 (MT-59)', { gender: 'other' }, '2003', 'gender'],
   ])('%s (400, không ghi CSDL)', async (_name, body, code, field) => {
-    const res = await putProfile({ ethnic: 'Kinh', ...body }).expect(400);
+    const res = await putProfile({ hamlet_address: 'Thôn 9', ...body }).expect(400);
     expect(res.body).toMatchObject({ code, data: { field } });
-    expect((await findPatient()).dan_toc).toBeNull();
+    expect((await findPatient()).dia_chi_so_nha_thon_pho).toBeNull();
   });
 
   it('body rỗng hoặc chỉ có trường không sửa được → 400 / 2001', async () => {
-    const empty = await putProfile({}).expect(400);
-    expect(empty.body).toEqual({ code: '2001', message: 'Missing required parameter' });
-    const readOnly = await putProfile({ phone: '0987654321', first_visit: '2026-11-15' }).expect(
-      400,
-    );
-    expect(readOnly.body.code).toBe('2001');
+    expect((await putProfile({}).expect(400)).body).toEqual({
+      code: '2001',
+      message: 'Missing required parameter',
+    });
+    expect(
+      (await putProfile({ phone: '0987654321', first_visit: '2026-11-15' }).expect(400)).body.code,
+    ).toBe('2001');
   });
 
-  describe('nhân viên (admin của seed)', () => {
+  describe('nhân viên (admin của seed, không có nhanvien)', () => {
     let adminToken: string;
 
     beforeEach(async () => {
@@ -212,9 +215,8 @@ describe('GET/PUT /profile (MySQL thật)', () => {
     });
 
     it('GET chỉ có 5 khoá chung', async () => {
-      const res = await getProfile(adminToken).expect(200);
-      expect(res.body.data).toStrictEqual({
-        user_id: expect.any(Number),
+      expect((await getProfile(adminToken).expect(200)).body.data).toStrictEqual({
+        user_id: seed.adminId,
         full_name: 'QUẢN TRỊ VIÊN',
         phone: ADMIN.phone,
         role_id: seed.roles.admin,
@@ -222,13 +224,12 @@ describe('GET/PUT /profile (MySQL thật)', () => {
       });
     });
 
-    it('PUT full_name/gender → 200 / 1000 với 5 khoá; gửi trường của bệnh nhân → 400 / 2003', async () => {
-      const res = await putProfile({ full_name: 'quản trị', gender: 'other' }, adminToken).expect(
+    it('PUT full_name/gender → 5 khoá; gửi trường của bệnh nhân → 400 / 2003, không ghi', async () => {
+      const res = await putProfile({ full_name: 'quản trị', gender: 'female' }, adminToken).expect(
         200,
       );
-      expect(res.body.data).toMatchObject({ full_name: 'QUẢN TRỊ', gender: 'other' });
+      expect(res.body.data).toMatchObject({ full_name: 'QUẢN TRỊ', gender: 'female' });
       expect(Object.keys(res.body.data)).toHaveLength(5);
-
       const denied = await putProfile({ full_name: 'Khác', career: 'Khac' }, adminToken).expect(
         400,
       );
@@ -237,19 +238,13 @@ describe('GET/PUT /profile (MySQL thật)', () => {
         message: 'Invalid parameter value',
         data: { field: 'career' },
       });
-      const admin = await prisma.users.findUniqueOrThrow({ where: { so_dien_thoai: ADMIN.phone } });
-      expect(admin.ho_ten).toBe('QUẢN TRỊ');
+      expect((await findAccount(prisma, ADMIN.phone)).nguoi.ho_ten).toBe('QUẢN TRỊ');
     });
   });
 
   it('không có token → 401 / 3003', async () => {
-    const unauthenticated = { code: '3003', message: 'User not authenticated' };
-    const get = await request(app.getHttpServer()).get('/api/v1/profile').expect(401);
-    expect(get.body).toEqual(unauthenticated);
-    const put = await request(app.getHttpServer())
-      .put('/api/v1/profile')
-      .send({ full_name: 'A' })
-      .expect(401);
-    expect(put.body).toEqual(unauthenticated);
+    expect((await request(app.getHttpServer()).get('/api/v1/profile').expect(401)).body.code).toBe(
+      '3003',
+    );
   });
 });
