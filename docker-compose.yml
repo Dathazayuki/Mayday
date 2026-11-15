@@ -40,6 +40,25 @@ services:
       interval: 5s
       retries: 20
 
+  # CSDL dev/test: PostgreSQL 17. Schema nạp từ bản sao file SQL của nhóm DB bằng
+  # `pnpm --filter @drmayday/api db:reset`. Cổng host 5434 vì 5433 đã có PostgreSQL của dự án khác.
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-drmayday}
+      POSTGRES_USER: ${POSTGRES_USER:-drmayday}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-drmayday-dev-secret}
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5434}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      retries: 20
+
 volumes:
   minio-data:
   mysql-data:
+  postgres-data:

@@ -2,20 +2,10 @@ import type { INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { config } from 'dotenv';
-import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { AppModule } from '../src/app.module.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 
-/** File có `moduleUrl` (import.meta.url) là entry point của lệnh, hay chỉ được import (test dùng hàm của nó)? */
-export function isEntryPoint(moduleUrl: string): boolean {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  // So sánh đường dẫn tuyệt đối đã chuẩn hoá; Windows không phân biệt hoa/thường (ví dụ ổ c: và C:).
-  const normalize = (path: string) =>
-    process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path);
-  return normalize(entry) === normalize(fileURLToPath(moduleUrl));
-}
+export { isEntryPoint } from './entry-point.mjs';
 
 /**
  * Khung của lệnh CSDL (db:seed, db:sync-endpoints): PrismaClient theo DATABASE_URL và app context

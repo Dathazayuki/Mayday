@@ -1,0 +1,73 @@
+// Trích kết quả `prisma db pull` của spike (docs/08-csdl-that/ket-qua-spike-prisma.md), lược bớt cột thường.
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  previewFeatures     = ["partialIndexes"]
+  importFileExtension = "js"
+  moduleFormat        = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model benhanmaydaycap {
+  ma_ho_so                                                     BigInt                   @id(map: "pk_benhanmaydaycap")
+  loai_benh_an                                                 String?                  @default("CAP")
+  nhap_vien                                                    Boolean?
+  thoi_diem_cap_nhat                                           DateTime                 @default(now()) @db.Timestamptz(6)
+  hosobenhan_benhanmaydaycap_ma_ho_so_loai_benh_anTohosobenhan hosobenhan?              @relation("benhanmaydaycap_ma_ho_so_loai_benh_anTohosobenhan", fields: [ma_ho_so, loai_benh_an], references: [ma_ho_so, loai_benh_an], onDelete: NoAction, onUpdate: NoAction, map: "fk_benhanmaydaycap_hoso")
+}
+
+model benhanmaydayman {
+  ma_ho_so                                                     BigInt                 @id(map: "pk_benhanmaydayman")
+  loai_benh_an                                                 String?                @default("MAN")
+  chan_doan_chinh                                              String?
+  hosobenhan_benhanmaydayman_ma_ho_so_loai_benh_anTohosobenhan hosobenhan?            @relation("benhanmaydayman_ma_ho_so_loai_benh_anTohosobenhan", fields: [ma_ho_so, loai_benh_an], references: [ma_ho_so, loai_benh_an], onDelete: NoAction, onUpdate: NoAction, map: "fk_benhanmaydayman_hoso")
+}
+
+model ketquacanlamsangcap {
+  ma_ket_qua_can_lam_sang                                                                                  BigInt             @id(map: "pk_kqcls_cap")
+  loai_ket_qua_can_lam_sang                                                                                String?            @default("CAP") @db.VarChar(3)
+  lym                                                                                                      Decimal?           @db.Decimal(12, 4)
+  ketquacanlamsang_ketquacanlamsangcap_ma_ket_qua_can_lam_sang_loai_ket_qua_can_lam_sangToketquacanlamsang ketquacanlamsang?  @relation("ketquacanlamsangcap_ma_ket_qua_can_lam_sang_loai_ket_qua_can_lam_sangToketquacanlamsang", fields: [ma_ket_qua_can_lam_sang, loai_ket_qua_can_lam_sang], references: [ma_ket_qua_can_lam_sang, loai_ket_qua_can_lam_sang], onDelete: Cascade, onUpdate: NoAction, map: "fk_kqcls_cap_cha")
+}
+
+model ketquacanlamsangman {
+  ma_ket_qua_can_lam_sang                                                                                  BigInt             @id(map: "pk_kqcls_man")
+  loai_ket_qua_can_lam_sang                                                                                String?            @default("MAN") @db.VarChar(3)
+  tsh                                                                                                      Decimal?           @db.Decimal(12, 4)
+  ketquacanlamsang_ketquacanlamsangman_ma_ket_qua_can_lam_sang_loai_ket_qua_can_lam_sangToketquacanlamsang ketquacanlamsang?  @relation("ketquacanlamsangman_ma_ket_qua_can_lam_sang_loai_ket_qua_can_lam_sangToketquacanlamsang", fields: [ma_ket_qua_can_lam_sang, loai_ket_qua_can_lam_sang], references: [ma_ket_qua_can_lam_sang, loai_ket_qua_can_lam_sang], onDelete: Cascade, onUpdate: NoAction, map: "fk_kqcls_man_cha")
+}
+
+model nguoi {
+  ma_nguoi                 BigInt                     @id(map: "pk_nguoi") @default(autoincrement())
+  ho_ten                   String                     @db.VarChar(150)
+  so_dien_thoai            String                     @db.VarChar(10)
+  thoi_diem_tao            DateTime                   @default(now()) @db.Timestamptz(6)
+  thoi_diem_cap_nhat       DateTime                   @default(now()) @db.Timestamptz(6)
+  taikhoan                 taikhoan?
+}
+
+model phienkhamcap {
+  ma_phien_kham                                                BigInt                    @id(map: "pk_phienkhamcap")
+  loai_benh_an                                                 String?                   @default("CAP")
+  trieu_chung_da                                               String?
+  phienkham_phienkhamcap_ma_phien_kham_loai_benh_anTophienkham phienkham?                @relation("phienkhamcap_ma_phien_kham_loai_benh_anTophienkham", fields: [ma_phien_kham, loai_benh_an], references: [ma_phien_kham, loai_benh_an], onDelete: NoAction, onUpdate: NoAction, map: "fk_phienkhamcap_phienkham")
+}
+
+model phienkhamman {
+  ma_phien_kham                                                BigInt                     @id(map: "pk_phienkhamman")
+  loai_benh_an                                                 String?                    @default("MAN")
+  diem_aas7                                                    Int?                       @db.SmallInt
+  phienkham_phienkhamman_ma_phien_kham_loai_benh_anTophienkham phienkham?                 @relation("phienkhamman_ma_phien_kham_loai_benh_anTophienkham", fields: [ma_phien_kham, loai_benh_an], references: [ma_phien_kham, loai_benh_an], onDelete: NoAction, onUpdate: NoAction, map: "fk_phienkhamman_phienkham")
+}
+
+model vaitroquyenhan {
+  ma_vai_tro    BigInt
+  ma_quyen_han  BigInt
+  thoi_diem_gan DateTime @default(now()) @db.Timestamptz(6)
+  ma_nguoi_gan  BigInt?
+
+  @@id([ma_vai_tro, ma_quyen_han], map: "pk_vai_tro_quyen_han")
+}
