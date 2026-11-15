@@ -34,11 +34,20 @@ function firstLeaf(
   return undefined;
 }
 
+/** Giá trị coi như chưa gửi: thiếu, null, chuỗi rỗng, mảng rỗng (VD `permissions: []`). */
+function isEmptyValue(value: unknown): boolean {
+  return (
+    value === undefined ||
+    value === null ||
+    value === '' ||
+    (Array.isArray(value) && value.length === 0)
+  );
+}
+
 /** Thứ tự ưu tiên: thiếu trường (2001) → sai kiểu (2002) → sai định dạng (2004/2005/2006) → 2003. */
 export function codeForValidationError(error: ValidationError): Code {
   const constraints = Object.keys(error.constraints ?? {});
-  const value: unknown = error.value;
-  if (value === undefined || value === null || value === '') return '2001';
+  if (isEmptyValue(error.value)) return '2001';
   if (constraints.some((name) => MISSING_CONSTRAINTS.has(name))) return '2001';
   if (constraints.some((name) => TYPE_CONSTRAINTS.has(name))) return '2002';
   const format = constraints.map((name) => FORMAT_CONSTRAINTS[name]).find(Boolean);

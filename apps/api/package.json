@@ -19,6 +19,7 @@
     "prisma:generate": "prisma generate",
     "db:push": "prisma db push && prisma generate",
     "db:seed": "prisma db seed",
+    "db:sync-endpoints": "tsx scripts/sync-endpoints.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
