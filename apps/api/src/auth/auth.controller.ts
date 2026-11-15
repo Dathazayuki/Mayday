@@ -6,8 +6,8 @@ import type {
   SignupResponseData,
 } from '@drmayday/shared';
 import { ResponseCode } from '../common/response-code.decorator.js';
-import { RequireRole } from '../roles/require-role.decorator.js';
 import { RequirePermission } from '../permissions/require-permission.decorator.js';
+import { RequireRole } from '../roles/require-role.decorator.js';
 import { AuthService } from './auth.service.js';
 import { CurrentUser } from './current-user.decorator.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';

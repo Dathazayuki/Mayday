@@ -132,7 +132,7 @@ export function genderFromDb(value: string | null): Gender | null {
 }
 
 /** API dùng đúng 5 giá trị của `ck_benh_nhan_nghe_nghiep` (SQL:113–116). */
-export function careerToDb(career: Career): string {
+function careerToDb(career: Career): string {
   return career;
 }
 
@@ -143,12 +143,12 @@ export function careerFromDb(value: string | null): Career | null {
 // ---- Giá trị đơn ----
 
 /** `nguoi.ho_ten` ghi bằng chữ in hoa. */
-export function normalizeFullName(fullName: string): string {
+function normalizeFullName(fullName: string): string {
   return fullName.trim().toLocaleUpperCase('vi');
 }
 
 /** year_of_birth đọc từ `nguoi.ngay_sinh` (MT-13). */
-export function yearFromDate(date: Date | null): number | null {
+function yearFromDate(date: Date | null): number | null {
   return date === null ? null : date.getUTCFullYear();
 }
 
@@ -159,12 +159,12 @@ export function dateForYear(year: number, current: Date | null): Date | undefine
 }
 
 /** Cột `date` → `YYYY-MM-DD` (Prisma trả nửa đêm UTC). */
-export function isoDate(date: Date | null): string | null {
+function isoDate(date: Date | null): string | null {
   return date === null ? null : date.toISOString().slice(0, 10);
 }
 
 /** Cột `timestamptz` → ISO 8601. */
-export function isoDateTime(date: Date | null): string | null {
+function isoDateTime(date: Date | null): string | null {
   return date === null ? null : date.toISOString();
 }
 

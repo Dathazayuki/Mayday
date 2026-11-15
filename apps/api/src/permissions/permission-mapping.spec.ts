@@ -2,6 +2,7 @@ import type { quyenhan, vaitroquyenhan } from '../generated/prisma/client.js';
 import {
   newPermissionToDb,
   permissionChangesToDb,
+  toAccessRules,
   toGrantRecord,
   toPermissionData,
   toPermissionRecord,
@@ -73,6 +74,18 @@ describe('permission-mapping (quyenhan, vaitroquyenhan)', () => {
     expect(permissionChangesToDb({ description: null })).toEqual({
       ten_quyen_han: undefined,
       mo_ta: null,
+    });
+  });
+
+  it('toAccessRules: id bigint → number, giữ tên quyền', () => {
+    expect(
+      toAccessRules(
+        [{ ma_vai_tro: 2n, ma_quyen_han: 10n }],
+        [{ ma_quyen_han: 10n, ten_quyen_han: 'manage_users' }],
+      ),
+    ).toEqual({
+      rolePermissions: [{ roleId: 2, permissionId: 10 }],
+      permissions: [{ permissionId: 10, name: 'manage_users' }],
     });
   });
 });

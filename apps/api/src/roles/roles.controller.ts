@@ -2,9 +2,9 @@ import { Body, Controller, Get, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { RoleData } from '@drmayday/shared';
 import { ResponseCode } from '../common/response-code.decorator.js';
+import { RequirePermission } from '../permissions/require-permission.decorator.js';
 import { CreateRoleDto } from './dto/create-role.dto.js';
 import { RequireRole } from './require-role.decorator.js';
-import { RequirePermission } from '../permissions/require-permission.decorator.js';
 import { RolesService } from './roles.service.js';
 
 /** Sheet role01–02. */

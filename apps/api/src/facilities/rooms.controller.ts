@@ -3,8 +3,8 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { RoomCreatedData, RoomData, RoomListItem } from '@drmayday/shared';
 import { parseIdPipe } from '../common/parse-id.pipe.js';
 import { ResponseCode } from '../common/response-code.decorator.js';
-import { RequireRole } from '../roles/require-role.decorator.js';
 import { RequirePermission } from '../permissions/require-permission.decorator.js';
+import { RequireRole } from '../roles/require-role.decorator.js';
 import { CreateRoomDto, ListRoomsQuery, UpdateRoomDto } from './dto/room.dto.js';
 import { RoomsService } from './rooms.service.js';
 

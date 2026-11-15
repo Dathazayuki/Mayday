@@ -21,6 +21,12 @@ export interface NewPermission {
   description: string | null;
 }
 
+/** Dữ liệu của PermissionsGuard: quyền của từng vai trò và tên của mọi quyền (để tra quyền khai báo). */
+export interface AccessRules {
+  rolePermissions: { roleId: number; permissionId: number }[];
+  permissions: { permissionId: number; name: string }[];
+}
+
 export function toPermissionRecord(row: quyenhan): PermissionRecord {
   return {
     id: fromDbId(row.ma_quyen_han),
@@ -71,5 +77,21 @@ export function toRolePermissionData(grant: GrantRecord): RolePermissionData {
     name: grant.name,
     description: grant.description,
     assigned_at: grant.assignedAt.toISOString(),
+  };
+}
+
+export function toAccessRules(
+  grants: Pick<vaitroquyenhan, 'ma_vai_tro' | 'ma_quyen_han'>[],
+  permissions: Pick<quyenhan, 'ma_quyen_han' | 'ten_quyen_han'>[],
+): AccessRules {
+  return {
+    rolePermissions: grants.map((grant) => ({
+      roleId: fromDbId(grant.ma_vai_tro),
+      permissionId: fromDbId(grant.ma_quyen_han),
+    })),
+    permissions: permissions.map((permission) => ({
+      permissionId: fromDbId(permission.ma_quyen_han),
+      name: permission.ten_quyen_han,
+    })),
   };
 }

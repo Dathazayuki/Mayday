@@ -280,6 +280,17 @@ describe('quản trị người dùng /admin/users (PostgreSQL thật)', () => {
       expect((await api('get', '/profile', token).expect(401)).body.code).toBe('3001');
     });
 
+    it('nhân viên đã phân công → xoá taikhoan, nhanvien, nguoi; token cũ 3001', async () => {
+      const { id, token } = await session('0911111111', seed.roles.bac_si);
+      await api('put', `/admin/users/${id}/assign`).send({ branch_id: seed.branchId }).expect(200);
+      expect(await prisma.nhanvien.count({ where: { ma_nhan_vien: BigInt(id) } })).toBe(1);
+      await api('delete', `/admin/users/${id}`).expect(200);
+      expect(await prisma.nguoi.count({ where: { ma_nguoi: BigInt(id) } })).toBe(0);
+      expect(await prisma.taikhoan.count({ where: { ma_nguoi: BigInt(id) } })).toBe(0);
+      expect(await prisma.nhanvien.count({ where: { ma_nhan_vien: BigInt(id) } })).toBe(0);
+      expect((await api('get', '/profile', token).expect(401)).body.code).toBe('3001');
+    });
+
     it('bệnh nhân có hồ sơ bệnh án → 409 / 2003, không xoá gì (rollback)', async () => {
       const id = await createUser('0911111111', seed.roles.benh_nhan);
       await createChronicRecord(prisma, id);

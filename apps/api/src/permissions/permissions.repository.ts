@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { conflict, invalidReference } from '../common/app.exception.js';
-import { fromDbId, toDbId } from '../prisma/db-id.js';
+import { toDbId } from '../prisma/db-id.js';
 import {
   isForeignKeyViolation,
   isRecordNotFound,
@@ -10,8 +10,10 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import {
   newPermissionToDb,
   permissionChangesToDb,
+  toAccessRules,
   toGrantRecord,
   toPermissionRecord,
+  type AccessRules,
   type GrantRecord,
   type NewPermission,
   type PermissionRecord,
@@ -21,12 +23,6 @@ import {
 const NAME_UNIQUE = 'uq_quyen_han_ten';
 const GRANT_ROLE_FK = 'fk_vtqh_vai_tro';
 const GRANT_PERMISSION_FK = 'fk_vtqh_quyen_han';
-
-/** Dữ liệu của PermissionsGuard: quyền của từng vai trò và tên của mọi quyền (để tra quyền khai báo). */
-export interface AccessRules {
-  rolePermissions: { roleId: number; permissionId: number }[];
-  permissions: { permissionId: number; name: string }[];
-}
 
 /** Bảng `quyenhan` và `vaitroquyenhan`. */
 @Injectable()
@@ -131,15 +127,6 @@ export class PermissionsRepository {
       db.vaitroquyenhan.findMany({ select: { ma_vai_tro: true, ma_quyen_han: true } }),
       db.quyenhan.findMany({ select: { ma_quyen_han: true, ten_quyen_han: true } }),
     ]);
-    return {
-      rolePermissions: grants.map(({ ma_vai_tro, ma_quyen_han }) => ({
-        roleId: fromDbId(ma_vai_tro),
-        permissionId: fromDbId(ma_quyen_han),
-      })),
-      permissions: permissions.map(({ ma_quyen_han, ten_quyen_han }) => ({
-        permissionId: fromDbId(ma_quyen_han),
-        name: ten_quyen_han,
-      })),
-    };
+    return toAccessRules(grants, permissions);
   }
 }

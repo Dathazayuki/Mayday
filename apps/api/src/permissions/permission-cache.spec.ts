@@ -1,5 +1,6 @@
 import { PermissionCache } from './permission-cache.js';
-import type { AccessRules, PermissionsRepository } from './permissions.repository.js';
+import type { AccessRules } from './permission-mapping.js';
+import type { PermissionsRepository } from './permissions.repository.js';
 
 const RULES: AccessRules = {
   rolePermissions: [

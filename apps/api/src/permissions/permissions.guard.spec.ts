@@ -8,7 +8,8 @@ import { isDatabaseConnectionError } from '../prisma/prisma-errors.js';
 import type { RolesRepository } from '../roles/roles.repository.js';
 import { PermissionCache } from './permission-cache.js';
 import { PermissionsGuard } from './permissions.guard.js';
-import type { AccessRules, PermissionsRepository } from './permissions.repository.js';
+import type { AccessRules } from './permission-mapping.js';
+import type { PermissionsRepository } from './permissions.repository.js';
 import { RequirePermission } from './require-permission.decorator.js';
 
 const ADMIN = 1;

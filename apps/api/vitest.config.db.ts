@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import { assertLocalDatabase } from './scripts/load-schema.mjs';
 
 // Test tích hợp với PostgreSQL thật. Chạy bằng `pnpm --filter @drmayday/api test:db` (scripts/test-db.mjs),
 // script đó đặt DATABASE_URL = TEST_DATABASE_URL. Chặn chạy trực tiếp để resetData không xoá CSDL dev.
@@ -6,6 +7,8 @@ const { DATABASE_URL, TEST_DATABASE_URL } = process.env;
 if (!TEST_DATABASE_URL || DATABASE_URL !== TEST_DATABASE_URL) {
   throw new Error('Chạy test tích hợp bằng `pnpm --filter @drmayday/api test:db`.');
 }
+// Chạy trực tiếp vitest cũng không bao giờ được xoá dữ liệu của CSDL không nằm trên máy.
+assertLocalDatabase(TEST_DATABASE_URL);
 
 export default defineConfig({
   resolve: { tsconfigPaths: true },

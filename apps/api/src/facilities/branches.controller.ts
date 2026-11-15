@@ -3,8 +3,8 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { BranchData, BranchListItem } from '@drmayday/shared';
 import { parseIdPipe } from '../common/parse-id.pipe.js';
 import { ResponseCode } from '../common/response-code.decorator.js';
-import { RequireRole } from '../roles/require-role.decorator.js';
 import { RequirePermission } from '../permissions/require-permission.decorator.js';
+import { RequireRole } from '../roles/require-role.decorator.js';
 import { BranchesService } from './branches.service.js';
 import { CreateBranchDto, UpdateBranchDto } from './dto/branch.dto.js';
 

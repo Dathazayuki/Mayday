@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PermissionsRepository, type AccessRules } from './permissions.repository.js';
+import type { AccessRules } from './permission-mapping.js';
+import { PermissionsRepository } from './permissions.repository.js';
 
 /** role_id → id quyền đã cấp, và tên quyền → id quyền. */
 interface AccessMatrix {
