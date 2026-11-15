@@ -4,7 +4,7 @@ import { syncEndpoints } from '../scripts/sync-endpoints.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import type { PrismaClient } from '../src/generated/prisma/client.js';
 import { routeKey, type RouteKey } from '../src/permissions/route-key.js';
-import { ROLE_NAMES, type RoleName } from '../src/roles/role-names.js';
+import { ADMIN_ROLE, ROLE_NAMES, type RoleName } from '../src/roles/role-names.js';
 
 /**
  * Seed dữ liệu dev (idempotent, chạy lại không nhân đôi). Vai trò admin/patient theo ví dụ của bảng roles;
@@ -68,12 +68,12 @@ const PERMISSION_SEEDS: Record<PermissionName, PermissionSeed> = {
       routeKey(PUT, 'admin/users', ':id/assign'),
       routeKey(POST, 'auth', 'admin/create-staff'),
     ],
-    grantedTo: ['admin'],
+    grantedTo: [ADMIN_ROLE],
   },
   manage_roles: {
     description: 'Quản lý vai trò',
     routes: [routeKey(POST, 'roles', '/'), routeKey(GET, 'roles', '/')],
-    grantedTo: ['admin'],
+    grantedTo: [ADMIN_ROLE],
   },
   manage_permissions: {
     description: 'Quản lý quyền và gán quyền cho vai trò',
@@ -86,7 +86,7 @@ const PERMISSION_SEEDS: Record<PermissionName, PermissionSeed> = {
       routeKey(GET, 'role_permissions', 'role/:role_id'),
       routeKey(DELETE, 'role_permissions', ':role_id/:permission_id'),
     ],
-    grantedTo: ['admin'],
+    grantedTo: [ADMIN_ROLE],
   },
   manage_facilities: {
     description: 'Quản lý chi nhánh, khoa, phòng',
@@ -95,7 +95,7 @@ const PERMISSION_SEEDS: Record<PermissionName, PermissionSeed> = {
       routeKey(PUT, resource, ':id'),
       routeKey(DELETE, resource, ':id'),
     ]),
-    grantedTo: ['admin'],
+    grantedTo: [ADMIN_ROLE],
   },
   view_facilities: {
     description: 'Xem chi nhánh, khoa, phòng',
@@ -230,7 +230,7 @@ async function checkAdminSeed(
         'trên tài khoản này. Đổi SEED_ADMIN_PHONE sang số khác rồi chạy lại.',
     );
   }
-  if (user.staffs && user.staffs.role.name !== 'admin') {
+  if (user.staffs && user.staffs.role.name !== ADMIN_ROLE) {
     throw new Error(
       `SEED_ADMIN_PHONE=${phone} đã là nhân viên vai trò ${user.staffs.role.name} (user_id ${user.user_id}): ` +
         'seed không đổi vai trò của tài khoản có sẵn. Đổi SEED_ADMIN_PHONE sang số khác rồi chạy lại.',
