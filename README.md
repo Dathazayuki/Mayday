@@ -75,7 +75,7 @@ Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXP
 - Swagger (`/api/v1/docs`) chỉ mở khi `APP_ENV` là `development` hoặc `test`; `APP_ENV=production` (hoặc để trống) thì tắt.
 - `APP_ENV=production` bắt buộc có `DATABASE_URL` và nên đặt `CORS_ORIGINS` cho domain của Web (để trống thì trình duyệt ở origin khác bị chặn). App mobile không bị CORS chặn.
 - `.env` gốc dùng chung với Vite: **không** đặt `NODE_ENV` trong đó (API dùng `APP_ENV`).
-- Hiện đã chạy: API giai đoạn 1 và 2 (xác thực, hồ sơ, cơ sở vật chất, quản trị, vai trò, quyền), API bệnh nhân, hồ sơ bệnh án, chuyển trạng thái và phiên khám của giai đoạn 4 (`/doctor/patients…`, `/medical_records…`, `/visits/:id`, tiểu dự án B1–B3). Các màn bệnh án đầy đủ (bảng/cột, màn chi tiết có kiểu: B4–B5) và giai đoạn 5–8 trên Web, Mobile chưa có API tương ứng nên sẽ nhận 404. Xem [docs/07-tien-do.md](docs/07-tien-do.md).
+- Hiện đã chạy: API giai đoạn 1 và 2 (xác thực, hồ sơ, cơ sở vật chất, quản trị, vai trò, quyền), API bệnh nhân, hồ sơ bệnh án, chuyển trạng thái, phiên khám và Tổng quan của giai đoạn 4 (`/doctor/patients…`, `/medical_records…`, `/visits/:id`, `/dashboard/summary`, tiểu dự án B1–B4); Web có trang bệnh án hai chế độ bảng/cột (kéo thả) và trang Tổng quan. Màn chi tiết bệnh án có kiểu (B5), bệnh nhân tự khai (B6) chưa làm; các màn giai đoạn 5–8 trên Web, Mobile chưa có API tương ứng nên sẽ nhận 404. Xem [docs/07-tien-do.md](docs/07-tien-do.md).
 
 ## Kiểm tra
 
