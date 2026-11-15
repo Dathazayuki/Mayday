@@ -1,3 +1,4 @@
+import { RECORD_TYPE_LABELS } from '@drmayday/shared';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
@@ -5,8 +6,8 @@ import { AuthGate } from '@/components/auth-gate';
 import { FormScreen } from '@/components/form-screen';
 import { LoadError } from '@/components/load-error';
 import { RecordStatusBadge } from '@/components/record-status-badge';
-import { formatDisplayDateTime } from '@/lib/local-date';
 import { fetchMedicalRecord } from '@/lib/medical-records-api';
+import { recordDateLabel } from '@/lib/record-dates';
 import { useLoader } from '@/lib/use-loader';
 
 /**
@@ -34,7 +35,11 @@ function RecordDetailView({ id }: { id: string }) {
     <FormScreen>
       <View style={styles.header}>
         <RecordStatusBadge status={record.status} />
-        <Text style={styles.line}>Tạo lúc {formatDisplayDateTime(record.created_at)}</Text>
+        <Text style={styles.line}>{RECORD_TYPE_LABELS[record.record_type]}</Text>
+        <Text style={styles.line}>{recordDateLabel(record)}</Text>
+        {record.assigned_doctor_name ? (
+          <Text style={styles.line}>Bác sĩ phụ trách: {record.assigned_doctor_name}</Text>
+        ) : null}
       </View>
       {record.instructions ? (
         <View style={styles.instructions}>

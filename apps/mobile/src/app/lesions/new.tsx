@@ -8,6 +8,7 @@ import {
   buildContextInput,
   buildContextPatch,
   emptyContextValues,
+  RECORD_TYPE_LABELS,
   textOrNull,
   toContextValues,
   validateContext,
@@ -27,8 +28,8 @@ import { LoadError } from '@/components/load-error';
 import { OptionPicker } from '@/components/option-picker';
 import { PrimaryButton } from '@/components/primary-button';
 import { createEpisode, fetchEpisode, updateEpisode } from '@/lib/lesions-api';
-import { formatDisplayDateTime } from '@/lib/local-date';
 import { fetchHistory } from '@/lib/medical-records-api';
+import { recordDateLabel } from '@/lib/record-dates';
 import { useLoader } from '@/lib/use-loader';
 
 /** Bệnh án đang hoạt động để chọn, kèm nhãn có mã và ngày. */
@@ -146,11 +147,11 @@ function EpisodeForm({ setup }: { setup: EpisodeFormSetup }) {
   );
 }
 
-/** "Bệnh án #12 · 15/11/2026 08:30": nhãn của một bệnh án đang hoạt động. */
+/** "Mày đay mạn #12 · Đến khám lần đầu 15/11/2026 08:30": nhãn của một bệnh án đang hoạt động. */
 function describeRecord(record: MedicalRecordHistoryItem): RecordChoice {
   return {
     id: String(record.medical_record_id),
-    label: `Bệnh án #${record.medical_record_id} · ${formatDisplayDateTime(record.created_at)}`,
+    label: `${RECORD_TYPE_LABELS[record.record_type]} #${record.medical_record_id} · ${recordDateLabel(record)}`,
   };
 }
 

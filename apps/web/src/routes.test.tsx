@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { UNAUTHENTICATED_EVENT } from './api';
 import { AppRoutes } from './routes';
 import { errorResponse, jsonResponse, okResponse, renderApp, seedSession } from './test/helpers';
+import { medicalRecord } from './test/medical-record-fixture';
 
 function renderAt(path: string) {
   return renderApp(<AppRoutes />, path);
@@ -226,25 +227,14 @@ describe('Định tuyến và đăng nhập', () => {
       vi.fn((url: string) =>
         Promise.resolve(
           String(url).endsWith('/medical_records/5')
-            ? okResponse({
-                medical_record_id: 5,
-                patient_id: 7,
-                assigned_doctor_id: null,
-                created_by: 7,
-                template_id: null,
-                status: 'pending',
-                instructions: null,
-                completed_at: null,
-                created_at: '2026-11-15T08:00:00.000Z',
-                updated_at: '2026-11-15T08:00:00.000Z',
-              })
+            ? okResponse(medicalRecord({ medical_record_id: 5, status: 'pending' }))
             : okResponse([]),
         ),
       ),
     );
     renderAt('/medical-records/5');
     expect(await screen.findByText('Bệnh án #5')).toBeInTheDocument();
-    expect(await screen.findByText('Thông tin bệnh án')).toBeInTheDocument();
+    expect(await screen.findByText('Tóm tắt')).toBeInTheDocument();
   });
 
   it('vào /admin/facilities hiện trang quản lý cơ sở vật chất', async () => {

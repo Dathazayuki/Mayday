@@ -3,22 +3,16 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from 'antd';
 import { errorResponse, okResponse, renderApp, seedSession } from '../../test/helpers';
+import { medicalRecord } from '../../test/medical-record-fixture';
 import { LabPanel } from './LabPanel';
 
 const BASE = 'http://localhost:3000/api/v1';
 
-const RECORD: MedicalRecordData = {
+const RECORD: MedicalRecordData = medicalRecord({
   medical_record_id: 12,
   patient_id: 7,
-  assigned_doctor_id: 1,
-  created_by: 1,
-  template_id: null,
   status: 'in_progress',
-  instructions: null,
-  completed_at: null,
-  created_at: '',
-  updated_at: '',
-};
+});
 
 const LABS = [
   {

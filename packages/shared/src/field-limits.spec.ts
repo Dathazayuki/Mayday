@@ -1,7 +1,7 @@
 import { FIELD_LIMITS } from './field-limits.js';
 
 describe('FIELD_LIMITS (spec A, mục 5.2, 5.6)', () => {
-  it('độ dài tối đa theo cột của CSDL thật; cột TEXT giữ giới hạn API', () => {
+  it('độ dài tối đa theo cột của CSDL thật; cột TEXT giữ giới hạn API; TEXT lâm sàng 2000 (D-B29)', () => {
     expect(FIELD_LIMITS).toEqual({
       full_name: 150,
       role_name: 50,
@@ -15,6 +15,7 @@ describe('FIELD_LIMITS (spec A, mục 5.2, 5.6)', () => {
       city_address: 100,
       health_insurance_number: 30,
       next_of_kin_name: 100,
+      clinical_text: 2000,
     });
   });
 });

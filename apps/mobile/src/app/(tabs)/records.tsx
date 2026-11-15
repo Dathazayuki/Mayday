@@ -1,4 +1,4 @@
-import { describeError, type MedicalRecordHistoryItem } from '@drmayday/shared';
+import { describeError, RECORD_TYPE_LABELS, type MedicalRecordHistoryItem } from '@drmayday/shared';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -9,6 +9,7 @@ import { Banner } from '@/components/banner';
 import { PrimaryButton } from '@/components/primary-button';
 import { RecordStatusBadge } from '@/components/record-status-badge';
 import { fetchHistory } from '@/lib/medical-records-api';
+import { recordDateLabel } from '@/lib/record-dates';
 
 function RecordsList() {
   const router = useRouter();
@@ -85,9 +86,8 @@ function RecordsList() {
                 <Text style={styles.itemTitle}>Bệnh án #{item.medical_record_id}</Text>
                 <RecordStatusBadge status={item.status} />
               </View>
-              <Text style={styles.itemDate}>
-                {new Date(item.created_at).toLocaleString('vi-VN')}
-              </Text>
+              <Text style={styles.itemDate}>{RECORD_TYPE_LABELS[item.record_type]}</Text>
+              <Text style={styles.itemDate}>{recordDateLabel(item)}</Text>
             </Pressable>
           )}
         />

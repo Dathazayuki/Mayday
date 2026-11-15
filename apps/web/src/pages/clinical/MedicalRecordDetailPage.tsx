@@ -1,38 +1,54 @@
-import { describeError, type MedicalRecordData } from '@drmayday/shared';
+import { describeError, RECORD_TYPE_LABELS, type MedicalRecordData } from '@drmayday/shared';
 import { Alert, Descriptions, Skeleton, Space } from 'antd';
+import type { ReactNode } from 'react';
 import { useParams } from 'react-router';
-import {
-  useMedicalRecord,
-  useMedicalRecordSummary,
-  usePatientHistory,
-} from '../../clinical/medical-records-api';
+import { useMedicalRecord, usePatientHistory } from '../../clinical/medical-records-api';
 import { MedicalRecordStatusTag } from '../../clinical/status';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { ItemList } from '../../components/ItemList';
 import { Page } from '../../layout/Page';
 import { Panel } from '../../layout/Panel';
-import { formatDateTime } from '../../lib/format-date';
+import { formatDate, formatDateTime } from '../../lib/format-date';
 
-function SummaryCard({ record }: { record: MedicalRecordData }) {
-  const { data, error } = useMedicalRecordSummary(record.medical_record_id);
+const EMPTY = '—';
+
+/** "Khám lần đầu …" hoặc "Chưa đến khám" (hồ sơ chưa tiếp nhận, D-B9). */
+function firstVisitText(firstVisitAt: string | null): string {
+  return firstVisitAt ? formatDateTime(firstVisitAt) : 'Chưa đến khám';
+}
+
+/** Panel "Tóm tắt" (spec B, mục 8.7): trường suy ra của hồ sơ (mục 3.8). */
+function SummaryPanel({ record }: { record: MedicalRecordData }) {
+  const items: { label: string; value: ReactNode }[] = [
+    { label: 'Bệnh nhân', value: `${record.patient_name} · ${record.patient_phone}` },
+    { label: 'Loại bệnh án', value: RECORD_TYPE_LABELS[record.record_type] },
+    { label: 'Trạng thái', value: <MedicalRecordStatusTag status={record.status} /> },
+    { label: 'Bác sĩ phụ trách', value: record.assigned_doctor_name ?? EMPTY },
+    { label: 'Khám lần đầu', value: firstVisitText(record.first_visit_at) },
+    { label: 'Số phiên khám', value: <span className="num">{record.visit_count}</span> },
+    {
+      label: 'Lần khám gần nhất',
+      value: record.last_visit_date ? formatDate(record.last_visit_date) : EMPTY,
+    },
+    {
+      label: 'Hẹn tái khám',
+      value: record.next_appointment_date ? formatDate(record.next_appointment_date) : EMPTY,
+    },
+    { label: 'Dặn dò gần nhất', value: record.instructions ?? EMPTY },
+  ];
   return (
-    <Panel title="Thông tin bệnh án">
-      <QueryErrorAlert error={error} />
-      <Descriptions column={1} size="small">
-        <Descriptions.Item label="Bệnh nhân">{data?.patient_name}</Descriptions.Item>
-        <Descriptions.Item label="Trạng thái">
-          <MedicalRecordStatusTag status={record.status} />
-        </Descriptions.Item>
-        <Descriptions.Item label="Ngày tạo">{formatDateTime(record.created_at)}</Descriptions.Item>
-        {record.instructions && (
-          <Descriptions.Item label="Dặn dò">{record.instructions}</Descriptions.Item>
-        )}
-      </Descriptions>
+    <Panel title="Tóm tắt">
+      <Descriptions
+        column={{ xs: 1, md: 2 }}
+        bordered
+        size="small"
+        items={items.map((item) => ({ key: item.label, label: item.label, children: item.value }))}
+      />
     </Panel>
   );
 }
 
-function HistoryCard({ patientId }: { patientId: number }) {
+function HistoryPanel({ patientId }: { patientId: number }) {
   const { data, error, isPending } = usePatientHistory(patientId);
   return (
     <Panel title="Lịch sử bệnh án của bệnh nhân">
@@ -46,8 +62,13 @@ function HistoryCard({ patientId }: { patientId: number }) {
           <Space orientation="vertical" size={0}>
             <Space>
               <span className="num">#{item.medical_record_id}</span>
+              <span>{RECORD_TYPE_LABELS[item.record_type]}</span>
               <MedicalRecordStatusTag status={item.status} />
-              <span>{formatDateTime(item.created_at)}</span>
+              <span>
+                {item.first_visit_at
+                  ? `Khám lần đầu ${formatDateTime(item.first_visit_at)}`
+                  : 'Chưa đến khám'}
+              </span>
             </Space>
             {item.instructions && <span>{item.instructions}</span>}
           </Space>
@@ -86,8 +107,8 @@ export function MedicalRecordDetailPage() {
   }
   return (
     <Page title={title} back={back}>
-      <SummaryCard record={data} />
-      <HistoryCard patientId={data.patient_id} />
+      <SummaryPanel record={data} />
+      <HistoryPanel patientId={data.patient_id} />
     </Page>
   );
 }

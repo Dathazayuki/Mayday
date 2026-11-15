@@ -3,10 +3,12 @@ import {
   MEDICAL_RECORD_STATUS_LABELS,
   MEDICAL_RECORD_STATUSES,
   PAGE_DEFAULT,
+  RECORD_TYPE_LABELS,
   type MedicalRecordListItem,
   type MedicalRecordStatus,
+  type RecordType,
 } from '@drmayday/shared';
-import { Select } from 'antd';
+import { Select, Space } from 'antd';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useMedicalRecords } from '../../clinical/medical-records-api';
@@ -23,7 +25,7 @@ const STATUS_OPTIONS = MEDICAL_RECORD_STATUSES.map((value) => ({
   label: MEDICAL_RECORD_STATUS_LABELS[value],
 }));
 
-/** Danh sách mọi bệnh án; bác sĩ lọc `pending` để nhận ca rồi bấm dòng để vào màn khám. */
+/** Danh sách mọi bệnh án (contract mới của spec B); trang bảng/cột, tab số đếm làm ở B4. */
 export function MedicalRecordsPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<MedicalRecordStatus | undefined>();
@@ -74,14 +76,19 @@ export function MedicalRecordsPage() {
               render: (value: number) => <span className="num">{value}</span>,
             },
             {
-              title: 'Mã bệnh nhân',
-              dataIndex: 'patient_id',
-              render: (value: number) => <span className="num">{value}</span>,
+              title: 'Bệnh nhân',
+              key: 'patient',
+              render: (_: unknown, row: MedicalRecordListItem) => (
+                <Space orientation="vertical" size={0}>
+                  <span>{row.patient_name}</span>
+                  <span className="num">{row.patient_phone}</span>
+                </Space>
+              ),
             },
             {
-              title: 'Mẫu phiếu',
-              dataIndex: 'template_id',
-              render: (value: number) => <span className="num">{value}</span>,
+              title: 'Loại',
+              dataIndex: 'record_type',
+              render: (value: RecordType) => RECORD_TYPE_LABELS[value],
             },
             {
               title: 'Trạng thái',
@@ -89,9 +96,14 @@ export function MedicalRecordsPage() {
               render: (value: MedicalRecordStatus) => <MedicalRecordStatusTag status={value} />,
             },
             {
-              title: 'Ngày tạo',
-              dataIndex: 'created_at',
-              render: (value: string) => formatDateTime(value),
+              title: 'Bác sĩ phụ trách',
+              dataIndex: 'assigned_doctor_name',
+              render: (value: string | null) => value ?? '—',
+            },
+            {
+              title: 'Khám lần đầu',
+              dataIndex: 'first_visit_at',
+              render: (value: string | null) => (value ? formatDateTime(value) : '—'),
             },
           ]}
         />

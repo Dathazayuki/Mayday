@@ -15,6 +15,7 @@ export * from './contracts/facilities.js';
 export * from './contracts/patients.js';
 export * from './contracts/medical-records.js';
 export * from './medical-records.js';
+export * from './contracts/visits.js';
 export * from './contracts/uas7.js';
 export * from './uas7.js';
 export * from './contracts/prescriptions.js';

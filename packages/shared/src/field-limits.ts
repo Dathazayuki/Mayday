@@ -27,4 +27,6 @@ export const FIELD_LIMITS = {
   health_insurance_number: 30,
   /** benhnhan.nguoi_nha_ho_ten_dia_chi TEXT: giữ giới hạn API */
   next_of_kin_name: 100,
+  /** Cột TEXT lâm sàng (hồ sơ, phiên khám): CSDL không giới hạn, API giữ 2000 ký tự (D-B29, MT-125). */
+  clinical_text: 2000,
 } as const;

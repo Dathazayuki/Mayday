@@ -9,27 +9,30 @@ import {
   renderApp,
   seedSession,
 } from '../../test/helpers';
+import { medicalRecordListItem } from '../../test/medical-record-fixture';
 import { MedicalRecordsPage } from './MedicalRecordsPage';
 
 const BASE = 'http://localhost:3000/api/v1';
 
 const RECORDS = [
-  {
+  medicalRecordListItem({
     medical_record_id: 101,
     patient_id: 7,
-    assigned_doctor_id: null,
-    template_id: 'TMPL_DEV_SAMPLE',
+    record_type: 'MAN',
     status: 'pending',
-    created_at: '2026-11-15T08:00:00.000Z',
-  },
-  {
+    assigned_doctor_id: null,
+    assigned_doctor_name: null,
+    first_visit_at: null,
+    visit_count: 0,
+    last_visit_date: null,
+  }),
+  medicalRecordListItem({
     medical_record_id: 102,
     patient_id: 8,
-    assigned_doctor_id: 1,
-    template_id: null,
-    status: 'in_progress',
-    created_at: '2026-11-14T08:00:00.000Z',
-  },
+    patient_name: 'TRẦN VĂN BÌNH',
+    patient_phone: '0922222222',
+    record_type: 'CAP',
+  }),
 ];
 
 type Call = { method: string; url: string };
@@ -65,12 +68,20 @@ function setup(handler?: () => Response) {
 const listCalls = (calls: Call[]) => calls.filter((c) => c.url.includes('/medical_records/all'));
 
 describe('MedicalRecordsPage', () => {
-  it('gọi danh sách với page/limit mặc định và hiện mã, trạng thái', async () => {
+  it('gọi danh sách với page/limit mặc định và hiện bệnh nhân, loại, trạng thái, bác sĩ phụ trách', async () => {
     const calls = setup();
-    const row = (await screen.findByText('101')).closest('tr')!;
-    expect(within(row).getByText('Chờ tiếp nhận')).toBeInTheDocument();
-    expect(within(row).getByText('TMPL_DEV_SAMPLE')).toBeInTheDocument();
-    expect(screen.getByText('Đang khám')).toBeInTheDocument();
+    const pending = (await screen.findByText('101')).closest('tr')!;
+    expect(within(pending).getByText('LÊ THỊ MAI')).toBeInTheDocument();
+    expect(within(pending).getByText('0911111111')).toBeInTheDocument();
+    expect(within(pending).getByText('Mày đay mạn')).toBeInTheDocument();
+    expect(within(pending).getByText('Chờ tiếp nhận')).toBeInTheDocument();
+    // Chưa có bác sĩ phụ trách, chưa đến khám (hồ sơ chưa tiếp nhận).
+    expect(within(pending).getAllByText('—')).toHaveLength(2);
+    const examining = screen.getByText('102').closest('tr')!;
+    expect(within(examining).getByText('Mày đay cấp')).toBeInTheDocument();
+    expect(within(examining).getByText('Đang khám')).toBeInTheDocument();
+    expect(within(examining).getByText('NGUYỄN VĂN AN')).toBeInTheDocument();
+    expect(screen.queryByText('Mẫu phiếu')).toBeNull();
     expect(listCalls(calls)[0]!.url).toBe(`${BASE}/medical_records/all?page=1&limit=20`);
   });
 

@@ -3,7 +3,6 @@ import type {
   MedicalRecordHistoryItem,
   MedicalRecordListItem,
   MedicalRecordListQuery,
-  MedicalRecordSummary,
 } from '@drmayday/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api';
@@ -26,13 +25,6 @@ export function useMedicalRecord(id: number) {
   return useQuery({
     queryKey: [...RECORDS_KEY, 'detail', id],
     queryFn: () => apiClient.get<MedicalRecordData>(`/medical_records/${id}`),
-  });
-}
-
-export function useMedicalRecordSummary(id: number) {
-  return useQuery({
-    queryKey: [...RECORDS_KEY, 'summary', id],
-    queryFn: () => apiClient.get<MedicalRecordSummary>(`/medical_records/${id}/summary`),
   });
 }
 
