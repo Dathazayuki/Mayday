@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import type { MedicalRecordStatusCounts, PageResult } from '@drmayday/shared';
 import { AppException, conflict } from '../common/app.exception.js';
+import type { PageWindow } from '../common/paginated.js';
 import { hasChanges } from '../common/require-changes.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { fromDbId, toDbId } from '../prisma/db-id.js';
+import type { CountRow } from '../prisma/db-values.js';
 import { isForeignKeyViolation } from '../prisma/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -16,15 +19,18 @@ import {
   toMedicalRecord,
   toRecordLock,
   toRecordOverview,
+  toStatusCounts,
   type AcuteIntervalRow,
   type AcuteIntervals,
   type MedicalRecord,
   type NewMedicalRecord,
   type RecordChanges,
+  type RecordFilter,
   type RecordLock,
   type RecordLockRow,
   type RecordOverview,
   type RecordOverviewRow,
+  type StatusCountRow,
   type VisitBoundsRow,
 } from './medical-record-mapping.js';
 
@@ -78,6 +84,21 @@ async function readOverviews(
 ): Promise<RecordOverview[]> {
   const rows = await db.$queryRaw<RecordOverviewRow[]>(overviewQuery(where, tail));
   return rows.map(toRecordOverview);
+}
+
+/**
+ * WHERE của danh sách và số đếm (spec B, mục 4.4, 5.3), ghép bằng Prisma.sql có tham số. Bác sĩ phụ
+ * trách so với `dau` (phiên đầu, FIRST_VISIT_DOCTOR) nên câu dùng hàm này phải có join đó.
+ */
+function filterWhere({ status, patientId, type, doctorId }: RecordFilter): Prisma.Sql {
+  const conditions: Prisma.Sql[] = [];
+  if (status !== undefined) conditions.push(Prisma.sql`h.trang_thai = ${status}`);
+  if (patientId !== undefined) conditions.push(Prisma.sql`h.ma_benh_nhan = ${toDbId(patientId)}`);
+  if (type !== undefined) conditions.push(Prisma.sql`h.loai_benh_an = ${type}`);
+  if (doctorId !== undefined) conditions.push(Prisma.sql`dau.ma_bac_si = ${toDbId(doctorId)}`);
+  return conditions.length === 0
+    ? Prisma.empty
+    : Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
 }
 
 /** Ba cột INTERVAL theo giây, làm tròn xuống (spec B, mục 4.4; spike 3e: không cast thì lỗi P2010). */
@@ -219,6 +240,58 @@ export class MedicalRecordsRepository {
   /** GET /medical_records/:id: hồ sơ đầy đủ. */
   findById(recordId: number): Promise<MedicalRecord | null> {
     return readRecord(this.prisma.db, recordId);
+  }
+
+  /** GET /medical_records/:id/summary: hồ sơ ở mức tổng quan, không đọc subtype. */
+  async findOverview(recordId: number): Promise<RecordOverview | null> {
+    const [overview] = await readOverviews(
+      this.prisma.db,
+      Prisma.sql`WHERE h.ma_ho_so = ${toDbId(recordId)}`,
+    );
+    return overview ?? null;
+  }
+
+  /**
+   * GET /medical_records/all (medrec04, D-B24): một trang (ma_ho_so giảm dần, D-B10) và tổng số, đọc
+   * trong cùng một transaction.
+   */
+  async list(
+    filter: RecordFilter,
+    { skip, take }: PageWindow,
+  ): Promise<PageResult<RecordOverview>> {
+    const db = this.prisma.db;
+    const where = filterWhere(filter);
+    const [rows, counts] = await db.$transaction([
+      db.$queryRaw<RecordOverviewRow[]>(
+        overviewQuery(where, Prisma.sql`LIMIT ${take} OFFSET ${skip}`),
+      ),
+      db.$queryRaw<CountRow[]>`
+        SELECT COUNT(*) AS total FROM hosobenhan h ${FIRST_VISIT_DOCTOR} ${where}`,
+    ]);
+    return { items: rows.map(toRecordOverview), total: Number(counts[0]?.total ?? 0n) };
+  }
+
+  /** GET /medical_records/status-counts (MT-120): cùng bộ lọc với danh sách, GROUP BY trang_thai. */
+  async countByStatus(filter: Omit<RecordFilter, 'status'>): Promise<MedicalRecordStatusCounts> {
+    const rows = await this.prisma.db.$queryRaw<StatusCountRow[]>`
+      SELECT h.trang_thai, COUNT(*) AS total
+      FROM hosobenhan h ${FIRST_VISIT_DOCTOR} ${filterWhere(filter)}
+      GROUP BY h.trang_thai`;
+    return toStatusCounts(rows);
+  }
+
+  /**
+   * GET /medical_records/patients/:id/history (medrec13): hồ sơ của bệnh nhân, ma_ho_so giảm dần.
+   * Người không có dòng benhnhan → null (3007 ở service).
+   */
+  async historyOf(patientId: number): Promise<RecordOverview[] | null> {
+    const db = this.prisma.db;
+    const patient = await db.benhnhan.findUnique({
+      where: { ma_benh_nhan: toDbId(patientId) },
+      select: { ma_benh_nhan: true },
+    });
+    if (!patient) return null;
+    return readOverviews(db, filterWhere({ patientId }));
   }
 
   /**

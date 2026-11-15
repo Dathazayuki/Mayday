@@ -3,7 +3,10 @@ import type { RecordType } from '@drmayday/shared';
 import type { App } from 'supertest/types.js';
 import { AllExceptionsFilter } from '../../src/common/all-exceptions.filter.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
-import type { NewMedicalRecord } from '../../src/medical-records/medical-record-mapping.js';
+import type {
+  NewMedicalRecord,
+  RecordFilter,
+} from '../../src/medical-records/medical-record-mapping.js';
 import {
   MedicalRecordsRepository,
   lockRecord,
@@ -15,6 +18,7 @@ import {
   createTestApp,
   createVisit,
   resetData,
+  setRecordStatus,
   type SeedResult,
 } from './helpers.js';
 
@@ -425,5 +429,212 @@ describe('MedicalRecordsRepository: khoá, tạo, đọc, sửa, xoá (PostgreSQ
     it('không có hồ sơ → false', async () => {
       await expect(records.delete(999_999)).resolves.toBe(false);
     });
+  });
+});
+
+describe('MedicalRecordsRepository: danh sách, số đếm, lịch sử (PostgreSQL thật)', () => {
+  let app: INestApplication<App>;
+  let prisma: PrismaClient;
+  let records: MedicalRecordsRepository;
+  const WINDOW = { skip: 0, take: 20 };
+  /** Hồ sơ r1…r5 của bối cảnh (id theo thứ tự tạo vì RESTART IDENTITY). */
+  let ids: Record<'r1' | 'r2' | 'r3' | 'r4' | 'r5', number>;
+  let mai: number;
+  let binh: number;
+  let doctorA: number;
+  let doctorB: number;
+
+  const record = async (
+    type: RecordType,
+    patientId: number,
+    status: NewMedicalRecord['status'] = 'pending',
+  ) => {
+    const created = await records.create({
+      patientId,
+      type,
+      status,
+      firstVisitAt: new Date('2026-11-15T01:00:00.000Z'),
+      selfReport: {},
+      core: {},
+      acute: {},
+      chronic: {},
+    });
+    if (!created) throw new Error('không tạo được hồ sơ test');
+    return created.id;
+  };
+  const idsOf = async (filter: RecordFilter, window = WINDOW) => {
+    const page = await records.list(filter, window);
+    return { ids: page.items.map((item) => item.id), total: page.total };
+  };
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    prisma = app.get(PrismaService).db;
+    records = new MedicalRecordsRepository(app.get(PrismaService));
+  });
+
+  /**
+   * r1 MAN chờ (Mai); r2 CAP đang khám (Mai, BS A phụ trách); r3 MAN đang khám (Bình, BS B phụ trách,
+   * BS A khám lần 2); r4 CAP hoàn tất (Bình, BS A); r5 MAN nháp (Mai).
+   */
+  beforeEach(async () => {
+    const seed = await resetData(app);
+    mai = await createPatientRow(prisma, '0911111111', 'LÊ THỊ MAI');
+    binh = await createPatientRow(prisma, '0922222222', 'TRẦN VĂN BÌNH');
+    doctorA = await createStaffRow(prisma, '0902000001', 'BÁC SĨ A', seed.branchId);
+    doctorB = await createStaffRow(prisma, '0902000002', 'BÁC SĨ B', seed.branchId);
+    const r1 = await record('MAN', mai);
+    const r2 = await record('CAP', mai, 'in_progress');
+    await createVisit(prisma, {
+      recordId: r2,
+      type: 'CAP',
+      doctorId: doctorA,
+      number: 1,
+      date: '2026-11-15',
+    });
+    const r3 = await record('MAN', binh, 'in_progress');
+    await createVisit(prisma, {
+      recordId: r3,
+      type: 'MAN',
+      doctorId: doctorB,
+      number: 1,
+      date: '2026-11-10',
+    });
+    await createVisit(prisma, {
+      recordId: r3,
+      type: 'MAN',
+      doctorId: doctorA,
+      number: 2,
+      date: '2026-11-16',
+      nextAppointment: '2026-12-14',
+      instructions: 'Tái khám sau 4 tuần',
+    });
+    const r4 = await record('CAP', binh);
+    await createVisit(prisma, {
+      recordId: r4,
+      type: 'CAP',
+      doctorId: doctorA,
+      number: 1,
+      date: '2026-11-01',
+    });
+    await setRecordStatus(prisma, r4, 'completed');
+    const r5 = await record('MAN', mai, 'draft');
+    ids = { r1, r2, r3, r4, r5 };
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('không lọc: mọi hồ sơ, ma_ho_so giảm dần (D-B10), total đếm hết', async () => {
+    await expect(idsOf({})).resolves.toEqual({
+      ids: [ids.r5, ids.r4, ids.r3, ids.r2, ids.r1],
+      total: 5,
+    });
+  });
+
+  it('lọc trạng thái, loại, bệnh nhân; kết hợp được', async () => {
+    await expect(idsOf({ status: 'in_progress' })).resolves.toEqual({
+      ids: [ids.r3, ids.r2],
+      total: 2,
+    });
+    await expect(idsOf({ type: 'CAP' })).resolves.toEqual({ ids: [ids.r4, ids.r2], total: 2 });
+    await expect(idsOf({ patientId: mai })).resolves.toEqual({
+      ids: [ids.r5, ids.r2, ids.r1],
+      total: 3,
+    });
+    await expect(idsOf({ patientId: mai, type: 'MAN', status: 'pending' })).resolves.toEqual({
+      ids: [ids.r1],
+      total: 1,
+    });
+  });
+
+  it('lọc bác sĩ phụ trách theo phiên đầu (D-B6): BS A phụ trách r2, r4; khám r3 lần 2 nhưng không phụ trách', async () => {
+    await expect(idsOf({ doctorId: doctorA })).resolves.toEqual({
+      ids: [ids.r4, ids.r2],
+      total: 2,
+    });
+    await expect(idsOf({ doctorId: doctorB })).resolves.toEqual({ ids: [ids.r3], total: 1 });
+    await expect(idsOf({ doctorId: doctorA, status: 'in_progress' })).resolves.toEqual({
+      ids: [ids.r2],
+      total: 1,
+    });
+  });
+
+  it('phân trang theo ma_ho_so giảm dần; trang rất xa → rỗng, total giữ nguyên', async () => {
+    await expect(idsOf({}, { skip: 1, take: 2 })).resolves.toEqual({
+      ids: [ids.r4, ids.r3],
+      total: 5,
+    });
+    await expect(idsOf({}, { skip: 214_748_364_600, take: 100 })).resolves.toEqual({
+      ids: [],
+      total: 5,
+    });
+  });
+
+  it('phần tử có trường suy ra: bác sĩ phụ trách của phiên đầu, ngày khám, hẹn, dặn dò của phiên cuối, số phiên', async () => {
+    const page = await records.list({ patientId: binh, status: 'in_progress' }, WINDOW);
+    expect(page.items).toEqual([
+      {
+        id: ids.r3,
+        patientId: binh,
+        type: 'MAN',
+        status: 'in_progress',
+        firstVisitAt: new Date('2026-11-15T01:00:00.000Z'),
+        summary: {
+          patientName: 'TRẦN VĂN BÌNH',
+          patientPhone: '0922222222',
+          assignedDoctorId: doctorB,
+          assignedDoctorName: 'BÁC SĨ B',
+          visitCount: 2,
+          lastVisitDate: new Date('2026-11-16T00:00:00.000Z'),
+          nextAppointmentDate: new Date('2026-12-14T00:00:00.000Z'),
+          latestInstructions: 'Tái khám sau 4 tuần',
+        },
+      },
+    ]);
+  });
+
+  it('countByStatus: đủ 5 trạng thái (0 khi không có), cùng bộ lọc, khớp total của danh sách theo từng trạng thái', async () => {
+    await expect(records.countByStatus({})).resolves.toEqual({
+      draft: 1,
+      pending: 1,
+      in_progress: 2,
+      completed: 1,
+      cancelled: 0,
+    });
+    await expect(records.countByStatus({ doctorId: doctorA })).resolves.toEqual({
+      draft: 0,
+      pending: 0,
+      in_progress: 1,
+      completed: 1,
+      cancelled: 0,
+    });
+    const filter = { patientId: mai, type: 'MAN' as const };
+    const counts = await records.countByStatus(filter);
+    for (const status of ['draft', 'pending', 'in_progress', 'completed', 'cancelled'] as const) {
+      expect((await idsOf({ ...filter, status })).total).toBe(counts[status]);
+    }
+  });
+
+  it('findOverview: có → tổng quan (không đọc subtype); không có → null', async () => {
+    await expect(records.findOverview(ids.r2)).resolves.toMatchObject({
+      id: ids.r2,
+      type: 'CAP',
+      summary: { assignedDoctorId: doctorA, visitCount: 1 },
+    });
+    await expect(records.findOverview(999_999)).resolves.toBeNull();
+  });
+
+  it('historyOf: hồ sơ của bệnh nhân, ma_ho_so giảm dần; bệnh nhân chưa có hồ sơ → []; không phải bệnh nhân → null', async () => {
+    expect((await records.historyOf(mai))?.map((item) => item.id)).toEqual([
+      ids.r5,
+      ids.r2,
+      ids.r1,
+    ]);
+    const newcomer = await createPatientRow(prisma, '0933333333', 'NGƯỜI MỚI');
+    await expect(records.historyOf(newcomer)).resolves.toEqual([]);
+    await expect(records.historyOf(doctorA)).resolves.toBeNull();
+    await expect(records.historyOf(999_999)).resolves.toBeNull();
   });
 });
