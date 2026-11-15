@@ -19,7 +19,7 @@ Tài liệu chuẩn của dự án nằm ở [docs/README.md](docs/README.md). K
 
 - Node.js 22 trở lên
 - pnpm 11.5.3: `npm install -g pnpm@11.5.3`
-- Docker (để chạy MySQL và MinIO)
+- Docker (để chạy PostgreSQL và MinIO)
 
 ## Cài đặt
 
@@ -32,18 +32,18 @@ cp .env.example .env
 
 - `JWT_SECRET`: chuỗi ngẫu nhiên tối thiểu 32 ký tự (mẫu lệnh tạo chuỗi nằm trong `.env.example`);
 - `APP_ENV=development`;
-- `SEED_ADMIN_PHONE` và `SEED_ADMIN_PASSWORD`: tài khoản admin do seed tạo, **chỉ dùng cho CSDL dev**. Seed chỉ tạo khi số chưa có (chạy lại không ghi đè mật khẩu, họ tên), từ chối khi `APP_ENV` không phải `development`/`test` hoặc khi số đã thuộc bệnh nhân/nhân viên vai trò khác;
+- `SEED_ADMIN_PHONE` và `SEED_ADMIN_PASSWORD`: tài khoản admin do seed tạo, **chỉ dùng cho CSDL dev**. Seed chỉ tạo khi số chưa có (chạy lại không ghi đè mật khẩu, họ tên), từ chối khi `APP_ENV` không phải `development`/`test` hoặc khi số đã thuộc tài khoản vai trò khác;
 - `CORS_ORIGINS` (không bắt buộc): origin trình duyệt được gọi API, cách nhau bởi dấu phẩy. Để trống thì development/test chỉ cho Web dev `http://localhost:5173`, production không cho origin nào;
-- các biến còn lại (`DATABASE_URL`, `TEST_DATABASE_URL`, `MYSQL_*`, `MINIO_*`...) theo gợi ý trong `.env.example`.
+- các biến còn lại (`DATABASE_URL`, `TEST_DATABASE_URL`, `POSTGRES_*`, `SEED_SAMPLE_PASSWORD`, `MINIO_*`...) theo gợi ý trong `.env.example`.
 
 ## Chạy khi phát triển
 
-Khởi động CSDL, tạo bảng và nạp dữ liệu mẫu (một lần, và lại khi schema đổi):
+Khởi động CSDL, nạp lược đồ và dữ liệu mẫu (một lần, và lại khi nhóm DB đổi lược đồ):
 
 ```bash
-docker compose up -d mysql minio                # MySQL cổng 3307, MinIO cổng 9100 (console: http://localhost:9101), chỉ mở trên 127.0.0.1
-pnpm --filter @drmayday/api db:push             # tạo bảng theo prisma/schema.prisma
-pnpm --filter @drmayday/api db:seed             # seed vai trò, quyền, cơ sở vật chất, admin (cần đủ .env)
+docker compose up -d postgres minio             # PostgreSQL cổng 5434, MinIO cổng 9100 (console: http://localhost:9101), chỉ mở trên 127.0.0.1
+pnpm --filter @drmayday/api db:reset            # nạp lược đồ thật từ file SQL của nhóm DB (xoá toàn bộ dữ liệu dev)
+pnpm --filter @drmayday/api db:seed             # quyền, cơ sở vật chất, admin, tài khoản mẫu (cần đủ .env)
 ```
 
 Chạy các ứng dụng:
@@ -59,7 +59,11 @@ Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXP
 
 ### Ghi chú vận hành
 
-- Guard đọc CSDL ở mỗi request: chưa chạy `db:push` thì các route có bảo vệ trả 9901.
+- Guard đọc CSDL ở mỗi request: chưa chạy `db:reset` thì các route có bảo vệ trả 9901.
+- **Không chạy `prisma db push`/`migrate`**: lược đồ thuộc nhóm DB và cả lớp dùng chung; `prisma/schema.prisma` chỉ sinh bằng `db:pull`.
+- `db:reset`, `db:seed` và `test:db` chỉ chạy với CSDL trên máy này (`127.0.0.1`, `localhost`, `::1`).
+- Danh sách token đã đăng xuất, bộ đếm OTP và cache vai trò/quyền nằm trong bộ nhớ của từng tiến trình: khởi động lại API thì token đã đăng xuất dùng lại được cho tới khi hết hạn, và nhiều tiến trình không chia sẻ các dữ liệu này.
+- Đồng hồ của server API và server CSDL cần đồng bộ (NTP): token bị thu hồi khi `iat` sớm hơn `taikhoan.thoi_diem_cap_nhat` do CSDL ghi.
 - Cache vai trò/quyền giữ trong bộ nhớ của từng tiến trình API. `db:seed` ghi thẳng vào CSDL nên chạy seed khi API đang chạy thì phải **khởi động lại mọi tiến trình API**. Gán quyền qua API quản trị thì tiến trình nhận request xoá cache ngay; tiến trình khác vẫn giữ cache cũ.
 - Swagger (`/api/v1/docs`) chỉ mở khi `APP_ENV` là `development` hoặc `test`; `APP_ENV=production` (hoặc để trống) thì tắt.
 - `APP_ENV=production` bắt buộc có `DATABASE_URL` và nên đặt `CORS_ORIGINS` cho domain của Web (để trống thì trình duyệt ở origin khác bị chặn). App mobile không bị CORS chặn.
@@ -72,9 +76,16 @@ Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXP
 pnpm format:check                     # Prettier cho toàn repo (sửa bằng pnpm format)
 pnpm lint && pnpm typecheck && pnpm test
 pnpm --filter @drmayday/api test:e2e
-pnpm --filter @drmayday/api test:db   # test tích hợp trên CSDL drmayday_test (xoá dữ liệu của CSDL này)
+pnpm --filter @drmayday/api test:db   # nạp lại lược đồ vào CSDL TEST_DATABASE_URL (tên kết thúc _test hoặc _test_<lane>) rồi chạy test tích hợp; xoá dữ liệu của CSDL này
 pnpm build
 ```
+
+## Khi nhóm DB đổi lược đồ
+
+1. Thay `apps/api/prisma/vendor/mayday-database/final_restructured.sql` và cập nhật `source.json` (commit, sha256, ngày). Không sửa nội dung file SQL.
+2. `pnpm --filter @drmayday/api db:reset`, rồi `pnpm --filter @drmayday/api db:pull`.
+3. Sửa repository và mapping theo diff của `apps/api/prisma/schema.prisma`; script patch báo lỗi thì sửa `apps/api/scripts/patch-schema.mjs`.
+4. `pnpm --filter @drmayday/api test:db` (kiểm cả việc schema đã commit khớp file SQL).
 
 ## Quy ước
 

@@ -1,11 +1,19 @@
 import { Controller, Get, type INestApplication, type Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { SYSTEM_ROLE_NAMES } from '@drmayday/shared';
 import type { App } from 'supertest/types.js';
-import { seedBase, type SeedOptions, type SeedResult } from '../../prisma/seed.js';
-import { ResetOtp } from '../../src/auth/reset-otp.js';
-import { TokenDenylist } from '../../src/auth/token-denylist.js';
+import {
+  seedDevAdmin,
+  seedDevFacilities,
+  seedReferenceData,
+  type DevFacilities,
+  type ReferenceSeedResult,
+} from '../../prisma/seed.js';
 import { AppModule } from '../../src/app.module.js';
 import { configureApp } from '../../src/app.setup.js';
+import { ResetOtp } from '../../src/auth/reset-otp.js';
+import { TokenDenylist } from '../../src/auth/token-denylist.js';
+import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import { PermissionCache } from '../../src/permissions/permission-cache.js';
 import { RequirePermission } from '../../src/permissions/require-permission.decorator.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
@@ -19,6 +27,15 @@ export class PermissionProbeController {
   probe() {
     return {};
   }
+}
+
+export interface SeedResult extends ReferenceSeedResult, DevFacilities {
+  adminId: number | null;
+}
+
+export interface ResetOptions {
+  adminPhone?: string;
+  adminPassword?: string;
 }
 
 /**
@@ -36,33 +53,99 @@ export async function createTestApp({ controllers = [] }: { controllers?: Type[]
 }
 
 /**
- * Xoá dữ liệu mọi bảng (bảng con trước bảng cha), seed lại vai trò, quyền và cơ sở vật chất dev, rồi
- * xoá cache trong bộ nhớ của app (id đổi sau mỗi lần seed lại), xoá denylist và bộ đếm OTP. `opts` truyền cho seedBase.
+ * Làm sạch giữa các test (spec A, mục 3.5): TRUNCATE mọi bảng của schema public trừ vaitro và
+ * loainghiemphap (dữ liệu của file SQL), kèm RESTART IDENTITY CASCADE; xoá vai trò test tự tạo; seed
+ * lại dữ liệu tham chiếu, cơ sở vật chất dev và (nếu có `opts`) admin; xoá cache trong bộ nhớ.
+ * Danh sách bảng đọc từ pg_tables nên bảng mới của nhóm DB tự được làm sạch.
  */
 export async function resetData(
   app: INestApplication,
-  opts: SeedOptions = {},
+  opts: ResetOptions = {},
 ): Promise<SeedResult> {
   const prisma = app.get(PrismaService).db;
-  await prisma.$transaction([
-    prisma.role_permissions.deleteMany(),
-    prisma.permissions.deleteMany(),
-    prisma.token_blacklist.deleteMany(),
-    prisma.user_fcm_tokens.deleteMany(),
-    prisma.staffs.deleteMany(),
-    prisma.patients.deleteMany(),
-    prisma.users.deleteMany(),
-    prisma.rooms.deleteMany(),
-    prisma.departments.deleteMany(),
-    prisma.branches.deleteMany(),
-    // roles tự tham chiếu (RESTRICT): bỏ liên kết cha trước khi xoá.
-    prisma.roles.updateMany({ data: { parent_role_id: null } }),
-    prisma.roles.deleteMany(),
-  ]);
-  const seed = await seedBase(prisma, opts);
+  await prisma.$executeRaw`
+    DO $$
+    DECLARE danh_sach text;
+    BEGIN
+      SELECT string_agg(format('%I.%I', schemaname, tablename), ', ') INTO danh_sach
+      FROM pg_tables
+      WHERE schemaname = 'public' AND tablename NOT IN ('vaitro', 'loainghiemphap');
+      EXECUTE 'TRUNCATE ' || danh_sach || ' RESTART IDENTITY CASCADE';
+    END
+    $$`;
+  await prisma.vaitro.deleteMany({ where: { ten_vai_tro: { notIn: [...SYSTEM_ROLE_NAMES] } } });
+  const reference = await seedReferenceData(prisma);
+  const facilities = await seedDevFacilities(prisma);
+  const adminId =
+    opts.adminPhone && opts.adminPassword
+      ? await seedDevAdmin(prisma, opts.adminPhone, opts.adminPassword)
+      : null;
   app.get(RolesRepository).clearCache();
   app.get(PermissionCache).invalidate();
   app.get(TokenDenylist).clear();
   app.get(ResetOtp).clear();
-  return seed;
+  return { ...reference, ...facilities, adminId };
+}
+
+/**
+ * Chờ qua giây của lần ghi taikhoan gần nhất (tạo tài khoản). Token phát ngay sau khi tạo tài khoản có
+ * `iat` làm tròn lên tới giây kế tiếp (D8), nên một thay đổi trong cùng giây đó không thu hồi được nó
+ * (trường hợp biên spec A, mục 6.2 chấp nhận). Test kiểm thu hồi theo mốc gọi hàm này giữa lúc đăng
+ * nhập và lúc thay đổi; 1,1 giây cũng chừa chỗ cho đồng hồ CSDL lệch nhẹ so với API.
+ */
+export function waitPastRevocationSecond(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 1100));
+}
+
+/**
+ * Hồ sơ bệnh án mạn của bệnh nhân (hosobenhan MAN + benhanmaydayman) để tạo dữ liệu tham chiếu trong
+ * test. Cha và subtype ghi trong một transaction: FK "bắt buộc có subtype" kiểm tra lúc COMMIT (spec A,
+ * mục 4.5). Trả ma_ho_so.
+ */
+export async function createChronicRecord(
+  prisma: PrismaClient,
+  patientId: number,
+  firstVisit: Date | null = null,
+): Promise<bigint> {
+  return prisma.$transaction(async (tx) => {
+    const record = await tx.hosobenhan.create({
+      data: {
+        ma_benh_nhan: BigInt(patientId),
+        loai_benh_an: 'MAN',
+        thoi_diem_kham_lan_dau: firstVisit,
+      },
+    });
+    await tx.benhanmaydayman.create({ data: { ma_ho_so: record.ma_ho_so } });
+    return record.ma_ho_so;
+  });
+}
+
+/** Phiên khám mạn (phienkham MAN + phienkhamman) của hồ sơ `recordId`, do nhân viên `doctorId` khám tại phòng `roomId`. */
+export async function createChronicVisit(
+  prisma: PrismaClient,
+  recordId: bigint,
+  doctorId: number,
+  roomId: number | null,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const visit = await tx.phienkham.create({
+      data: {
+        ma_ho_so: recordId,
+        loai_benh_an: 'MAN',
+        ma_bac_si: BigInt(doctorId),
+        ma_phong_kham: roomId === null ? null : BigInt(roomId),
+        ngay_kham: new Date('2026-11-15T00:00:00.000Z'),
+        lan_kham_thu: 1,
+      },
+    });
+    await tx.phienkhamman.create({ data: { ma_phien_kham: visit.ma_phien_kham } });
+  });
+}
+
+/** Tài khoản theo tên đăng nhập (= số điện thoại) kèm vai trò, người, bệnh nhân, nhân viên. */
+export function findAccount(prisma: PrismaClient, phone: string) {
+  return prisma.taikhoan.findFirstOrThrow({
+    where: { ten_dang_nhap: phone },
+    include: { vaitro: true, nguoi: { include: { benhnhan: true, nhanvien: true } } },
+  });
 }
