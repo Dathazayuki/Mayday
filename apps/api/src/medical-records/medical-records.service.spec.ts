@@ -15,17 +15,24 @@ import type {
   StatusCountsQuery,
   UpdateMedicalRecordDto,
 } from './dto/medical-record.dto.js';
+import type { AcceptMedicalRecordDto, CloseMedicalRecordDto } from './dto/transition.dto.js';
 import type { MedicalRecord, RecordChanges } from './medical-record-mapping.js';
-import { EMPTY_CORE, inProgressRecord, medicalRecord } from './medical-record.fixture.js';
+import { EMPTY_CORE, inProgressRecord, lockOf, medicalRecord } from './medical-record.fixture.js';
 import type { MedicalRecordsRepository } from './medical-records.repository.js';
 import { MedicalRecordsService } from './medical-records.service.js';
-import type { RecordPermission } from './record-access.js';
+import type { Caller, RecordPermission } from './record-access.js';
+import type { RecordTransitionsRepository, StatusChange } from './record-transitions.repository.js';
 
 const NOW = new Date('2026-11-15T03:00:00.000Z');
 const only = (...permissions: RecordPermission[]) => new Set<RecordPermission>(permissions);
 
-function setup(current: MedicalRecord = medicalRecord()) {
+/**
+ * `current`: hồ sơ repository đọc sau khi khoá; `after`: hồ sơ đọc lại sau khi chuyển trạng thái (mặc
+ * định như `current`). Mock `transition` gọi `decide` với RecordLock của `current`; phiên vừa mở là 31.
+ */
+function setup(current: MedicalRecord = medicalRecord(), after: MedicalRecord = current) {
   let decided: RecordChanges | undefined;
+  let changed: StatusChange | undefined;
   const records = {
     findById: vi.fn<MedicalRecordsRepository['findById']>().mockResolvedValue(current),
     findOverview: vi.fn<MedicalRecordsRepository['findOverview']>().mockResolvedValue(current),
@@ -47,8 +54,17 @@ function setup(current: MedicalRecord = medicalRecord()) {
     }),
     historyOf: vi.fn<MedicalRecordsRepository['historyOf']>().mockResolvedValue([current]),
   };
-  const service = new MedicalRecordsService(records as unknown as MedicalRecordsRepository);
-  return { service, records, decided: () => decided };
+  const transitions = {
+    transition: vi.fn<RecordTransitionsRepository['transition']>(async (_id, decide) => {
+      changed = decide(lockOf(current));
+      return { record: after, visitId: changed.newVisit ? 31 : null };
+    }),
+  };
+  const service = new MedicalRecordsService(
+    records as unknown as MedicalRecordsRepository,
+    transitions as unknown as RecordTransitionsRepository,
+  );
+  return { service, records, transitions, decided: () => decided, changed: () => changed };
 }
 
 const createDto = (body: object) => ({ record_type: 'MAN', ...body }) as CreateMedicalRecordDto;
@@ -369,6 +385,168 @@ describe('MedicalRecordsService (spec B, mục 5.3, 6.3)', () => {
       await expect(service.remove(12)).resolves.toBeUndefined();
       records.delete.mockResolvedValue(false);
       await expect(codeOf(service.remove(12))).resolves.toMatchObject({ code: '4001' });
+    });
+  });
+
+  describe('accept (medrec07)', () => {
+    /** 01:30 ngày 2026-11-16 giờ Việt Nam: "hôm nay" là 2026-11-16 dù UTC vẫn là ngày 15 (D-B23). */
+    const LATE_EVENING_UTC = new Date('2026-11-15T18:30:00.000Z');
+    const acceptDto = (body: object = {}) => body as AcceptMedicalRecordDto;
+
+    it('chờ tiếp nhận: in_progress, phiên mới do người gọi khám hôm nay giờ Việt Nam ở phòng gửi lên (D-B5); first_visit_at trống thì ghi lúc tiếp nhận (D-B9); data 4 khoá', async () => {
+      vi.useFakeTimers({ now: LATE_EVENING_UTC });
+      const { service, changed } = setup(medicalRecord(), inProgressRecord(DOCTOR_ID));
+      await expect(service.accept(doctorCaller(), 12, acceptDto({ room_id: 2 }))).resolves.toEqual({
+        medical_record_id: 12,
+        assigned_doctor_id: DOCTOR_ID,
+        status: 'in_progress',
+        visit_id: 31,
+      });
+      expect(changed()).toEqual({
+        status: 'in_progress',
+        firstVisitAtIfEmpty: LATE_EVENING_UTC,
+        newVisit: { doctorId: DOCTOR_ID, roomId: 2, date: '2026-11-16' },
+      });
+    });
+
+    it('room_id vắng hoặc null → phiên chưa phân phòng (MT-115)', async () => {
+      for (const body of [{}, { room_id: null }]) {
+        const { service, changed } = setup(medicalRecord(), inProgressRecord(DOCTOR_ID));
+        await service.accept(doctorCaller(), 12, acceptDto(body));
+        expect(changed()?.newVisit?.roomId).toBeNull();
+      }
+    });
+
+    it('sau khi khoá: ô trạng thái trước dòng nhanvien — nháp, hoàn tất, đã huỷ → 4004; đang khám của người khác → 4005, của chính mình → 4004; chưa phân công → 3101 (MT-106)', async () => {
+      const cases: [MedicalRecord, Caller, string][] = [
+        [medicalRecord({ status: 'draft' }), doctorCaller(), '4004'],
+        [inProgressRecord(DOCTOR_ID, { status: 'completed' }), doctorCaller(), '4004'],
+        [medicalRecord({ status: 'cancelled' }), doctorCaller(), '4004'],
+        [inProgressRecord(OTHER_DOCTOR_ID), doctorCaller(), '4005'],
+        [inProgressRecord(DOCTOR_ID), doctorCaller(), '4004'],
+        [inProgressRecord(OTHER_DOCTOR_ID), doctorCaller({ hasStaffRow: false }), '4005'],
+        [medicalRecord(), doctorCaller({ hasStaffRow: false }), '3101'],
+      ];
+      for (const [current, caller, code] of cases) {
+        await expect(
+          codeOf(setup(current).service.accept(caller, 12, acceptDto())),
+        ).resolves.toMatchObject({ code });
+      }
+    });
+
+    it('không có hồ sơ → 4001', async () => {
+      const { service, transitions } = setup();
+      transitions.transition.mockResolvedValue(null);
+      await expect(codeOf(service.accept(doctorCaller(), 12, acceptDto()))).resolves.toMatchObject({
+        code: '4001',
+      });
+    });
+  });
+
+  describe('close (medrec11, PUT /:id)', () => {
+    const closeDto = (body: object) => body as CloseMedicalRecordDto;
+
+    it('completed kèm dặn dò: bác sĩ phụ trách; dặn dò ghi vào phiên mới nhất (D-B8); data là MedicalRecordData của người gọi', async () => {
+      const done = inProgressRecord(DOCTOR_ID, { status: 'completed' });
+      const { service, changed } = setup(inProgressRecord(DOCTOR_ID), done);
+      const data = await service.close(
+        doctorCaller(),
+        12,
+        closeDto({ status: 'completed', instructions: 'Tái khám sau 4 tuần' }),
+      );
+      expect(changed()).toEqual({ status: 'completed', instructions: 'Tái khám sau 4 tuần' });
+      expect(data).toMatchObject({
+        medical_record_id: 12,
+        status: 'completed',
+        allowed_actions: [],
+      });
+      expect(data.details).not.toBeNull();
+    });
+
+    it('cancelled không gửi dặn dò → instructions vắng (giữ dan_do)', async () => {
+      const { service, changed } = setup(inProgressRecord(DOCTOR_ID));
+      await service.close(doctorCaller(), 12, closeDto({ status: 'cancelled' }));
+      expect(changed()).toEqual({ status: 'cancelled', instructions: undefined });
+    });
+
+    it('sau khi khoá: chờ tiếp nhận, nháp, đã huỷ → 4009; hoàn tất → 4003; bác sĩ khác → 3105; không có hồ sơ → 4001', async () => {
+      const dto = closeDto({ status: 'completed' });
+      const cases: [MedicalRecord, string][] = [
+        [medicalRecord(), '4009'],
+        [medicalRecord({ status: 'draft' }), '4009'],
+        [inProgressRecord(DOCTOR_ID, { status: 'cancelled' }), '4009'],
+        [inProgressRecord(DOCTOR_ID, { status: 'completed' }), '4003'],
+        [inProgressRecord(OTHER_DOCTOR_ID), '3105'],
+      ];
+      for (const [current, code] of cases) {
+        await expect(
+          codeOf(setup(current).service.close(doctorCaller(), 12, dto)),
+        ).resolves.toMatchObject({ code });
+      }
+      const { service, transitions } = setup();
+      transitions.transition.mockResolvedValue(null);
+      await expect(codeOf(service.close(doctorCaller(), 12, dto))).resolves.toMatchObject({
+        code: '4001',
+      });
+    });
+  });
+
+  describe('cancel (PATCH /:id/status)', () => {
+    it('điều dưỡng huỷ hồ sơ chờ tiếp nhận hoặc nháp (MT-113) → cancelled; data {id chuỗi, status} (MT-06)', async () => {
+      for (const current of [medicalRecord(), medicalRecord({ status: 'draft' })]) {
+        const { service, changed } = setup(current, medicalRecord({ status: 'cancelled' }));
+        await expect(service.cancel(nurseCaller(), 12)).resolves.toEqual({
+          id: '12',
+          status: 'cancelled',
+        });
+        expect(changed()).toEqual({ status: 'cancelled' });
+      }
+    });
+
+    it('đang khám: bác sĩ phụ trách huỷ được; bác sĩ khác, điều dưỡng → 3105 (mục 6.1, 7.2)', async () => {
+      const { service } = setup(
+        inProgressRecord(DOCTOR_ID),
+        inProgressRecord(DOCTOR_ID, { status: 'cancelled' }),
+      );
+      await expect(service.cancel(doctorCaller(), 12)).resolves.toEqual({
+        id: '12',
+        status: 'cancelled',
+      });
+      for (const caller of [doctorCaller({ userId: OTHER_DOCTOR_ID }), nurseCaller()]) {
+        await expect(
+          codeOf(setup(inProgressRecord(DOCTOR_ID)).service.cancel(caller, 12)),
+        ).resolves.toMatchObject({ code: '3105' });
+      }
+    });
+
+    it('bệnh nhân → 3101 (nhánh tự huỷ D-B32 làm ở B6); nhân viên thiếu manage_medical_records → 3101; cả hai trước khi khoá', async () => {
+      const { service, transitions } = setup();
+      await expect(codeOf(service.cancel(patientCaller(), 12))).resolves.toMatchObject({
+        code: '3101',
+      });
+      await expect(
+        codeOf(service.cancel(nurseCaller({ permissions: only('view_medical_records') }), 12)),
+      ).resolves.toMatchObject({ code: '3101' });
+      expect(transitions.transition).not.toHaveBeenCalled();
+    });
+
+    it('hoàn tất → 4003; đã huỷ → 4009; không có hồ sơ → 4001', async () => {
+      await expect(
+        codeOf(
+          setup(inProgressRecord(DOCTOR_ID, { status: 'completed' })).service.cancel(
+            nurseCaller(),
+            12,
+          ),
+        ),
+      ).resolves.toMatchObject({ code: '4003' });
+      await expect(
+        codeOf(setup(medicalRecord({ status: 'cancelled' })).service.cancel(nurseCaller(), 12)),
+      ).resolves.toMatchObject({ code: '4009' });
+      const { service, transitions } = setup();
+      transitions.transition.mockResolvedValue(null);
+      await expect(codeOf(service.cancel(nurseCaller(), 12))).resolves.toMatchObject({
+        code: '4001',
+      });
     });
   });
 });

@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import type {
-  MedicalRecordData,
-  MedicalRecordHistoryItem,
-  MedicalRecordListItem,
-  MedicalRecordStatusCounts,
-  MedicalRecordSummary,
+import {
+  vietnamDate,
+  type AcceptMedicalRecordData,
+  type MedicalRecordData,
+  type MedicalRecordHistoryItem,
+  type MedicalRecordListItem,
+  type MedicalRecordStatusCounts,
+  type MedicalRecordStatusData,
+  type MedicalRecordSummary,
 } from '@drmayday/shared';
 import { AppException } from '../common/app.exception.js';
 import { pageWindow, Paginated } from '../common/paginated.js';
@@ -14,10 +17,13 @@ import type {
   StatusCountsQuery,
   UpdateMedicalRecordDto,
 } from './dto/medical-record.dto.js';
+import type { AcceptMedicalRecordDto, CloseMedicalRecordDto } from './dto/transition.dto.js';
 import {
+  toAcceptMedicalRecordData,
   toMedicalRecordData,
   toMedicalRecordHistoryItem,
   toMedicalRecordListItem,
+  toMedicalRecordStatusData,
   toMedicalRecordSummary,
   type MedicalRecord,
   type RecordFilter,
@@ -26,7 +32,10 @@ import {
 import { MedicalRecordsRepository } from './medical-records.repository.js';
 import {
   allowedActions,
+  assertAssignedDoctor,
+  assertCanAccept,
   assertOwnRecord,
+  assertStaffCanCancel,
   assertStaffCanEdit,
   requireStaffPermission,
   requireStaffWriter,
@@ -34,6 +43,8 @@ import {
   type RecordState,
 } from './record-access.js';
 import { planNewRecord, planRecordChanges, requireRecordChanges } from './record-changes.js';
+import { RecordTransitionsRepository } from './record-transitions.repository.js';
+import { TRANSITION_TARGETS } from './record-transitions.js';
 
 /** Phần của hồ sơ mà luật phân quyền cần (record-access.ts). */
 function stateOf(record: RecordOverview): RecordState {
@@ -50,14 +61,18 @@ function filterOf(query: StatusCountsQuery): Omit<RecordFilter, 'status'> {
 }
 
 /**
- * Hồ sơ bệnh án của B2 (spec B, mục 5.3): tạo, danh sách, số đếm, chi tiết, tóm tắt, lịch sử, sửa, xoá.
- * Thứ tự kiểm tra theo mục 6.3: quyền nhân viên (3101) trước khi đọc CSDL; bệnh nhân chỉ hồ sơ của mình
- * (3106); thao tác ghi khoá hồ sơ rồi mới xét trạng thái, bác sĩ phụ trách và luật sau khi gộp. Tiếp
- * nhận, chốt, huỷ, phiên khám là của B3; nhánh bệnh nhân tự khai của route ghi là của B6.
+ * Hồ sơ bệnh án (spec B, mục 5.3): tạo, danh sách, số đếm, chi tiết, tóm tắt, lịch sử, sửa, xoá (B2); tiếp
+ * nhận, hoàn tất/huỷ khi đang khám, huỷ (B3, mục 6.2). Thứ tự kiểm tra theo mục 6.3: quyền nhân viên (3101)
+ * trước khi đọc CSDL; bệnh nhân chỉ hồ sơ của mình (3106); thao tác ghi khoá hồ sơ rồi mới xét trạng thái,
+ * bác sĩ phụ trách và luật sau khi gộp. Phiên khám ở VisitsService; nhánh bệnh nhân tự khai, tự huỷ của
+ * route ghi là của B6.
  */
 @Injectable()
 export class MedicalRecordsService {
-  constructor(private readonly records: MedicalRecordsRepository) {}
+  constructor(
+    private readonly records: MedicalRecordsRepository,
+    private readonly transitions: RecordTransitionsRepository,
+  ) {}
 
   /**
    * medrec03: nhân viên tạo cho bệnh nhân bất kỳ. Thứ tự: 3101 → thiếu patient_id 2001 → khối lệch loại,
@@ -149,6 +164,69 @@ export class MedicalRecordsService {
   /** medrec14 (route chỉ admin): D-B22. */
   async remove(recordId: number): Promise<void> {
     if (!(await this.records.delete(recordId))) throw new AppException('4001');
+  }
+
+  /**
+   * medrec07 (route chỉ bac_si có examine_medical_records): khoá (4001) → ô trạng thái (4004/4005) → dòng
+   * nhanvien (3101, MT-106) → phòng (2003 room_id) → in_progress; phiên đầu do người gọi khám, ngày hôm
+   * nay giờ Việt Nam, phòng gửi lên hoặc chưa phân phòng (D-B5, D-B23, MT-115); thoi_diem_kham_lan_dau
+   * đang trống (hồ sơ tự khai) = lúc tiếp nhận (D-B9).
+   */
+  async accept(
+    caller: Caller,
+    recordId: number,
+    dto: AcceptMedicalRecordDto,
+  ): Promise<AcceptMedicalRecordData> {
+    const acceptedAt = new Date();
+    const result = await this.transitions.transition(recordId, (lock) => {
+      assertCanAccept(caller, lock);
+      return {
+        status: TRANSITION_TARGETS.accept,
+        firstVisitAtIfEmpty: acceptedAt,
+        newVisit: {
+          doctorId: caller.userId,
+          roomId: dto.room_id ?? null,
+          date: vietnamDate(acceptedAt),
+        },
+      };
+    });
+    if (!result) throw new AppException('4001');
+    return toAcceptMedicalRecordData(result);
+  }
+
+  /**
+   * medrec11 (route chỉ bac_si có examine_medical_records): khoá (4001) → ô trạng thái (4003/4009) → bác
+   * sĩ phụ trách (3105) → completed/cancelled; instructions gửi lên ghi vào dan_do của phiên mới nhất
+   * (D-B8), vắng thì giữ, chuỗi rỗng thì xoá.
+   */
+  async close(
+    caller: Caller,
+    recordId: number,
+    dto: CloseMedicalRecordDto,
+  ): Promise<MedicalRecordData> {
+    const transition = dto.status === 'completed' ? 'complete' : 'cancel_in_progress';
+    const result = await this.transitions.transition(recordId, (lock) => {
+      assertAssignedDoctor(caller, lock, transition);
+      return { status: TRANSITION_TARGETS[transition], instructions: dto.instructions };
+    });
+    if (!result) throw new AppException('4001');
+    return this.toData(caller, result.record);
+  }
+
+  /**
+   * PATCH /medical_records/:id/status (route dùng chung; body đã qua ValidationPipe: chỉ `cancelled`, khác
+   * → 4009): bệnh nhân → 3101 tới B6 (D-B32); nhân viên thiếu manage_medical_records → 3101 trước khi đọc
+   * CSDL → khoá (4001) → ô trạng thái (4003/4009) → đang khám chỉ bác sĩ phụ trách (3105) → cancelled
+   * (mục 6.1, 7.2).
+   */
+  async cancel(caller: Caller, recordId: number): Promise<MedicalRecordStatusData> {
+    requireStaffWriter(caller, 'manage_medical_records');
+    const result = await this.transitions.transition(recordId, (lock) => {
+      assertStaffCanCancel(caller, lock);
+      return { status: TRANSITION_TARGETS.cancel };
+    });
+    if (!result) throw new AppException('4001');
+    return toMedicalRecordStatusData(result.record);
   }
 
   private toData(caller: Caller, record: MedicalRecord): MedicalRecordData {

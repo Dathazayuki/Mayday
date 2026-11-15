@@ -6,6 +6,7 @@ import {
   MAIN_DIAGNOSES,
   MEDICAL_RECORD_STATUSES,
   RECORD_TYPES,
+  type AcceptMedicalRecordData,
   type AcuteRecordData,
   type AcuteRecordFields,
   type ChronicRecordFields,
@@ -16,6 +17,7 @@ import {
   type MedicalRecordListItem,
   type MedicalRecordStatus,
   type MedicalRecordStatusCounts,
+  type MedicalRecordStatusData,
   type MedicalRecordSummary,
   type RecordCoreFields,
   type RecordType,
@@ -525,4 +527,32 @@ export function toMedicalRecordHistoryItem(record: RecordOverview): MedicalRecor
     first_visit_at: isoDateTime(record.firstVisitAt),
     last_visit_date: isoDate(record.summary.lastVisitDate),
   };
+}
+
+/**
+ * data của POST /medical_records/:id/accept (medrec07, MT-120): bác sĩ phụ trách đọc lại sau khi ghi (bác
+ * sĩ của phiên đầu, D-B6) và mã phiên vừa mở.
+ */
+export function toAcceptMedicalRecordData({
+  record,
+  visitId,
+}: {
+  record: RecordOverview;
+  visitId: number | null;
+}): AcceptMedicalRecordData {
+  const doctorId = record.summary.assignedDoctorId;
+  if (doctorId === null || visitId === null) {
+    throw new Error(`Hồ sơ ${record.id} vừa tiếp nhận mà chưa có phiên`);
+  }
+  return {
+    medical_record_id: record.id,
+    assigned_doctor_id: doctorId,
+    status: record.status,
+    visit_id: visitId,
+  };
+}
+
+/** data của PATCH /medical_records/:id/status: id kiểu chuỗi theo tab (MT-06). */
+export function toMedicalRecordStatusData(record: RecordOverview): MedicalRecordStatusData {
+  return { id: String(record.id), status: record.status };
 }

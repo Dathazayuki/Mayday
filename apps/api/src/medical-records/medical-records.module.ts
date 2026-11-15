@@ -6,11 +6,17 @@ import { CallerResolver } from './caller.js';
 import { MedicalRecordsController } from './medical-records.controller.js';
 import { MedicalRecordsRepository } from './medical-records.repository.js';
 import { MedicalRecordsService } from './medical-records.service.js';
+import { RecordTransitionsRepository } from './record-transitions.repository.js';
 
 /** Hồ sơ bệnh án (spec B, mục 4.1, 5.3). PermissionsModule cung cấp PermissionChecker cho CallerResolver. */
 @Module({
   imports: [RolesModule, PermissionsModule, UsersModule],
   controllers: [MedicalRecordsController],
-  providers: [MedicalRecordsRepository, MedicalRecordsService, CallerResolver],
+  providers: [
+    MedicalRecordsRepository,
+    RecordTransitionsRepository,
+    MedicalRecordsService,
+    CallerResolver,
+  ],
 })
 export class MedicalRecordsModule {}

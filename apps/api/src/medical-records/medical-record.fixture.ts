@@ -1,6 +1,6 @@
 import type { ChronicRecordFields, RecordCoreFields, SelfReportFields } from '@drmayday/shared';
 import { DOCTOR_ID, PATIENT_ID } from './caller.fixture.js';
-import type { MedicalRecord } from './medical-record-mapping.js';
+import type { MedicalRecord, RecordLock } from './medical-record-mapping.js';
 
 export const EMPTY_SELF_REPORT: SelfReportFields = {
   referral_diagnosis: null,
@@ -74,5 +74,18 @@ export function inProgressRecord(
       lastVisitDate: new Date('2026-11-15T00:00:00.000Z'),
     },
     ...overrides,
+  };
+}
+
+/** RecordLock của `record`, như repository đọc sau khoá (D-B2): phiên mới nhất 30 khi đã có phiên. */
+export function lockOf(record: MedicalRecord): RecordLock {
+  return {
+    id: record.id,
+    patientId: record.patientId,
+    type: record.type,
+    status: record.status,
+    assignedDoctorId: record.summary.assignedDoctorId,
+    latestVisitId: record.summary.visitCount > 0 ? 30 : null,
+    maxVisitNumber: record.summary.visitCount,
   };
 }

@@ -6,10 +6,12 @@ import {
   chronicColumns,
   newRecordToDb,
   recordChangesToDb,
+  toAcceptMedicalRecordData,
   toMedicalRecord,
   toMedicalRecordData,
   toMedicalRecordHistoryItem,
   toMedicalRecordListItem,
+  toMedicalRecordStatusData,
   toMedicalRecordSummary,
   toRecordLock,
   toRecordOverview,
@@ -395,5 +397,34 @@ describe('medical-record-mapping: bản ghi miền → contract', () => {
       first_visit_at: '2026-11-15T01:00:00.000Z',
       last_visit_date: '2026-11-20',
     });
+  });
+});
+
+describe('medical-record-mapping: kết quả chuyển trạng thái', () => {
+  const overview = toRecordOverview(overviewRow());
+
+  it('toAcceptMedicalRecordData: đúng 4 khoá của medrec07; bác sĩ phụ trách đọc lại sau khi ghi (D-B6); mã phiên vừa mở', () => {
+    expect(toAcceptMedicalRecordData({ record: overview, visitId: 31 })).toEqual({
+      medical_record_id: 12,
+      assigned_doctor_id: 5,
+      status: 'in_progress',
+      visit_id: 31,
+    });
+  });
+
+  it('sau tiếp nhận mà chưa có bác sĩ phụ trách hoặc chưa có mã phiên → lỗi lập trình', () => {
+    const noDoctor = toRecordOverview(overviewRow({ ma_bac_si_phu_trach: null }));
+    expect(() => toAcceptMedicalRecordData({ record: noDoctor, visitId: 31 })).toThrow(
+      /chưa có phiên/,
+    );
+    expect(() => toAcceptMedicalRecordData({ record: overview, visitId: null })).toThrow(
+      /chưa có phiên/,
+    );
+  });
+
+  it('toMedicalRecordStatusData: id kiểu chuỗi theo tab (MT-06)', () => {
+    expect(
+      toMedicalRecordStatusData(toRecordOverview(overviewRow({ trang_thai: 'cancelled' }))),
+    ).toEqual({ id: '12', status: 'cancelled' });
   });
 });
