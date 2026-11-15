@@ -18,6 +18,7 @@ import {
 import type { Prisma, benhnhan, nguoi } from '../generated/prisma/client.js';
 import { hasChanges } from '../common/require-changes.js';
 import { fromDbId, toDbId } from '../prisma/db-id.js';
+import { change, dateFromIso, isoDate, isoDateTime } from '../prisma/db-values.js';
 
 /**
  * Ánh xạ API ↔ CSDL thật của người dùng (spec A, mục 4.1, 5.1–5.2): `nguoi`, `taikhoan`, `benhnhan`,
@@ -156,28 +157,6 @@ export function yearFromDate(date: Date | null): number | null {
 export function dateForYear(year: number, current: Date | null): Date | undefined {
   if (current?.getUTCFullYear() === year) return undefined;
   return new Date(Date.UTC(year, 0, 1));
-}
-
-/** Cột `date` → `YYYY-MM-DD` (Prisma trả nửa đêm UTC). */
-function isoDate(date: Date | null): string | null {
-  return date === null ? null : date.toISOString().slice(0, 10);
-}
-
-/** Cột `timestamptz` → ISO 8601. */
-function isoDateTime(date: Date | null): string | null {
-  return date === null ? null : date.toISOString();
-}
-
-/** `YYYY-MM-DD` (đã kiểm tra bằng isValidIsoDate) → cột `date`. */
-function dateFromIso(isoDay: string): Date {
-  return new Date(`${isoDay}T00:00:00.000Z`);
-}
-
-/** undefined = không đổi, null = xoá; giá trị khác đổi bằng `convert`. */
-function change<T, R>(value: T | null | undefined, convert: (value: T) => R): R | null | undefined {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
-  return convert(value);
 }
 
 /** Cột chữ tự do: bỏ khoảng trắng hai đầu; còn lại chuỗi rỗng thì ghi null (thoả CHECK btrim <> ''). */

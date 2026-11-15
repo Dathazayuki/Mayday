@@ -4,6 +4,7 @@ import { AppException } from '../common/app.exception.js';
 import type { PageWindow } from '../common/paginated.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { toDbId } from '../prisma/db-id.js';
+import type { CountRow } from '../prisma/db-values.js';
 import { isRecordNotFound, isUniqueViolation } from '../prisma/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -18,7 +19,6 @@ import {
   newPatientToDb,
   toPatientRecord,
   toPatientSearchRecord,
-  type CountRow,
   type PatientFilter,
   type PatientRecord,
   type PatientSearchRecord,

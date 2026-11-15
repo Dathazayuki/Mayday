@@ -75,11 +75,6 @@ export interface PatientSearchRow {
   co_tai_khoan: boolean;
 }
 
-/** Hàng COUNT(*) của SQL thô: PostgreSQL trả bigint (spec A, mục 4.3). */
-export interface CountRow {
-  total: bigint;
-}
-
 // ---- (b) Hàng CSDL → bản ghi miền ----
 
 /** include của mọi lần đọc bệnh nhân: nguoi, tài khoản (nếu có) và hồ sơ sớm nhất (D14). */
