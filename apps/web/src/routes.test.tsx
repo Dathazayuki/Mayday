@@ -90,6 +90,11 @@ describe('Định tuyến và đăng nhập', () => {
         role_id: '2',
       }),
     );
+    // Không stub thì fetch thật chạm API đang chạy ở máy dev và trả 401 muộn, làm hỏng test kế tiếp.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined)),
+    );
     renderAt('/');
     expect(await screen.findByText('Nguyễn Văn An')).toBeInTheDocument();
 
@@ -115,7 +120,7 @@ describe('Định tuyến và đăng nhập', () => {
     renderAt('/');
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: /Nguyễn Văn An/ }));
+    await user.click(await screen.findByLabelText(/Tài khoản/));
     expect(await screen.findByText('Hồ sơ cá nhân')).toBeInTheDocument();
     expect(screen.getByText('Đổi mật khẩu')).toBeInTheDocument();
     await user.click(screen.getByText('Đăng xuất'));
@@ -132,10 +137,10 @@ describe('Định tuyến và đăng nhập', () => {
     renderAt('/');
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: /Nguyễn Văn An/ }));
+    await user.click(await screen.findByLabelText(/Tài khoản/));
     await user.click(await screen.findByText('Đăng xuất'));
     // Nút người dùng chuyển sang trạng thái loading nên không mở lại được menu để bấm lần hai.
-    const trigger = screen.getByRole('button', { name: /Nguyễn Văn An/ });
+    const trigger = screen.getByLabelText(/Tài khoản/);
     expect(trigger).toHaveClass('ant-btn-loading');
     await user.click(trigger);
     const logoutCalls = fetchMock.mock.calls.filter(([url]) =>
@@ -165,6 +170,18 @@ describe('Định tuyến và đăng nhập', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(screen.queryByText('Quản trị hệ thống')).not.toBeInTheDocument();
     expect(screen.getByText('Nguyễn Văn An')).toBeInTheDocument();
+  });
+
+  it('không phải admin vào /admin/users thì thấy 403 nhưng vẫn còn thanh trên (menu, tài khoản)', async () => {
+    seedSession();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(errorResponse(403, '3102'))),
+    );
+    renderAt('/admin/users');
+    expect(await screen.findByText('Bạn không có quyền truy cập trang này')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Tài khoản:/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Mở menu')).toBeInTheDocument();
   });
 
   it('menu "Khám và điều trị" ẩn với bệnh nhân (hồ sơ có trường bệnh nhân)', async () => {

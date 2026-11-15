@@ -57,13 +57,15 @@ function QuestionTree({
           <div>
             <div>
               <strong>{question.question_text}</strong>{' '}
-              <StatusBadge tone="neutral">{question.question_id}</StatusBadge>
-              <StatusBadge tone="primary">
-                {QUESTION_TYPE_LABELS[question.type_question]}
-              </StatusBadge>
-              {question.is_required === '1' && <StatusBadge tone="red">Bắt buộc</StatusBadge>}
+              <Space size={6} wrap>
+                <StatusBadge tone="neutral">{question.question_id}</StatusBadge>
+                <StatusBadge tone="primary">
+                  {QUESTION_TYPE_LABELS[question.type_question]}
+                </StatusBadge>
+                {question.is_required === '1' && <StatusBadge tone="red">Bắt buộc</StatusBadge>}
+              </Space>
             </div>
-            {condition && <div style={{ opacity: 0.65 }}>{condition}</div>}
+            {condition && <div style={{ color: 'var(--dm-ink3)' }}>{condition}</div>}
           </div>
           <RowActions
             onEdit={() => onEditQuestion(question)}

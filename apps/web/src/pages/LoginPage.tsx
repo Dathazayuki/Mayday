@@ -43,7 +43,7 @@ export function LoginPage() {
   return (
     <div className="dm-login">
       <Panel className="dm-login__card">
-        <div className="dm-login__brand dm-sidebar__brand">
+        <div className="dm-brand">
           Dr<span>MayDay</span>
         </div>
         <p className="dm-login__sub">Hệ thống quản lý khám bệnh &amp; theo dõi mề đay</p>

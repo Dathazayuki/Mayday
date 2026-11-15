@@ -77,7 +77,6 @@ export function PrescriptionPanel({ record }: { record: MedicalRecordData }) {
   return (
     <Panel
       title="Đơn thuốc"
-      style={{ marginBottom: 16 }}
       extra={
         canExamine(record) && (
           <Button type="primary" disabled={!canIssue} onClick={() => setOpen(true)}>

@@ -1,4 +1,4 @@
-import { Drawer } from 'antd';
+import { Drawer, Grid } from 'antd';
 import { useMemo, useState } from 'react';
 import { Outlet } from 'react-router';
 import { HeaderTools } from './HeaderTools';
@@ -8,6 +8,9 @@ import { Sidebar } from './Sidebar';
 /** Khung app kiểu Cendo: sidebar cố định bên trái, mỗi trang tự dựng thanh trên bằng <Page>. */
 export function AppShell() {
   const [navOpen, setNavOpen] = useState(false);
+  const isWide = Grid.useBreakpoint().lg;
+  // Kéo rộng cửa sổ qua 992px thì sidebar cố định hiện lại, đóng drawer để khỏi kẹt overlay.
+  if (isWide && navOpen) setNavOpen(false);
   const shell = useMemo<ShellContextValue>(
     () => ({ tools: <HeaderTools />, openNav: () => setNavOpen(true) }),
     [],
@@ -18,11 +21,11 @@ export function AppShell() {
       <aside className="dm-shell__sidebar">
         <Sidebar />
       </aside>
-      <div className="dm-shell__main">
+      <main className="dm-shell__main">
         <ShellContext.Provider value={shell}>
           <Outlet />
         </ShellContext.Provider>
-      </div>
+      </main>
       {/* Màn hẹp (< 992px): sidebar ẩn bằng CSS, mở trong drawer từ nút "Mở menu" của Page. */}
       <Drawer
         placement="left"

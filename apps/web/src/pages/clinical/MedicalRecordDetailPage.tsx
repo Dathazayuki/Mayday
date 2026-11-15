@@ -39,7 +39,7 @@ import { Uas7Panel } from './Uas7Panel';
 function SummaryCard({ record }: { record: MedicalRecordData }) {
   const { data, error } = useMedicalRecordSummary(record.medical_record_id);
   return (
-    <Panel title="Thông tin bệnh án" style={{ marginBottom: 16 }}>
+    <Panel title="Thông tin bệnh án">
       <QueryErrorAlert error={error} />
       <Descriptions column={1} size="small">
         <Descriptions.Item label="Bệnh nhân">{data?.patient_name}</Descriptions.Item>
@@ -58,7 +58,7 @@ function SummaryCard({ record }: { record: MedicalRecordData }) {
 function HistoryCard({ patientId }: { patientId: number }) {
   const { data, error, isPending } = usePatientHistory(patientId);
   return (
-    <Panel title="Lịch sử bệnh án của bệnh nhân" style={{ marginBottom: 16 }}>
+    <Panel title="Lịch sử bệnh án của bệnh nhân">
       <QueryErrorAlert error={error} />
       <ItemList
         loading={isPending}
@@ -155,7 +155,7 @@ function ExamPanel({
   return (
     <Panel title={template.name}>
       {!finished && (
-        <Space style={{ marginBottom: 16 }}>
+        <Space>
           {record.status === 'pending' && (
             <Button
               type="primary"
@@ -268,7 +268,7 @@ export function MedicalRecordDetailPage() {
     );
   }
   return (
-    <Page title={title} back={back} subtitle={<MedicalRecordStatusTag status={data.status} />}>
+    <Page title={title} back={back}>
       <RecordBody record={data} />
     </Page>
   );

@@ -47,7 +47,7 @@ export function TemplateBuilderPage() {
   return (
     <Page
       title={template?.name ?? code}
-      subtitle={<span className="num">{template?.code_template ?? code}</span>}
+      subtitle={template && <span className="num">{template.code_template}</span>}
       back={back}
       actions={
         template && (

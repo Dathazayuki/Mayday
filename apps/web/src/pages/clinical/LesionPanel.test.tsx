@@ -142,8 +142,8 @@ describe('LesionPanel', () => {
     expect(await screen.findAllByRole('img')).toHaveLength(3);
     const startColumn = screen.getAllByTestId('milestone-start')[0];
     expect(within(startColumn).getByText('Ngứa 5/10 · Đau 3/10 · Rát –')).toBeInTheDocument();
-    expect(within(startColumn).getByText('Số nốt sẩn: 4')).toBeInTheDocument();
-    expect(within(startColumn).getByText('AUAS cục bộ: 2')).toBeInTheDocument();
+    expect(within(startColumn).getByText(/Số nốt sẩn:/)).toHaveTextContent('Số nốt sẩn: 4');
+    expect(within(startColumn).getByText(/AUAS cục bộ:/)).toHaveTextContent('AUAS cục bộ: 2');
     expect(within(startColumn).getByRole('link', { name: 'Ảnh đánh dấu' })).toHaveAttribute(
       'href',
       'https://example.com/anno.png',

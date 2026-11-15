@@ -1,24 +1,24 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+const ALLOWED = new Set(['./tokens.ts']);
 
-const SRC = join(__dirname, '..');
-const ALLOWED = new Set(['theme/tokens.ts']);
-const COLOR = /#[0-9a-fA-F]{3,8}\b|rgba?\(/;
+// Mã màu: #rgb/#rgba/#rrggbb/#rrggbbaa đứng riêng (không dính ký tự chữ-số phía trước/sau, tránh nhầm id như "#add"),
+// hàm rgb()/rgba()/hsl()/hsla(), và màu preset của antd trên Tag (<Tag color="blue">) — kiểu đã bỏ trong nhánh này.
+const COLOR =
+  /\B#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b|\b(?:rgb|hsl)a?\(|<Tag\b[^>]*\bcolor=/;
 
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return sourceFiles(path);
-    return /\.(ts|tsx|css)$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : [];
-  });
-}
+// Đọc mã nguồn bằng import.meta.glob của Vite (không dùng API Node); bỏ file test.
+const sources = import.meta.glob<string>('../**/*.{ts,tsx,css}', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
 
 describe('mã màu chỉ nằm trong theme/tokens.ts', () => {
-  it('không file nguồn nào khác viết hex/rgba', () => {
-    const offenders = sourceFiles(SRC)
-      .map((path) => relative(SRC, path).replaceAll('\\', '/'))
-      .filter((file) => !ALLOWED.has(file))
-      .filter((file) => COLOR.test(readFileSync(join(SRC, file), 'utf8')));
+  it('không file nguồn nào khác viết mã màu hay màu preset của Tag', () => {
+    const files = Object.keys(sources).filter(
+      (file) => !ALLOWED.has(file) && !/\.test\.tsx?$/.test(file),
+    );
+    expect(files.length).toBeGreaterThan(50);
+    const offenders = files.filter((file) => COLOR.test(sources[file] ?? ''));
     expect(offenders).toEqual([]);
   });
 });

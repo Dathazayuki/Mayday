@@ -45,8 +45,16 @@ function PhotoCard({ photo }: { photo: LesionPhotoListItem }) {
       />
       {photo.taken_at && <span>{formatDisplayLesionDateTime(photo.taken_at)}</span>}
       <span>{describeScores(photo)}</span>
-      {photo.hives_count !== null && <span className="num">Số nốt sẩn: {photo.hives_count}</span>}
-      {photo.local_auas !== null && <span>AUAS cục bộ: {photo.local_auas}</span>}
+      {photo.hives_count !== null && (
+        <span>
+          Số nốt sẩn: <span className="num">{photo.hives_count}</span>
+        </span>
+      )}
+      {photo.local_auas !== null && (
+        <span>
+          AUAS cục bộ: <span className="num">{photo.local_auas}</span>
+        </span>
+      )}
       {photo.annotated_url && HTTP_URL.test(photo.annotated_url) && (
         <a href={photo.annotated_url} target="_blank" rel="noopener noreferrer">
           Ảnh đánh dấu
@@ -136,7 +144,7 @@ function EpisodeItem({ episode }: { episode: RecordLesionEpisodeItem }) {
 export function LesionPanel({ medicalRecordId }: { medicalRecordId: number }) {
   const { data, error, isPending } = useRecordLesionEpisodes(medicalRecordId);
   return (
-    <Panel title="Tổn thương da" style={{ marginBottom: 16 }}>
+    <Panel title="Tổn thương da">
       <QueryErrorAlert error={error} />
       <ItemList
         loading={isPending}

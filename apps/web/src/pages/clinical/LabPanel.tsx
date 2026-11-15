@@ -13,7 +13,7 @@ import { ItemList } from '../../components/ItemList';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { useRunAction } from '../../components/crud/use-run-action';
 import { Panel } from '../../layout/Panel';
-import { StatusBadge } from '../../theme/StatusBadge';
+import { StatusBadge, type StatusTone } from '../../theme/StatusBadge';
 import { formatDateTime } from '../../lib/format-date';
 import { ItemsFormModal, type ItemField } from './ItemsFormModal';
 
@@ -22,7 +22,7 @@ const FIELDS: ItemField[] = [
   { name: 'description', label: 'Mô tả' },
 ];
 
-const LAB_STATUS_TONES: Record<LabRequestStatus, 'amber' | 'primary' | 'green'> = {
+const LAB_STATUS_TONES: Record<LabRequestStatus, StatusTone> = {
   pending: 'amber',
   in_progress: 'primary',
   completed: 'green',
@@ -71,7 +71,6 @@ export function LabPanel({ record }: { record: MedicalRecordData }) {
   return (
     <Panel
       title="Xét nghiệm"
-      style={{ marginBottom: 16 }}
       extra={
         canExamine(record) && (
           <Button type="primary" onClick={() => setOpen(true)}>

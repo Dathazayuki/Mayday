@@ -1,9 +1,7 @@
 import { MEDICAL_RECORD_STATUS_LABELS, type MedicalRecordStatus } from '@drmayday/shared';
-import { StatusBadge } from '../theme/StatusBadge';
+import { StatusBadge, type StatusTone } from '../theme/StatusBadge';
 
-type Tone = Parameters<typeof StatusBadge>[0]['tone'];
-
-const MEDICAL_RECORD_STATUS_TONES: Record<MedicalRecordStatus, Tone> = {
+const MEDICAL_RECORD_STATUS_TONES: Record<MedicalRecordStatus, StatusTone> = {
   draft: 'neutral',
   pending: 'amber',
   in_progress: 'primary',

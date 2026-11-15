@@ -1,4 +1,4 @@
-import { Button, Popconfirm, Space } from 'antd';
+import { Button, Popconfirm } from 'antd';
 import type { ReactNode } from 'react';
 
 /** Cột thao tác chuẩn của bảng quản trị: [thao tác thêm], Sửa và Xoá (Popconfirm). */
@@ -15,7 +15,7 @@ export function RowActions({
   deleteDisabled?: boolean;
 }) {
   return (
-    <Space>
+    <div className="dm-row-actions">
       {extra}
       <Button size="small" onClick={onEdit}>
         Sửa
@@ -25,6 +25,6 @@ export function RowActions({
           Xoá
         </Button>
       </Popconfirm>
-    </Space>
+    </div>
   );
 }

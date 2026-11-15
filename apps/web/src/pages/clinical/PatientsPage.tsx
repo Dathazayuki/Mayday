@@ -105,7 +105,7 @@ export function PatientsPage() {
             {
               title: 'Năm sinh',
               dataIndex: 'year_of_birth',
-              render: (year: number | null) => <span className="num">{year}</span>,
+              render: (year: number | null) => year !== null && <span className="num">{year}</span>,
             },
           ]}
         />

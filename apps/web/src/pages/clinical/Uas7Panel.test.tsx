@@ -46,7 +46,7 @@ describe('Uas7Panel', () => {
     });
     expect(await screen.findByText('18/42')).toBeInTheDocument();
     expect(screen.getByText('Trung bình')).toBeInTheDocument();
-    expect(screen.getByText('5/7 ngày')).toBeInTheDocument();
+    expect(screen.getByText('5/7')).toBeInTheDocument();
     expect(screen.getByText('09/11/2026 → 15/11/2026')).toBeInTheDocument();
   });
 

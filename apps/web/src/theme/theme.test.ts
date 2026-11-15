@@ -3,6 +3,10 @@ import { cssVariables, cssVariablesBlock, injectCssVariables } from './css-varia
 import { colors, fonts, radius, shadows } from './tokens';
 
 describe('theme', () => {
+  afterEach(() => {
+    document.head.querySelector('style[data-dm="tokens"]')?.remove();
+  });
+
   it('theme antd lấy màu, phông, bo góc từ tokens', () => {
     expect(appTheme.token).toMatchObject({
       colorPrimary: '#1677FF',

@@ -43,12 +43,12 @@ export function Uas7Panel({ patientId }: { patientId: number }) {
       .map((error) => [describeError(error), error]),
   );
   return (
-    <Panel title="Điểm UAS7" style={{ marginBottom: 16 }}>
+    <Panel title="Điểm UAS7">
       {[...errors].map(([message, error]) => (
         <QueryErrorAlert key={message} error={error} />
       ))}
       {week.data && (
-        <Descriptions column={1} size="small" style={{ marginBottom: 16 }}>
+        <Descriptions column={1} size="small">
           <Descriptions.Item label="Tổng tuần">
             <span className="num">
               {week.data.week_score}/{UAS7_WEEK_MAX}
@@ -57,8 +57,9 @@ export function Uas7Panel({ patientId }: { patientId: number }) {
           <Descriptions.Item label="Mức độ">{week.data.severity_label}</Descriptions.Item>
           <Descriptions.Item label="Đã chấm">
             <span className="num">
-              {week.data.completed_days}/{UAS7_WEEK_DAYS} ngày
-            </span>
+              {week.data.completed_days}/{UAS7_WEEK_DAYS}
+            </span>{' '}
+            ngày
           </Descriptions.Item>
           <Descriptions.Item label="Kỳ tính">
             {formatDate(week.data.start_date)} → {formatDate(week.data.end_date)}

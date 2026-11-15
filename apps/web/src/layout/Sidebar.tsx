@@ -41,7 +41,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <nav className="dm-sidebar" aria-label="Điều hướng chính">
-      <div className="dm-sidebar__brand">
+      <div className="dm-brand">
         Dr<span>MayDay</span>
       </div>
       <div className="dm-sidebar__sub">Khám &amp; điều trị mày đay</div>

@@ -1,4 +1,10 @@
 /* Nền tảng giao diện: chỉ dùng biến --dm-* sinh từ theme/tokens.ts, không viết mã màu ở đây. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 html,
 body,
 #root {
