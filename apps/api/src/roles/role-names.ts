@@ -15,3 +15,6 @@ export const ROLE_NAMES = [
 ] as const;
 
 export type RoleName = (typeof ROLE_NAMES)[number];
+
+/** Vai trò của bệnh nhân (bảng subtype `patients`); mọi vai trò khác là nhân viên (`staffs`). */
+export const PATIENT_ROLE: RoleName = 'patient';

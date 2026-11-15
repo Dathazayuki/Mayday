@@ -1,0 +1,57 @@
+import { applyDecorators } from '@nestjs/common';
+import { LIMIT_DEFAULT, LIMIT_MAX, PAGE_DEFAULT } from '@drmayday/shared';
+import { Transform } from 'class-transformer';
+import { IsInt, Max, Min } from 'class-validator';
+import { MAX_ID } from './id.js';
+import { isBlank } from './text.js';
+
+/**
+ * Phân trang (spec giai đoạn 2, mục 3.1): query `page`/`limit` dùng chung cho các API danh sách có
+ * phân trang, và kết quả `Paginated` mà ResponseInterceptor trải `total` ra ngoài `data`.
+ */
+
+/** Số nguyên viết bằng chữ số, cho phép dấu trừ để "-1" bị `@Min` báo 2003 (≤ 0) thay vì 2002. */
+const INTEGER_PATTERN = /^-?\d+$/;
+
+/**
+ * Query số nguyên dương có mặc định: vắng, rỗng hoặc chỉ có khoảng trắng → `fallback`; số nguyên
+ * ngoài [1, max] → 2003; còn lại (abc, 1.5, 1e2, có khoảng trắng...) giữ nguyên để `@IsInt` báo 2002.
+ */
+const PositiveIntQuery = (fallback: number, max: number) =>
+  applyDecorators(
+    Transform(({ value }: { value: unknown }) => {
+      if (value === undefined || isBlank(value)) return fallback;
+      return typeof value === 'string' && INTEGER_PATTERN.test(value) ? Number(value) : value;
+    }),
+    IsInt(),
+    Min(1),
+    Max(max),
+  );
+
+/** Query `page`/`limit`; DTO của từng danh sách kế thừa lớp này rồi thêm bộ lọc. */
+export class PaginationQuery {
+  /** Sheet ghi kiểu int: trang lớn nhất là INT tối đa, như id. */
+  @PositiveIntQuery(PAGE_DEFAULT, MAX_ID)
+  page: number = PAGE_DEFAULT;
+
+  @PositiveIntQuery(LIMIT_DEFAULT, LIMIT_MAX)
+  limit: number = LIMIT_DEFAULT;
+}
+
+/** Đoạn bản ghi của một trang: bỏ qua `skip` bản ghi đầu, lấy tối đa `take` bản ghi. */
+export interface PageWindow {
+  skip: number;
+  take: number;
+}
+
+export function pageWindow({ page, limit }: PaginationQuery): PageWindow {
+  return { skip: (page - 1) * limit, take: limit };
+}
+
+/** Controller trả kết quả này thì envelope là `{code, message, data: items, total}`. */
+export class Paginated<T> {
+  constructor(
+    readonly items: T[],
+    readonly total: number,
+  ) {}
+}

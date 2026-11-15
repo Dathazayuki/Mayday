@@ -1,4 +1,4 @@
-import type { patients } from '../generated/prisma/client.js';
+import type { patients, staffs } from '../generated/prisma/client.js';
 import type { UserRecord } from './user-mapping.js';
 
 const CREATED_AT = new Date('2026-11-15T01:02:03.000Z');
@@ -49,4 +49,15 @@ export function userRecord(overrides: Partial<UserRecord> = {}): UserRecord {
     patients: patientRecord(),
     ...overrides,
   };
+}
+
+/**
+ * UserRecord mẫu của nhân viên 7: bác sĩ (role_id 6) ở chi nhánh 10, khoa 20, phòng 30; ghi đè bản
+ * ghi `staffs` bằng `staff`.
+ */
+export function staffUserRecord(staff: Partial<staffs> = {}): UserRecord {
+  return userRecord({
+    patients: null,
+    staffs: { user_id: 7, role_id: 6, branch_id: 10, department_id: 20, room_id: 30, ...staff },
+  });
 }

@@ -9,6 +9,7 @@ import { Reflector } from '@nestjs/core';
 import { RESPONSE_CODES, type ResponseCode as Code } from '@drmayday/shared';
 import type { Response } from 'express';
 import { map, type Observable } from 'rxjs';
+import { Paginated } from './paginated.js';
 import { RESPONSE_CODE_KEY } from './response-code.decorator.js';
 
 @Injectable()
@@ -30,9 +31,9 @@ export class ResponseInterceptor implements NestInterceptor {
       map((data: unknown) => {
         if (data instanceof StreamableFile) return data;
         response.status(info.httpStatus);
-        return data === undefined
-          ? { code: info.code, message: info.message }
-          : { code: info.code, message: info.message, data };
+        const envelope = { code: info.code, message: info.message };
+        if (data instanceof Paginated) return { ...envelope, data: data.items, total: data.total };
+        return data === undefined ? envelope : { ...envelope, data };
       }),
     );
   }

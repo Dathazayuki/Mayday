@@ -10,7 +10,7 @@ import type {
 import { AppException, corruptData, invalidReference } from '../common/app.exception.js';
 import type { Env } from '../config/env.js';
 import { FacilitiesService } from '../facilities/facilities.service.js';
-import type { RoleName } from '../roles/role-names.js';
+import { PATIENT_ROLE } from '../roles/role-names.js';
 import { RolesRepository } from '../roles/roles.repository.js';
 import { requireRoleId } from '../users/require-role-id.js';
 import {
@@ -29,9 +29,6 @@ import type { JwtPayload, VerifiedJwt } from './jwt-payload.js';
 import { OTP_SENDER, type OtpSender } from './otp-sender.js';
 import { PasswordService } from './password.service.js';
 import { TokenBlacklistRepository } from './token-blacklist.repository.js';
-
-/** Vai trò của tài khoản tự đăng ký; create-staff không được tạo tài khoản vai trò này. */
-const PATIENT_ROLE: RoleName = 'patient';
 
 /** OTP khôi phục mật khẩu: 6 chữ số, hết hạn sau 10 phút (bảng mã 3005 "Sau 10 phút"). */
 const OTP_DIGITS = 6;

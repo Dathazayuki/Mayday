@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
+import { AdminUsersModule } from './admin-users/admin-users.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AllExceptionsFilter } from './common/all-exceptions.filter.js';
 import { ResponseInterceptor } from './common/response.interceptor.js';
@@ -22,6 +23,7 @@ import { ProfileModule } from './profile/profile.module.js';
     AuthModule,
     ProfileModule,
     FacilitiesModule,
+    AdminUsersModule,
   ],
   controllers: [HealthController],
   providers: [

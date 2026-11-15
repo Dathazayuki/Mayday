@@ -39,5 +39,6 @@ import { TokenBlacklistRepository } from './token-blacklist.repository.js';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
+  exports: [PasswordService],
 })
 export class AuthModule {}

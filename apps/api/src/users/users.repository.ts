@@ -1,14 +1,19 @@
 import { Injectable } from '@nestjs/common';
+import type { UpdateUserRequest } from '@drmayday/shared';
 import { AppException } from '../common/app.exception.js';
+import type { PageWindow } from '../common/paginated.js';
+import type { Placement } from '../facilities/placement.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { isUniqueViolation } from '../prisma/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   newUserToDb,
   profileUpdateToDb,
+  userUpdateToDb,
   type NewPatient,
   type NewStaff,
   type ProfileWrite,
+  type UserFilter,
   type UserRecord,
 } from './user-mapping.js';
 
@@ -16,6 +21,12 @@ const WITH_SUBTYPES = { staffs: true, patients: true } satisfies Prisma.usersInc
 
 /** Tên index mặc định của Prisma cho `users.so_dien_thoai @unique` (kiểm lại khi có schema thật, MT-57). */
 const PHONE_UNIQUE_INDEX = 'users_so_dien_thoai_key';
+
+/** role_id nằm ở bảng subtype `staffs` hoặc `patients` (MT-62). */
+function whereOf({ roleId }: UserFilter): Prisma.usersWhereInput {
+  if (roleId === undefined) return {};
+  return { OR: [{ staffs: { role_id: roleId } }, { patients: { role_id: roleId } }] };
+}
 
 /** Bảng `users`, hai bảng subtype `staffs`/`patients` và `user_fcm_tokens` của người dùng. */
 @Injectable()
@@ -31,6 +42,21 @@ export class UsersRepository {
 
   findById(userId: number): Promise<UserRecord | null> {
     return this.prisma.db.users.findUnique({ where: { user_id: userId }, include: WITH_SUBTYPES });
+  }
+
+  /** Một trang người dùng theo `filter`, sắp xếp user_id tăng dần. */
+  list(filter: UserFilter, { skip, take }: PageWindow): Promise<UserRecord[]> {
+    return this.prisma.db.users.findMany({
+      where: whereOf(filter),
+      include: WITH_SUBTYPES,
+      orderBy: { user_id: 'asc' },
+      skip,
+      take,
+    });
+  }
+
+  count(filter: UserFilter): Promise<number> {
+    return this.prisma.db.users.count({ where: whereOf(filter) });
   }
 
   async phoneExists(phone: string): Promise<boolean> {
@@ -90,6 +116,36 @@ export class UsersRepository {
         include: WITH_SUBTYPES,
       });
     });
+  }
+
+  /** `current`: bản ghi đang có, cho biết role_id nằm ở bảng subtype nào. Trả bản ghi sau khi ghi. */
+  update(current: UserRecord, changes: UpdateUserRequest): Promise<UserRecord> {
+    return this.prisma.db.users.update({
+      where: { user_id: current.user_id },
+      data: userUpdateToDb(changes, current),
+      include: WITH_SUBTYPES,
+    });
+  }
+
+  /** Ghi nơi công tác vào bản ghi `staffs` của nhân viên. */
+  async assign(userId: number, { branchId, departmentId, roomId }: Placement): Promise<void> {
+    await this.prisma.db.staffs.update({
+      where: { user_id: userId },
+      data: { branch_id: branchId, department_id: departmentId, room_id: roomId },
+    });
+  }
+
+  /**
+   * Xoá người dùng trong một transaction: `user_fcm_tokens` là RESTRICT nên xoá trước (MT-66);
+   * staffs/patients/token_blacklist tự CASCADE. Trả false khi không có người dùng này.
+   */
+  async delete(userId: number): Promise<boolean> {
+    const db = this.prisma.db;
+    const [, users] = await db.$transaction([
+      db.user_fcm_tokens.deleteMany({ where: { user_id: userId } }),
+      db.users.deleteMany({ where: { user_id: userId } }),
+    ]);
+    return users.count > 0;
   }
 
   /** Đăng xuất xoá mọi FCM token của người dùng: request không cho biết thiết bị nào (MT-60). */

@@ -1,13 +1,18 @@
-import type {
-  Career,
-  CreateStaffResponseData,
-  Gender,
-  LoginUserInfo,
-  PatientEditableField,
-  PatientProfileFields,
-  ProfileBase,
-  ProfileData,
-  SignupResponseData,
+import {
+  isPatientProfile,
+  type AdminUserDetailData,
+  type AdminUserListItem,
+  type AssignUserResponseData,
+  type Career,
+  type CreateStaffResponseData,
+  type Gender,
+  type LoginUserInfo,
+  type PatientEditableField,
+  type PatientProfileFields,
+  type ProfileBase,
+  type ProfileData,
+  type SignupResponseData,
+  type UpdateUserRequest,
 } from '@drmayday/shared';
 import type { Placement } from '../facilities/placement.js';
 import type {
@@ -35,6 +40,8 @@ export interface NewUser {
   phone: string;
   passwordHash: string;
   gender: Gender | null;
+  /** Vắng = đang hoạt động (Sheet POST admin/users: "Mặc định là 1: active"). */
+  isActive?: boolean;
 }
 
 export interface NewPatient extends NewUser {
@@ -46,7 +53,21 @@ export interface StaffAssignment extends Placement {
   roleId: number;
 }
 
-export interface NewStaff extends NewUser, StaffAssignment {}
+/**
+ * Nhân viên mới: create-staff có đủ nơi công tác; POST admin/users chưa phân công nên cả ba là null
+ * (gán sau bằng PUT admin/users/:id/assign).
+ */
+export interface NewStaff extends NewUser {
+  roleId: number;
+  branchId: number | null;
+  departmentId: number | null;
+  roomId: number | null;
+}
+
+/** Bộ lọc của GET admin/users; vắng = không lọc. */
+export interface UserFilter {
+  roleId?: number;
+}
 
 /**
  * Giá trị hồ sơ ghi vào CSDL (PUT profile), theo tên trường của Sheet; null = xoá giá trị (chuỗi
@@ -151,27 +172,33 @@ function trimText(text: string): string | null {
 // ---- Ghi ----
 
 /** Cột `users` khi tạo tài khoản: họ tên in hoa, gender theo enum CSDL. */
-export function newUserToDb({ fullName, phone, passwordHash, gender }: NewUser) {
+export function newUserToDb({ fullName, phone, passwordHash, gender, isActive = true }: NewUser) {
   return {
     ho_ten: normalizeFullName(fullName),
     so_dien_thoai: phone,
     password_hash: passwordHash,
     gioi_tinh: change(gender, genderToDb),
+    is_active: isActive,
   } satisfies Prisma.usersCreateInput;
 }
 
 /**
- * `currentBirthDate`: `patients.ngay_sinh` đang lưu, cho quy tắc năm sinh (MT-13). full_name không
- * xoá được: ProfileService đã chặn giá trị trống (2003).
+ * Cột `users` của họ tên và giới tính khi sửa (PUT profile, PUT admin/users/:id). full_name không
+ * xoá được: service đã chặn giá trị trống (2003).
  */
+function nameAndGenderToDb(changes: { full_name?: string; gender?: Gender | null }) {
+  return {
+    ho_ten: changes.full_name === undefined ? undefined : normalizeFullName(changes.full_name),
+    gioi_tinh: change(changes.gender, genderToDb),
+  } satisfies Prisma.usersUpdateInput;
+}
+
+/** `currentBirthDate`: `patients.ngay_sinh` đang lưu, cho quy tắc năm sinh (MT-13). */
 export function profileUpdateToDb(
   changes: Partial<ProfileWrite>,
   currentBirthDate: Date | null,
 ): ProfileColumns {
-  const user = {
-    ho_ten: changes.full_name === undefined ? undefined : normalizeFullName(changes.full_name),
-    gioi_tinh: change(changes.gender, genderToDb),
-  };
+  const user = nameAndGenderToDb(changes);
   const patient = {
     ngay_sinh: change(changes.year_of_birth, (year) => dateForYear(year, currentBirthDate)),
     nghe_nghiep: change(changes.career, careerToDb),
@@ -189,6 +216,22 @@ export function profileUpdateToDb(
   return hasPatientChanges ? { user, patient } : { user };
 }
 
+/**
+ * Cột cần ghi cho PUT admin/users/:id (undefined = giữ nguyên). role_id ghi vào bảng subtype mà
+ * `current` đang có; AdminUsersService đã chặn đổi vai trò sang nhóm khác (MT-65).
+ */
+export function userUpdateToDb(
+  changes: UpdateUserRequest,
+  current: UserRecord,
+): Prisma.usersUpdateInput {
+  const role = changes.role_id === undefined ? undefined : { update: { role_id: changes.role_id } };
+  return {
+    ...nameAndGenderToDb(changes),
+    is_active: changes.is_active === undefined ? undefined : changes.is_active === 1,
+    ...(isPatient(current) ? { patients: role } : { staffs: role }),
+  };
+}
+
 // ---- Đọc ----
 
 /** role_id nằm ở bảng subtype `staffs` hoặc `patients` (MT-62); không có cả hai → null. */
@@ -199,6 +242,10 @@ export function roleIdOf(record: UserRecord): number | null {
 /** Bệnh nhân có bản ghi `patients`; nhân viên chỉ có `staffs`. */
 export function isPatient(record: UserRecord): record is UserRecord & { patients: patients } {
   return record.patients !== null;
+}
+
+export function isStaff(record: UserRecord): record is UserRecord & { staffs: staffs } {
+  return record.staffs !== null;
 }
 
 /** data của signup (1001): ID và is_active kiểu int (MT-06). */
@@ -271,4 +318,42 @@ export function toProfileData(record: UserRecord, roleId: number): ProfileData {
     next_of_kin_phone: patient.nguoi_nha_so_dien_thoai,
     first_visit: isoDateTime(patient.thoi_diem_kham_lan_dau),
   };
+}
+
+/**
+ * Phần tử của GET admin/users, cũng là data của POST admin/users (1001): ID và is_active kiểu int
+ * (MT-06).
+ */
+export function toUserSummary(record: UserRecord, roleId: number): AdminUserListItem {
+  return {
+    user_id: record.user_id,
+    full_name: record.ho_ten,
+    phone: record.so_dien_thoai,
+    role_id: roleId,
+    is_active: record.is_active ? 1 : 0,
+  };
+}
+
+/**
+ * data của GET/PUT admin/users/:id: bệnh nhân đúng dạng GET profile; nhân viên thêm nơi công tác
+ * (int|null) cho màn phân công.
+ */
+export function toAdminUserDetail(record: UserRecord, roleId: number): AdminUserDetailData {
+  const profile = toProfileData(record, roleId);
+  if (isPatientProfile(profile)) return profile;
+  const staff = record.staffs;
+  return {
+    ...profile,
+    branch_id: staff?.branch_id ?? null,
+    department_id: staff?.department_id ?? null,
+    room_id: staff?.room_id ?? null,
+  };
+}
+
+/** data của PUT admin/users/:id/assign: nơi công tác vừa ghi vào `staffs`. */
+export function toAssignUserData(
+  userId: number,
+  { branchId, departmentId, roomId }: Placement,
+): AssignUserResponseData {
+  return { user_id: userId, branch_id: branchId, department_id: departmentId, room_id: roomId };
 }

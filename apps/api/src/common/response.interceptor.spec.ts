@@ -2,6 +2,7 @@
 import { StreamableFile, type CallHandler, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { lastValueFrom, of } from 'rxjs';
+import { Paginated } from './paginated.js';
 import { ResponseCode } from './response-code.decorator.js';
 import { ResponseInterceptor } from './response.interceptor.js';
 
@@ -54,6 +55,23 @@ describe('ResponseInterceptor', () => {
     );
     expect(result).toEqual({ code: '1001', message: 'Created successfully', data: { id: 2 } });
     expect(status).toHaveBeenCalledWith(201);
+  });
+
+  it('Paginated: data là mảng items, total nằm ngoài data (spec giai đoạn 2, mục 3.1)', async () => {
+    const status = vi.fn();
+    const result = await lastValueFrom(
+      interceptor.intercept(
+        contextFor(SampleController.prototype.list, status),
+        handlerReturning(new Paginated([{ id: 1 }, { id: 2 }], 41)),
+      ),
+    );
+    expect(result).toStrictEqual({
+      code: '1000',
+      message: 'OK',
+      data: [{ id: 1 }, { id: 2 }],
+      total: 41,
+    });
+    expect(status).toHaveBeenCalledWith(200);
   });
 
   it('bỏ trường data khi controller không trả gì', async () => {

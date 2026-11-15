@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PATIENT_EDITABLE_FIELDS, type ProfileData } from '@drmayday/shared';
 import { AppException } from '../common/app.exception.js';
 import { requireChanges } from '../common/require-changes.js';
-import { isBlank } from '../common/text.js';
+import { assertFullNameNotBlank } from '../users/assert-full-name.js';
 import { requireRoleId } from '../users/require-role-id.js';
 import { isPatient, toProfileData, type UserRecord } from '../users/user-mapping.js';
 import { UsersRepository } from '../users/users.repository.js';
@@ -25,10 +25,7 @@ export class ProfileService {
    */
   async update(userId: number, dto: UpdateProfileDto): Promise<ProfileData> {
     requireChanges(dto);
-    // null lọt qua @IsOptional() của DTO; họ tên trống hay null đều không hợp lệ.
-    if (dto.full_name === null || isBlank(dto.full_name)) {
-      throw new AppException('2003', { field: 'full_name' });
-    }
+    assertFullNameNotBlank(dto.full_name);
 
     const { user, roleId } = await this.findUser(userId);
     if (!isPatient(user)) {

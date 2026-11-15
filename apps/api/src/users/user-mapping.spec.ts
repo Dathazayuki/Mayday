@@ -7,20 +7,25 @@ import {
   genderFromDb,
   genderToDb,
   isPatient,
+  isStaff,
   isoDate,
   isoDateTime,
   newUserToDb,
   normalizeFullName,
   profileUpdateToDb,
   roleIdOf,
+  toAdminUserDetail,
+  toAssignUserData,
   toCreateStaffData,
   toLoginUserInfo,
   toProfileData,
   toSignupData,
+  toUserSummary,
+  userUpdateToDb,
   yearFromDate,
   type UserRecord,
 } from './user-mapping.js';
-import { patientRecord, userRecord } from './user-record.fixture.js';
+import { patientRecord, staffUserRecord, userRecord } from './user-record.fixture.js';
 
 describe('gender API ↔ CSDL (MT-59)', () => {
   it.each<[Gender, users_gioi_tinh]>([
@@ -123,6 +128,7 @@ describe('ghi users khi tạo tài khoản', () => {
       so_dien_thoai: '0912345678',
       password_hash: 'hash',
       gioi_tinh: 'Nu',
+      is_active: true,
     });
   });
 
@@ -130,6 +136,34 @@ describe('ghi users khi tạo tài khoản', () => {
     expect(
       newUserToDb({ fullName: 'An', phone: '0912345678', passwordHash: 'hash', gender: null }),
     ).toMatchObject({ gioi_tinh: null });
+  });
+
+  it('newUserToDb: isActive vắng → hoạt động (mặc định 1 của Sheet); false → khoá', () => {
+    const account = { fullName: 'An', phone: '0912345678', passwordHash: 'hash', gender: null };
+    expect(newUserToDb(account)).toMatchObject({ is_active: true });
+    expect(newUserToDb({ ...account, isActive: false })).toMatchObject({ is_active: false });
+  });
+});
+
+describe('userUpdateToDb (PUT admin/users/:id)', () => {
+  it('họ tên in hoa, gender theo enum CSDL, is_active 0/1 → boolean; trường vắng giữ nguyên', () => {
+    expect(
+      userUpdateToDb({ full_name: ' trần b ', gender: 'male', is_active: 0 }, userRecord()),
+    ).toEqual({ ho_ten: 'TRẦN B', gioi_tinh: 'Nam', is_active: false });
+    expect(userUpdateToDb({ gender: null, is_active: 1 }, userRecord())).toMatchObject({
+      ho_ten: undefined,
+      gioi_tinh: null,
+      is_active: true,
+    });
+  });
+
+  it('role_id ghi vào bảng subtype của người dùng: bệnh nhân → patients, nhân viên → staffs', () => {
+    expect(userUpdateToDb({ role_id: 2 }, userRecord())).toMatchObject({
+      patients: { update: { role_id: 2 } },
+    });
+    const staffChanges = userUpdateToDb({ role_id: 8 }, staffUserRecord());
+    expect(staffChanges).toMatchObject({ staffs: { update: { role_id: 8 } } });
+    expect(staffChanges).not.toHaveProperty('patients');
   });
 });
 
@@ -203,10 +237,16 @@ describe('profileUpdateToDb (PUT profile)', () => {
   });
 });
 
-describe('isPatient', () => {
+describe('isPatient / isStaff', () => {
   it('bệnh nhân có bản ghi patients, nhân viên thì không', () => {
     expect(isPatient(userRecord())).toBe(true);
     expect(isPatient(userRecord({ staffs: { role_id: 1 } as staffs, patients: null }))).toBe(false);
+  });
+
+  it('nhân viên có bản ghi staffs; bệnh nhân hoặc người dùng không có subtype thì không', () => {
+    expect(isStaff(staffUserRecord())).toBe(true);
+    expect(isStaff(userRecord())).toBe(false);
+    expect(isStaff(userRecord({ patients: null }))).toBe(false);
   });
 });
 
@@ -313,6 +353,45 @@ describe('UserRecord → data trả về', () => {
       full_name: 'NGUYỄN VĂN A',
       phone: '0912345678',
       role_id: '2',
+    });
+  });
+
+  it('toUserSummary (GET/POST admin/users): ID và is_active kiểu int (MT-06)', () => {
+    expect(toUserSummary(record, 2)).toStrictEqual({
+      user_id: 7,
+      full_name: 'NGUYỄN VĂN A',
+      phone: '0912345678',
+      role_id: 2,
+      is_active: 1,
+    });
+    expect(toUserSummary(userRecord({ is_active: false }), 2)).toMatchObject({ is_active: 0 });
+  });
+
+  it('toAssignUserData: nơi công tác vừa ghi, room_id null khi không có phòng', () => {
+    expect(toAssignUserData(7, { branchId: 10, departmentId: 20, roomId: null })).toStrictEqual({
+      user_id: 7,
+      branch_id: 10,
+      department_id: 20,
+      room_id: null,
+    });
+  });
+});
+
+describe('toAdminUserDetail (GET/PUT admin/users/:id)', () => {
+  it('bệnh nhân: đúng dạng GET profile của bệnh nhân', () => {
+    expect(toAdminUserDetail(userRecord(), 2)).toStrictEqual(toProfileData(userRecord(), 2));
+  });
+
+  it('nhân viên: 5 trường chung cùng nơi công tác kiểu int|null', () => {
+    expect(toAdminUserDetail(staffUserRecord({ room_id: null }), 6)).toStrictEqual({
+      user_id: 7,
+      full_name: 'NGUYỄN VĂN A',
+      phone: '0912345678',
+      role_id: 6,
+      gender: null,
+      branch_id: 10,
+      department_id: 20,
+      room_id: null,
     });
   });
 });
