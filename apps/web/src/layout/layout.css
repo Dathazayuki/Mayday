@@ -429,3 +429,8 @@
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 12px;
 }
+
+/* Màn chi tiết bệnh án (spec B, mục 8.7): nhóm ô theo phân nhóm docs/04 (chế độ xem và form). */
+.dm-clinical-group + .dm-clinical-group {
+  margin-top: 16px;
+}
