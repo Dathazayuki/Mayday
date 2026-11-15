@@ -6,6 +6,7 @@ import { AuthController } from '../auth/auth.controller.js';
 import { BranchesController } from '../facilities/branches.controller.js';
 import { RoomsController } from '../facilities/rooms.controller.js';
 import { MedicalRecordsController } from '../medical-records/medical-records.controller.js';
+import { VisitsController } from '../medical-records/visits.controller.js';
 import { PatientsController } from '../patients/patients.controller.js';
 import { REQUIRED_ROLES_KEY } from '../roles/require-role.decorator.js';
 import { RolesController } from '../roles/roles.controller.js';
@@ -126,5 +127,39 @@ describe('quyền khai báo trên route bệnh án', () => {
   it('DELETE: admin (3102) và manage_medical_records', () => {
     expect(declared(MedicalRecordsController, routes.remove)).toEqual(['manage_medical_records']);
     expect(declaredRoles(MedicalRecordsController, routes.remove)).toEqual(['admin']);
+  });
+});
+
+/**
+ * Chuyển trạng thái và phiên khám của B3 (spec B, mục 7.2, D-B18): tiếp nhận, PUT /:id, thêm/sửa phiên
+ * chỉ cho bac_si (3103, medrec07/11 "Bearer Token của Bác sĩ") có examine_medical_records; PATCH
+ * /:id/status và GET /:id/visits là route dùng chung, không khai báo gì (service kiểm).
+ */
+describe('quyền khai báo trên route chuyển trạng thái và phiên khám', () => {
+  const records = MedicalRecordsController.prototype;
+  const visits = VisitsController.prototype;
+
+  it('bac_si + examine_medical_records: tiếp nhận, PUT /:id, POST /:id/visits, PATCH /visits/:id', () => {
+    const routes: [Type, Function][] = [
+      [MedicalRecordsController, records.accept],
+      [MedicalRecordsController, records.close],
+      [VisitsController, visits.add],
+      [VisitsController, visits.update],
+    ];
+    for (const [controller, handler] of routes) {
+      expect(declared(controller, handler)).toEqual(['examine_medical_records']);
+      expect(declaredRoles(controller, handler)).toEqual(['bac_si']);
+    }
+  });
+
+  it('route dùng chung: PATCH /:id/status, GET /:id/visits không khai báo quyền, không giới hạn vai trò', () => {
+    const routes: [Type, Function][] = [
+      [MedicalRecordsController, records.cancel],
+      [VisitsController, visits.list],
+    ];
+    for (const [controller, handler] of routes) {
+      expect(declared(controller, handler)).toEqual([]);
+      expect(declaredRoles(controller, handler)).toBeUndefined();
+    }
   });
 });

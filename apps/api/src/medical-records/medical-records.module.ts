@@ -7,15 +7,23 @@ import { MedicalRecordsController } from './medical-records.controller.js';
 import { MedicalRecordsRepository } from './medical-records.repository.js';
 import { MedicalRecordsService } from './medical-records.service.js';
 import { RecordTransitionsRepository } from './record-transitions.repository.js';
+import { VisitsController } from './visits.controller.js';
+import { VisitsRepository } from './visits.repository.js';
+import { VisitsService } from './visits.service.js';
 
-/** Hồ sơ bệnh án (spec B, mục 4.1, 5.3). PermissionsModule cung cấp PermissionChecker cho CallerResolver. */
+/**
+ * Hồ sơ bệnh án, chuyển trạng thái và phiên khám (spec B, mục 4.1, 5.3, 5.4). PermissionsModule cung cấp
+ * PermissionChecker cho CallerResolver.
+ */
 @Module({
   imports: [RolesModule, PermissionsModule, UsersModule],
-  controllers: [MedicalRecordsController],
+  controllers: [MedicalRecordsController, VisitsController],
   providers: [
     MedicalRecordsRepository,
     RecordTransitionsRepository,
+    VisitsRepository,
     MedicalRecordsService,
+    VisitsService,
     CallerResolver,
   ],
 })
