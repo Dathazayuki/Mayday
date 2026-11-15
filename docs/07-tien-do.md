@@ -29,7 +29,7 @@
 | 1 — Xác thực, tài khoản, hồ sơ | [x] | [x] | [x] | 8 API |
 | 2 — Quản trị người dùng, vai trò, quyền (RBAC động), cơ sở vật chất | [x] | [x] | — | Giai đoạn này không có Mobile |
 | 3 — Mẫu phiếu khám động | — | — | — | Đã gỡ ở A2 (spec A): API mẫu phiếu và trình thiết kế mẫu phiếu trên Web, vì CSDL thật không có bảng mẫu phiếu. Tiểu dự án B quyết định lại phần phiếu khám |
-| 4 — Bệnh nhân, bệnh án | [ ] | [x] | [x] | Làm lại theo tiểu dự án B (xem mục "Tiểu dự án B" dưới đây): API và Web bệnh nhân xong ở B1; API hồ sơ bệnh án ở B2; tiếp nhận, phiên khám và trang bệnh án ở B3–B6 |
+| 4 — Bệnh nhân, bệnh án | [ ] | [x] | [x] | Làm lại theo tiểu dự án B (xem mục "Tiểu dự án B" dưới đây): API và Web bệnh nhân xong ở B1; API hồ sơ bệnh án ở B2; tiếp nhận, hoàn tất, huỷ, phiên khám và seed lâm sàng ở B3; trang bệnh án, màn chi tiết và bệnh nhân tự khai ở B4–B6 |
 | 5/6b — Kho ảnh, tổn thương da | [ ] | [x] | [x] | API là G5-2/G5-3 |
 | 6a — UAS7 | [ ] | [x] | [x] | API là G6-2 |
 | 7–8 — Đơn thuốc, xét nghiệm, thông báo | [ ] | [x] | [x] | API là G7-2. Gửi FCM thật chờ MT-79 |
@@ -124,18 +124,18 @@ Spec: [2026-11-15-giao-dien-cendo-design.md](superpowers/specs/2026-11-15-giao-d
 
 ## Tiểu dự án B — Bệnh nhân, bệnh án và phiên khám trên CSDL thật (giai đoạn 4)
 
-> Spec: [superpowers/specs/2026-11-15-csdl-that-b-benh-an-design.md](superpowers/specs/2026-11-15-csdl-that-b-benh-an-design.md). Kế hoạch B1: [superpowers/plans/2026-11-15-csdl-that-b1-benh-nhan.md](superpowers/plans/2026-11-15-csdl-that-b1-benh-nhan.md). Kế hoạch B2: [superpowers/plans/2026-11-15-csdl-that-b2-loi-benh-an.md](superpowers/plans/2026-11-15-csdl-that-b2-loi-benh-an.md).
+> Spec: [superpowers/specs/2026-11-15-csdl-that-b-benh-an-design.md](superpowers/specs/2026-11-15-csdl-that-b-benh-an-design.md). Kế hoạch B1: [superpowers/plans/2026-11-15-csdl-that-b1-benh-nhan.md](superpowers/plans/2026-11-15-csdl-that-b1-benh-nhan.md). Kế hoạch B2: [superpowers/plans/2026-11-15-csdl-that-b2-loi-benh-an.md](superpowers/plans/2026-11-15-csdl-that-b2-loi-benh-an.md). Kế hoạch B3: [superpowers/plans/2026-11-15-csdl-that-b3-chuyen-trang-thai-phien-kham.md](superpowers/plans/2026-11-15-csdl-that-b3-chuyen-trang-thai-phien-kham.md).
 
 - [x] B1: bệnh nhân (API + Web): tìm bằng `strpos` (D-B17), tạo luôn kèm tài khoản (MT-119), xem, sửa; 5 quyền lâm sàng, `PermissionChecker`, quyền mặc định dev/test (D-B19); trang chi tiết bệnh nhân (chưa có "Tạo bệnh án" và panel "Bệnh án": B4)
 - [x] B2: bệnh án lõi: contract mới (khối `self_report`, `details` có kiểu, `visits.ts`, bộ mô tả `clinical-fields.ts` 7 khối, `duration`, `vn-date`); gỡ phiếu động và ảnh câu trả lời (D-B27); API hồ sơ `/medical_records` (tạo, danh sách có lọc, `status-counts`, chi tiết, tóm tắt, lịch sử, `PATCH`, xoá) với `allowed_actions` của nhân viên, khoá dòng khi sửa/xoá (D-B2), INTERVAL theo giây (D-B15); nhánh bệnh nhân của `POST`/`PATCH` trả 3101 tới B6; màn chi tiết Web, Mobile tạm chỉ có tóm tắt, màn tạo bệnh án Mobile tạm ẩn
-- [ ] B3: chuyển trạng thái, phiên khám, seed lâm sàng
+- [x] B3: chuyển trạng thái: `POST /medical_records/:id/accept` (mở phiên đầu, ghi `first_visit_at` khi còn trống, D-B9), `PUT /medical_records/:id` (hoàn tất/huỷ khi đang khám, dặn dò vào phiên mới nhất), `PATCH /medical_records/:id/status` (huỷ; route dùng chung, nhánh bệnh nhân trả 3101 tới B6); khoá dòng hồ sơ (D-B2: hai bác sĩ tiếp nhận cùng lúc → 1000 + 4005, thêm phiên song song → số khác nhau); API phiên khám `GET`/`POST /medical_records/:id/visits`, `PATCH /visits/:id` (bệnh nhân nhận `details: null`); seed lâm sàng dev (bác sĩ mẫu 2, bệnh nhân P3–P6, 9 hồ sơ đủ 5 trạng thái, 6 phiên)
 - [ ] B4: Web danh sách bệnh án (bảng/cột) và Tổng quan
 - [ ] B5: Web màn chi tiết có kiểu, phiên khám; Mobile chỉ đọc; tài liệu
 - [ ] B6: bệnh nhân tự khai (Mobile + nhánh bệnh nhân của API)
 
 Việc còn mở của B (mang sang các bước sau):
 
-- Câu hỏi cho B3: huỷ hồ sơ đang khám qua `PATCH /medical_records/:id/status` (quyền manage + bác sĩ phụ trách) và `PUT /medical_records/:id` (`bac_si` + examine + phụ trách) đang khác luật; `allowed_actions` theo `PUT`. Cần người dùng chốt.
+- Câu hỏi chưa chốt (từ B3): huỷ hồ sơ đang khám qua `PATCH /medical_records/:id/status` theo spec B mục 6.1, 7.2 (`manage_medical_records` + bác sĩ phụ trách) và qua `PUT /medical_records/:id` theo medrec11 (`bac_si` + `examine_medical_records` + bác sĩ phụ trách) vẫn khác luật; `allowed_actions` theo `PUT`. B3 làm đúng chữ của spec, không tự thống nhất. Cần người dùng chốt.
 - B5: Mobile hiển thị "Chờ bác sĩ tiếp nhận" cho hồ sơ huỷ/nháp chưa có phiên; sửa khi làm danh sách Mobile.
 - B5 (cập nhật docs/05): ghi lệch đã chấp nhận: `GET /medical_records/classify-questions` trả 400/2002 thay vì 404/2003 (MT-58, MT-118); tạo hồ sơ với `first_visit_at: null` tường minh được coi là "bây giờ" (MT-116).
 - Tìm kiếm chưa chuẩn hoá Unicode NFC cho từ khoá và họ tên (câu hỏi mở từ B1).
@@ -143,8 +143,9 @@ Việc còn mở của B (mang sang các bước sau):
 ## Việc tiếp theo
 
 1. **API còn thiếu, theo thứ tự phụ thuộc:** bệnh án (tiểu dự án B, B2–B6) → G6-2 (UAS7) và G7-2 (đơn thuốc, xét nghiệm, thông báo) → G5-2/G5-3 (kho ảnh, tổn thương da). Các API sau phụ thuộc bệnh án của tiểu dự án B.
-2. **Tiểu dự án B** (spec B, mục 13): B3 (chuyển trạng thái, phiên khám, seed lâm sàng) → B4/B5 → B6; sau đó tiểu dự án C. CSDL dev cần quyền mặc định của B1 (`pnpm --filter @drmayday/api db:seed`, rồi khởi động lại API dev vì cache quyền nằm trong bộ nhớ) thì bác sĩ, điều dưỡng mới dùng được API bệnh nhân và bệnh án.
+2. **Tiểu dự án B** (spec B, mục 13): B4/B5 → B6; sau đó tiểu dự án C. CSDL dev cần quyền mặc định của B1 (`pnpm --filter @drmayday/api db:seed`, rồi khởi động lại API dev vì cache quyền nằm trong bộ nhớ) thì bác sĩ, điều dưỡng mới dùng được API bệnh nhân và bệnh án.
    - **Sau khi gộp B2:** chạy `pnpm --filter @drmayday/shared build` (hoặc giữ `pnpm dev:shared`), khởi động lại API dev (module `/medical_records` mới), tải lại Web và Expo. B2 không cần seed lại.
+   - **Sau khi gộp B3:** chạy `pnpm --filter @drmayday/shared build`, rồi **chạy lại `pnpm --filter @drmayday/api db:seed` trên CSDL dev** để có dữ liệu lâm sàng mẫu (bác sĩ mẫu 2, bệnh nhân P3–P6, 9 hồ sơ, 6 phiên), rồi khởi động lại API dev (route mới, cache quyền). Bệnh nhân mẫu đã có hồ sơ thì seed bỏ qua người đó; muốn đủ mẫu thì `db:reset` rồi `db:seed` (xoá toàn bộ dữ liệu dev).
 3. **Thử app trên máy thật** (Expo Go: camera, chọn ảnh, bàn phím, `router.replace('/login')`).
 4. **Duyệt mục E và F** trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md); cần chốt riêng `gender: ''` (2001 hay 2003), `reset-password` (MT-16), và các mục từ review tổng thể: chưa giới hạn tần suất đăng nhập/quên mật khẩu (MT-96), giới hạn tối đa 72 byte của mật khẩu (MT-97).
 5. **Các mục Minor còn mở** (rút gọn từ sổ theo dõi review và review tổng thể trước khi gộp vào `main`):

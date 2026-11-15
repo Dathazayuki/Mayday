@@ -43,7 +43,7 @@ Khởi động CSDL, nạp lược đồ và dữ liệu mẫu (một lần, và
 ```bash
 docker compose up -d postgres minio             # PostgreSQL cổng 5434, MinIO cổng 9100 (console: http://localhost:9101), chỉ mở trên 127.0.0.1
 pnpm --filter @drmayday/api db:reset            # nạp lược đồ thật từ file SQL của nhóm DB (xoá toàn bộ dữ liệu dev)
-pnpm --filter @drmayday/api db:seed             # quyền và quyền mặc định, cơ sở vật chất, admin, tài khoản mẫu (cần đủ .env)
+pnpm --filter @drmayday/api db:seed             # quyền và quyền mặc định, cơ sở vật chất, admin, tài khoản mẫu, dữ liệu lâm sàng mẫu (cần đủ .env)
 ```
 
 Chạy các ứng dụng:
@@ -57,6 +57,8 @@ pnpm dev:shared              # biên dịch lại packages/shared khi sửa (API
 
 Sau khi gộp một thay đổi của `packages/shared` (vd. B2): chạy `pnpm --filter @drmayday/shared build` (hoặc giữ `pnpm dev:shared`), khởi động lại API dev khi có module mới (B2: `/medical_records`), rồi tải lại Web và Expo.
 
+**Sau khi gộp B3:** chạy lại `pnpm --filter @drmayday/api db:seed` trên CSDL dev để có dữ liệu lâm sàng mẫu (hồ sơ ở đủ 5 trạng thái và phiên khám, xem "Ghi chú vận hành"), rồi khởi động lại API dev (route tiếp nhận, phiên khám mới; seed ghi thẳng vào CSDL nên cache quyền cần nạp lại).
+
 Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXPO_PUBLIC_API_BASE_URL=http://<IP-LAN-của-máy>:3000`.
 
 ### Ghi chú vận hành
@@ -68,11 +70,12 @@ Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXP
 - Đồng hồ của server API và server CSDL cần đồng bộ (NTP): token bị thu hồi khi `iat` sớm hơn `taikhoan.thoi_diem_cap_nhat` do CSDL ghi.
 - Cache vai trò/quyền giữ trong bộ nhớ của từng tiến trình API. `db:seed` ghi thẳng vào CSDL nên chạy seed khi API đang chạy thì phải **khởi động lại mọi tiến trình API**. Gán quyền qua API quản trị thì tiến trình nhận request xoá cache ngay; tiến trình khác vẫn giữ cache cũ.
 - `db:seed` cấp **quyền mặc định dev/test** (spec B, D-B19): `bac_si` có 5 quyền lâm sàng, `dieu_duong` có 4 (trừ `examine_medical_records`), `ma_nguoi_gan` để trống. Chạy lại seed thì **cấp lại** cả quyền đã bị thu hồi trên CSDL dev. CSDL dùng chung không bao giờ được seed: 5 dòng quyền và quyền mặc định đang chờ nhóm DB (MT-122); thiếu chúng thì chỉ admin dùng được các route bệnh nhân.
+- **Seed lâm sàng** (spec B, mục 10): khi có `SEED_SAMPLE_PASSWORD`, `db:seed` tạo thêm bác sĩ mẫu `0900000006` (BÁC SĨ MẪU HAI) và bệnh nhân mẫu `0900000103`–`0900000106`, cùng mật khẩu mẫu, rồi ghi 9 hồ sơ ở đủ 5 trạng thái (cả mày đay cấp và mạn, một hồ sơ bệnh nhân tự khai của `0900000005`) và 6 phiên khám, trong đó 2 phiên ngày chạy seed. Không có mật khẩu mẫu thì in "Bỏ qua seed lâm sàng: cần SEED_SAMPLE_PASSWORD". Seed chỉ ghi cho bệnh nhân mẫu chưa có hồ sơ nào, nên chạy lại không tạo thêm; vì vậy phiên "hôm nay" thành phiên cũ từ hôm sau, muốn có lại thì `db:reset` rồi `db:seed` (xoá toàn bộ dữ liệu dev).
 - Tìm bệnh nhân không phân biệt hoa/thường nhờ `upper()` của PostgreSQL, cần CSDL dùng locale UTF-8 (container dev đã đúng); CSDL server cần hỏi nhóm DB (MT-57).
 - Swagger (`/api/v1/docs`) chỉ mở khi `APP_ENV` là `development` hoặc `test`; `APP_ENV=production` (hoặc để trống) thì tắt.
 - `APP_ENV=production` bắt buộc có `DATABASE_URL` và nên đặt `CORS_ORIGINS` cho domain của Web (để trống thì trình duyệt ở origin khác bị chặn). App mobile không bị CORS chặn.
 - `.env` gốc dùng chung với Vite: **không** đặt `NODE_ENV` trong đó (API dùng `APP_ENV`).
-- Hiện đã chạy: API giai đoạn 1 và 2 (xác thực, hồ sơ, cơ sở vật chất, quản trị, vai trò, quyền), API bệnh nhân và hồ sơ bệnh án của giai đoạn 4 (`/doctor/patients…`, `/medical_records…`, tiểu dự án B1–B2; tiếp nhận, phiên khám ở B3). Các màn bệnh án đầy đủ và giai đoạn 5–8 trên Web, Mobile chưa có API tương ứng nên sẽ nhận 404. Xem [docs/07-tien-do.md](docs/07-tien-do.md).
+- Hiện đã chạy: API giai đoạn 1 và 2 (xác thực, hồ sơ, cơ sở vật chất, quản trị, vai trò, quyền), API bệnh nhân, hồ sơ bệnh án, chuyển trạng thái và phiên khám của giai đoạn 4 (`/doctor/patients…`, `/medical_records…`, `/visits/:id`, tiểu dự án B1–B3). Các màn bệnh án đầy đủ (bảng/cột, màn chi tiết có kiểu: B4–B5) và giai đoạn 5–8 trên Web, Mobile chưa có API tương ứng nên sẽ nhận 404. Xem [docs/07-tien-do.md](docs/07-tien-do.md).
 
 ## Kiểm tra
 
