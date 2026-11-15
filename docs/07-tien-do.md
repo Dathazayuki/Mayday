@@ -28,14 +28,14 @@
 |---|---|---|---|---|
 | 1 — Xác thực, tài khoản, hồ sơ | [x] | [x] | [x] | 8 API |
 | 2 — Quản trị người dùng, vai trò, quyền (RBAC động), cơ sở vật chất | [x] | [x] | — | Giai đoạn này không có Mobile |
-| 3 — Mẫu phiếu khám động | [ ] | [x] | — | Web: trình thiết kế mẫu phiếu. API là G3-2 |
+| 3 — Mẫu phiếu khám động | [x] | [x] | — | Web: trình thiết kế mẫu phiếu. API: 11 API, quyền `manage_templates` (G3-2) |
 | 4 — Bệnh nhân, bệnh án | [ ] | [x] | [x] | API là G4-2 |
 | 5/6b — Kho ảnh, tổn thương da | [ ] | [x] | [x] | API là G5-2/G5-3 |
 | 6a — UAS7 | [ ] | [x] | [x] | API là G6-2 |
 | 7–8 — Đơn thuốc, xét nghiệm, thông báo | [ ] | [x] | [x] | API là G7-2. Gửi FCM thật chờ MT-79 |
 | 9 — AI | [ ] | [ ] | [ ] | Chờ MT-24 |
 
-Các phần Web và Mobile của giai đoạn 3–8 đã dựng xong nhưng **chưa có API tương ứng**, nên chạy thật sẽ nhận 404 ở các màn đó.
+Các phần Web và Mobile của giai đoạn 4–8 đã dựng xong nhưng **chưa có API tương ứng**, nên chạy thật sẽ nhận 404 ở các màn đó.
 
 ## Giai đoạn 1 — Xác thực, tài khoản, hồ sơ
 
@@ -52,7 +52,7 @@ Spec: [2026-11-15-giai-doan-2-quan-tri-design.md](superpowers/specs/2026-11-15-g
 
 - [x] API: chi nhánh, khoa, phòng; vai trò; quyền; gán quyền cho vai trò; quản trị người dùng; guard theo quyền động (cache quyền theo tiến trình); đồng bộ `api_endpoints`
 - [x] Web: quản lý cơ sở vật chất, người dùng, vai trò và phân quyền
-- Chưa có API gán quyền với endpoint (`permissions_endpoints`); phần này nhập qua seed và chỉ được kiểm thử bằng `test:db`.
+- Chưa có API gán quyền với endpoint (`permissions_endpoints`); phần này do seed và lệnh đồng bộ endpoint ghi (lệnh đồng bộ ghi cả quyền khai báo bằng `@RequirePermission`, từ giai đoạn 3) và chỉ được kiểm thử bằng `test:db`.
 
 ## Giai đoạn 3 — Mẫu phiếu khám động
 
@@ -60,7 +60,7 @@ Spec: [2026-11-15-giai-doan-3-mau-phieu-design.md](superpowers/specs/2026-11-15-
 
 - [x] Shared: kiểu và quy tắc dùng chung (G3-1)
 - [x] Web: trình thiết kế mẫu phiếu (G3-3)
-- [ ] API (G3-2)
+- [x] API (G3-2): 11 API mẫu phiếu, section, câu hỏi; `@RequirePermission('manage_templates')` cho API ghi (admin luôn qua, vai trò khác cần được cấp qua `role_permissions`); seed mẫu dev `TMPL_DEV_SAMPLE`. Kiểm tra trên nhánh `gd3-api` sau khi gộp `main`: `pnpm test` shared 226, API 767, Web 225 (output không có log WARN/ERROR); `test:e2e` 13; `test:db` 263 (chạy 3 lần liền với `--retry=0`, đều xanh); `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build` xanh. Điểm cần chốt: MT-67, MT-68, MT-69, MT-98 và mục F.17–F.20 trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md)
 
 ## Giai đoạn 4 — Bệnh nhân, bệnh án
 
@@ -105,10 +105,10 @@ Spec: [2026-11-15-giai-doan-7-8-don-thuoc-xet-nghiem-thong-bao-design.md](superp
 
 ## Việc tiếp theo
 
-1. **API còn thiếu, theo thứ tự phụ thuộc:** G3-2 (mẫu phiếu) → G4-2 (bệnh nhân, bệnh án) → G6-2 (UAS7) và G7-2 (đơn thuốc, xét nghiệm, thông báo) → G5-2/G5-3 (kho ảnh, tổn thương da). Các API sau phụ thuộc bệnh án của G4-2.
+1. **API còn thiếu, theo thứ tự phụ thuộc:** G4-2 (bệnh nhân, bệnh án; thêm kiểm tra 4105 khi xoá mẫu phiếu đang được dùng) → G6-2 (UAS7) và G7-2 (đơn thuốc, xét nghiệm, thông báo) → G5-2/G5-3 (kho ảnh, tổn thương da). Các API sau phụ thuộc bệnh án của G4-2.
 2. **Đối chiếu schema thật** của nhóm DB (MT-57) bằng `prisma db pull`, rồi sửa tầng truy cập dữ liệu và các mục MT-59, 62, 63, 67, 70, 80, 81... trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md).
 3. **Thử app trên máy thật** (Expo Go: camera, chọn ảnh, bàn phím, `router.replace('/login')`).
-4. **Duyệt mục E và F** trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md); cần chốt riêng `gender: ''` (2001 hay 2003), `reset-password` (MT-16), và các mục từ review tổng thể: đổi mật khẩu chưa thu hồi phiên trên thiết bị khác (MT-95), chưa giới hạn tần suất đăng nhập/quên mật khẩu (MT-96), giới hạn tối đa 72 byte của mật khẩu (MT-97).
+4. **Duyệt mục E và F** trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md); cần chốt riêng `gender: ''` (2001 hay 2003), `reset-password` (MT-16), và các mục từ review tổng thể: đổi mật khẩu chưa thu hồi phiên trên thiết bị khác (MT-95), chưa giới hạn tần suất đăng nhập/quên mật khẩu (MT-96), giới hạn tối đa 72 byte của mật khẩu (MT-97); từ review G3-2: toàn vẹn cây câu hỏi rẽ nhánh (MT-98).
 5. **Các mục Minor còn mở** (rút gọn từ sổ theo dõi review và review tổng thể trước khi gộp vào `main`):
    - API: thêm Swagger request schema (plugin CLI không chạy với ESM nên schema yêu cầu đang rỗng); `session lookup` nên `select` hẹp; bản ghi có cả hai subtype xử lý chưa thống nhất; seed tạo và gán chưa atomic: tạo quyền rồi mới cấp cho vai trò mặc định, tạo user admin rồi mới gán vai trò, ở các lệnh riêng; lỗi giữa chừng thì chạy lại không cấp nữa (quyền đã có), nên gói trong một transaction; route `@Param` số phải dùng `parseIdPipe`; mapper viết thẳng trong service RBAC (vai trò, quyền, gán quyền) nên tách ra `*-mapping.ts` như các module khác; chuyển `PasswordService` sang `UsersModule`; khoá HMAC của OTP nên là khoá con suy ra bằng HKDF từ `JWT_SECRET` thay vì dùng thẳng `JWT_SECRET`.
    - Hạ tầng: `docker-compose` MinIO dùng `latest` chưa ghim phiên bản; `Number()` nhận `1e3`/`0x10` làm port; cache quyền nằm trong bộ nhớ từng tiến trình API: seed ghi lại gắn quyền–endpoint thì phải khởi động lại API (đã ghi trong README), chạy nhiều tiến trình cần cơ chế xoá cache chung.

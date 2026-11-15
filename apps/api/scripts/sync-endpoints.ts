@@ -1,5 +1,5 @@
 import type { INestApplicationContext } from '@nestjs/common';
-import type { PrismaClient } from '../src/generated/prisma/client.js';
+import type { api_endpoints, PrismaClient } from '../src/generated/prisma/client.js';
 import { listEndpoints } from '../src/permissions/endpoint-sync.js';
 import { endpointKey, type RouteKey } from '../src/permissions/route-key.js';
 import { isEntryPoint, runDbScript } from './db-script.js';
@@ -18,25 +18,45 @@ export async function syncEndpoints(
   return count;
 }
 
+/** Dòng `api_endpoints` đang có, đủ để so với route của app. */
+type EndpointRow = Pick<
+  api_endpoints,
+  'api_endpoints_id' | 'method' | 'path' | 'name' | 'description'
+>;
+
 /**
- * Upsert mọi route của app vào `api_endpoints` theo (method, path) rồi dọn các dòng không còn là
- * route; trả số route (spec giai đoạn 2, mục 4).
+ * Ghi mọi route của app vào `api_endpoints` theo (method, path) rồi dọn các dòng không còn là route;
+ * trả số route (spec giai đoạn 2, mục 4). Đọc bảng một lần rồi chỉ ghi phần chênh lệch: thêm route
+ * mới (createMany), sửa dòng đổi `name`/`description`. Trường hợp thường gặp (route không đổi) không
+ * ghi gì, và không có transaction dài nào chạm giới hạn 5 s của Prisma.
  */
 export async function syncApiEndpoints(
   app: INestApplicationContext,
   prisma: PrismaClient,
 ): Promise<number> {
   const endpoints = listEndpoints(app);
-  await prisma.$transaction(
-    endpoints.map(({ method, path, name, description }) =>
-      prisma.api_endpoints.upsert({
-        where: { method_path: { method, path } },
-        update: { name, description },
-        create: { method, path, name, description },
-      }),
-    ),
-  );
-  await pruneStaleEndpoints(prisma, new Set(endpoints.map(endpointKey)));
+  const rows: EndpointRow[] = await prisma.api_endpoints.findMany({
+    select: { api_endpoints_id: true, method: true, path: true, name: true, description: true },
+  });
+  const existing = new Map(rows.map((row) => [endpointKey(row), row]));
+
+  // skipDuplicates: lệnh đồng bộ khác chạy cùng lúc đã thêm route này thì bỏ qua.
+  await prisma.api_endpoints.createMany({
+    data: endpoints
+      .filter((endpoint) => !existing.has(endpointKey(endpoint)))
+      .map(({ method, path, name, description }) => ({ method, path, name, description })),
+    skipDuplicates: true,
+  });
+  for (const { name, description, ...route } of endpoints) {
+    const row = existing.get(endpointKey(route));
+    if (row && (row.name !== name || row.description !== description)) {
+      await prisma.api_endpoints.update({
+        where: { api_endpoints_id: row.api_endpoints_id },
+        data: { name, description },
+      });
+    }
+  }
+  await pruneStaleEndpoints(prisma, rows, new Set(endpoints.map(endpointKey)));
   return endpoints.length;
 }
 
@@ -87,13 +107,14 @@ export async function linkPermissionRoutes(
 }
 
 /**
- * Dòng `api_endpoints` không còn là route: chưa gắn quyền thì xoá; còn gắn quyền thì giữ lại (xoá sẽ
- * CASCADE mất gắn quyền) và cảnh báo để người quản trị gỡ.
+ * Dòng `api_endpoints` (trong `rows` đã đọc) không còn là route: chưa gắn quyền thì xoá; còn gắn quyền
+ * thì giữ lại (xoá sẽ CASCADE mất gắn quyền) và cảnh báo để người quản trị gỡ.
  */
-async function pruneStaleEndpoints(prisma: PrismaClient, routeKeys: Set<string>): Promise<void> {
-  const rows = await prisma.api_endpoints.findMany({
-    select: { api_endpoints_id: true, method: true, path: true },
-  });
+async function pruneStaleEndpoints(
+  prisma: PrismaClient,
+  rows: readonly EndpointRow[],
+  routeKeys: Set<string>,
+): Promise<void> {
   const staleIds = rows
     .filter((row) => !routeKeys.has(endpointKey(row)))
     .map(({ api_endpoints_id }) => api_endpoints_id);

@@ -3,8 +3,11 @@ import { Transform } from 'class-transformer';
 import { IsInt, IsOptional, Max, type ValidationOptions } from 'class-validator';
 import { isBlank } from './text.js';
 
-/** Giá trị lớn nhất của cột `INT` (khoá chính) trong MySQL. */
-export const MAX_ID = 2_147_483_647;
+/** Giá trị lớn nhất của cột `INT` trong MySQL. */
+export const MAX_INT = 2_147_483_647;
+
+/** Id lớn nhất: khoá chính là cột `INT`. */
+export const MAX_ID = MAX_INT;
 
 /** Chuỗi chỉ gồm chữ số thập phân: không dấu, không dạng 1.5, 1e2 hay 0x10. */
 const DIGITS_PATTERN = /^\d+$/;

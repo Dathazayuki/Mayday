@@ -356,6 +356,39 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
       );
     });
 
+    it('syncEndpoints chỉ ghi phần chênh lệch: thêm route thiếu, sửa name/description đã đổi, không chạm dòng không đổi', async () => {
+      const route = (method: string, path: string) => ({ method_path: { method, path } });
+      const health = route('GET', '/api/v1/health');
+      const login = route('POST', '/api/v1/auth/login');
+      const profile = route('GET', '/api/v1/profile');
+      const synced = await syncEndpoints(app, prisma);
+      const loginBefore = await prisma.api_endpoints.findUniqueOrThrow({ where: login });
+      const untouchedAt = new Date('2000-01-01T00:00:00.000Z');
+      await prisma.api_endpoints.update({ where: health, data: { updated_at: untouchedAt } });
+      await prisma.api_endpoints.update({
+        where: login,
+        data: { name: 'Cu.ten', description: 'Mô tả cũ', updated_at: untouchedAt },
+      });
+      await prisma.api_endpoints.delete({ where: profile });
+
+      await expect(syncEndpoints(app, prisma)).resolves.toBe(synced);
+
+      expect(await prisma.api_endpoints.count()).toBe(synced);
+      await expect(
+        prisma.api_endpoints.findUniqueOrThrow({ where: health }),
+      ).resolves.toMatchObject({ updated_at: untouchedAt });
+      const loginAfter = await prisma.api_endpoints.findUniqueOrThrow({ where: login });
+      expect(loginAfter).toMatchObject({
+        api_endpoints_id: loginBefore.api_endpoints_id,
+        name: 'AuthController.login',
+        description: loginBefore.description,
+      });
+      expect(loginAfter.updated_at.getTime()).toBeGreaterThan(untouchedAt.getTime());
+      await expect(
+        prisma.api_endpoints.findUniqueOrThrow({ where: profile }),
+      ).resolves.toMatchObject({ name: 'ProfileController.get' });
+    });
+
     it('6 quyền mặc định gắn với route quản trị đang có', async () => {
       const names = (await prisma.permissions.findMany()).map(({ name }) => name).sort();
       expect(names).toEqual([

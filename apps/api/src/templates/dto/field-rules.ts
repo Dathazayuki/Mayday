@@ -1,7 +1,7 @@
 import { applyDecorators } from '@nestjs/common';
 import { CODE_PATTERN, isValidShowIfAnswer, type Flag } from '@drmayday/shared';
 import { IsByteLength, IsIn, IsString, Matches, MaxLength, ValidateBy } from 'class-validator';
-import { MAX_ID } from '../../common/id.js';
+import { MAX_INT } from '../../common/id.js';
 
 /** Độ dài tối đa theo cột của CSDL (spec giai đoạn 3, mục 2). */
 export const CODE_TEMPLATE_MAX_LENGTH = 255;
@@ -42,7 +42,7 @@ function isOrder(value: unknown): boolean {
   if (typeof value === 'string' && !DIGITS_PATTERN.test(value)) return false;
   if (typeof value !== 'string' && typeof value !== 'number') return false;
   const order = Number(value);
-  return Number.isInteger(order) && order >= 0 && order <= MAX_ID;
+  return Number.isInteger(order) && order >= 0 && order <= MAX_INT;
 }
 
 /** `order` nhận chuỗi số nguyên không âm hoặc số nguyên; sai → 2003 (spec mục 3.1). */

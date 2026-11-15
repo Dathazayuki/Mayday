@@ -5,6 +5,7 @@ import type { SeedResult } from '../../prisma/seed.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import { PermissionCache } from '../../src/permissions/permission-cache.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
+import { TemplatesRepository } from '../../src/templates/templates.repository.js';
 import { createTestApp, resetData } from './helpers.js';
 
 const ADMIN = { phone: '0900000001', password: 'admin123' };
@@ -802,6 +803,48 @@ describe('Mẫu phiếu khám động: templates, sections, questions (MySQL th�
       const res = await api('delete', `/templates/questions/${id}`).expect(status);
       expect(res.body).toMatchObject({ code });
       expect(await prisma.questions.count()).toBe(3);
+    });
+  });
+
+  // Request khác xoá dữ liệu giữa lúc QuestionsService kiểm tra và lúc ghi: gọi thẳng repository.
+  describe('TemplatesRepository.updateQuestion khi dữ liệu bị xoá đồng thời', () => {
+    const newOption = { option_text: 'Mới', option_value: 'NEW', order: 3 };
+
+    it('lựa chọn cần sửa đã bị xoá → 2003 / 409, rollback toàn bộ', async () => {
+      const [yes, no] = await optionIds('Q_DEV_HAS_ITCH');
+      await prisma.question_options.delete({ where: { id: no } });
+
+      await expect(
+        app.get(TemplatesRepository).updateQuestion(
+          'Q_DEV_HAS_ITCH',
+          { question_text: 'Đã đổi' },
+          {
+            create: [newOption],
+            update: [{ id: no!, option_text: 'Không', option_value: 'NO', order: 2 }],
+            remove: [yes!],
+          },
+        ),
+      ).rejects.toMatchObject({ code: '2003', httpStatus: 409 });
+
+      expect(await optionIds('Q_DEV_HAS_ITCH')).toEqual([yes]);
+      await expect(
+        prisma.questions.findUniqueOrThrow({ where: { question_id: 'Q_DEV_HAS_ITCH' } }),
+      ).resolves.toMatchObject({ question_text: 'Bạn có bị ngứa không?' });
+    });
+
+    it('câu hỏi đã bị xoá → null (service trả 4104), kể cả khi kèm lựa chọn mới', async () => {
+      const repository = app.get(TemplatesRepository);
+      await prisma.questions.delete({ where: { question_id: 'Q_DEV_NOTE' } });
+
+      await expect(repository.updateQuestion('Q_DEV_NOTE', { order: 2 })).resolves.toBeNull();
+      await expect(
+        repository.updateQuestion(
+          'Q_DEV_NOTE',
+          {},
+          { create: [newOption], update: [], remove: [] },
+        ),
+      ).resolves.toBeNull();
+      expect(await optionIds('Q_DEV_NOTE')).toEqual([]);
     });
   });
 });

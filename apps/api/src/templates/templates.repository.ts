@@ -212,8 +212,9 @@ export class TemplatesRepository {
 
   /**
    * Sửa câu hỏi và (nếu có `options`) đồng bộ lựa chọn trong một transaction: xoá, sửa, tạo rồi mới
-   * sửa câu hỏi để kết quả trả về có danh sách lựa chọn mới. Không tồn tại (kể cả bị xoá giữa lúc
-   * service kiểm tra và lúc ghi: tạo lựa chọn vướng khoá ngoại) → null.
+   * sửa câu hỏi để kết quả trả về có danh sách lựa chọn mới. Câu hỏi không tồn tại (kể cả bị xoá giữa
+   * lúc service kiểm tra và lúc ghi: tạo lựa chọn vướng khoá ngoại) → null. Lựa chọn cần sửa bị xoá
+   * giữa chừng (request khác đồng thời) → 2003 (409), không ghi gì.
    */
   async updateQuestion(
     questionId: string,
@@ -227,7 +228,11 @@ export class TemplatesRepository {
             where: { question_id: questionId, id: { in: options.remove } },
           });
           for (const { id, ...data } of options.update) {
-            await tx.question_options.update({ where: { id, question_id: questionId }, data });
+            const { count } = await tx.question_options.updateMany({
+              where: { id, question_id: questionId },
+              data,
+            });
+            if (count === 0) throw conflict();
           }
           await tx.question_options.createMany({
             data: options.create.map((option) => ({ ...option, question_id: questionId })),

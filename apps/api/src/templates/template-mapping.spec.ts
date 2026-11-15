@@ -7,6 +7,7 @@ import {
   toNewSection,
   toNewTemplate,
   toOptionFields,
+  toOptionId,
   toOrder,
   toQuestionChanges,
   toQuestionData,
@@ -41,6 +42,12 @@ describe('chuyển đổi kiểu (spec giai đoạn 3, mục 3.1)', () => {
     expect(toOrder('007')).toBe(7);
     expect(toOrder(0)).toBe(0);
     expect(toOrder(undefined)).toBeUndefined();
+  });
+
+  it('id lựa chọn: chuỗi chữ số → int; 0 hoặc sai dạng → undefined', () => {
+    expect(toOptionId('31')).toBe(31);
+    expect(toOptionId('0')).toBeUndefined();
+    expect(toOptionId('1e2')).toBeUndefined();
   });
 
   it('show_if_answer: chuỗi JSON → mảng; cột JSON → mảng chuỗi, giá trị khác → null', () => {

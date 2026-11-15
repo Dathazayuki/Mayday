@@ -15,6 +15,7 @@ import type {
   UpdateSectionRequest,
   UpdateTemplateRequest,
 } from '@drmayday/shared';
+import { parseIdText } from '../common/id.js';
 import type {
   question_options,
   questions,
@@ -55,6 +56,9 @@ export function toOrder(value: string | number | undefined): number | undefined;
 export function toOrder(value: string | number | undefined): number | undefined {
   return value === undefined ? undefined : Number(value);
 }
+
+/** id lựa chọn gửi lên (chuỗi chữ số) → int; không phải số nguyên dương → undefined. */
+export const toOptionId = (id: string): number | undefined => parseIdText(id);
 
 /** Chuỗi show_if_answer đã qua ShowIfAnswerRule → mảng option_value (MT-69). */
 export const parseShowIfAnswer = (raw: string): string[] => JSON.parse(raw) as string[];

@@ -7,6 +7,8 @@ export const REQUIRED_PERMISSIONS_KEY = 'drmayday:required-permissions';
  * Route (hoặc cả controller) cần quyền `name` (spec giai đoạn 3, mục 3.1). PermissionsGuard luôn áp
  * dụng quyền khai báo ở đây, gộp với quyền gắn qua `permissions_endpoints`, kể cả khi CSDL chưa đồng
  * bộ; lệnh đồng bộ endpoint ghi lại quyền này vào `permissions` và `permissions_endpoints`.
+ * Mỗi đích (handler hoặc controller) chỉ gắn một @RequirePermission: SetMetadata cùng khoá ghi đè lần
+ * gắn trước. Khai báo ở controller và ở handler thì được gộp (có một trong các quyền là qua).
  */
 export const RequirePermission = (name: string) => SetMetadata(REQUIRED_PERMISSIONS_KEY, [name]);
 

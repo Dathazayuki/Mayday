@@ -8,12 +8,12 @@ import {
   type UpdateQuestionRequest,
 } from '@drmayday/shared';
 import { AppException, conflict } from '../common/app.exception.js';
-import { parseIdText } from '../common/id.js';
 import { requireChanges } from '../common/require-changes.js';
 import {
   showIfAnswerOf,
   toNewQuestion,
   toOptionFields,
+  toOptionId,
   toQuestionChanges,
   toQuestionData,
 } from './template-mapping.js';
@@ -67,7 +67,7 @@ function planOptionChanges(
       changes.create.push(toOptionFields(input));
       continue;
     }
-    const id = parseIdText(input.id);
+    const id = toOptionId(input.id);
     if (id === undefined || !currentIds.has(id) || kept.has(id)) {
       throw fieldError('2003', 'options');
     }

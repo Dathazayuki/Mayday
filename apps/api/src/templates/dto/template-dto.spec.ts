@@ -1,6 +1,6 @@
 import { plainToInstance, type ClassConstructor } from 'class-transformer';
 import { validate } from 'class-validator';
-import { MAX_ID } from '../../common/id.js';
+import { MAX_INT } from '../../common/id.js';
 import { validationErrorsToException } from '../../common/validation.js';
 import { CreateQuestionDto, UpdateQuestionDto } from './question.dto.js';
 import { CreateSectionDto, UpdateSectionDto } from './section.dto.js';
@@ -108,7 +108,7 @@ describe('CreateSectionDto', () => {
   it('title và order bắt buộc; order nhận chuỗi chữ số hoặc số nguyên không âm', async () => {
     expect(await codeFor(CreateSectionDto, valid)).toBeNull();
     expect(await codeFor(CreateSectionDto, { ...valid, order: 0 })).toBeNull();
-    expect(await codeFor(CreateSectionDto, { ...valid, order: String(MAX_ID) })).toBeNull();
+    expect(await codeFor(CreateSectionDto, { ...valid, order: String(MAX_INT) })).toBeNull();
     expect(
       await codeFor(CreateSectionDto, { ...valid, is_required: '1', filled_by: 'patdoc' }),
     ).toBeNull();
@@ -125,8 +125,8 @@ describe('CreateSectionDto', () => {
     ['order số thập phân', { order: 1.5 }, '2003'],
     ['order dạng 1e2', { order: '1e2' }, '2003'],
     ['order có khoảng trắng', { order: ' 1' }, '2003'],
-    ['order vượt INT tối đa', { order: MAX_ID + 1 }, '2003'],
-    ['order (chuỗi) vượt INT tối đa', { order: String(MAX_ID + 1) }, '2003'],
+    ['order vượt INT tối đa', { order: MAX_INT + 1 }, '2003'],
+    ['order (chuỗi) vượt INT tối đa', { order: String(MAX_INT + 1) }, '2003'],
     ['order kiểu boolean', { order: true }, '2003'],
     ['is_required ngoài "0"/"1"', { is_required: '2' }, '2003'],
     ['filled_by ngoài patient/doctor/patdoc', { filled_by: 'nurse' }, '2003'],
