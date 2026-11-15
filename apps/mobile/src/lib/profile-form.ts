@@ -3,6 +3,7 @@ import {
   isValidIsoDate,
   isValidYearOfBirth,
   type Career,
+  type FieldErrors,
   type Gender,
   type ProfileData,
   type UpdateProfileRequest,
@@ -30,7 +31,7 @@ export type ProfileFormValues = Record<
   | 'next_of_kin_phone',
   string
 > & { gender: Gender | null; career: Career | null };
-export type ProfileFormErrors = Partial<Record<keyof ProfileFormValues, string>>;
+export type ProfileFormErrors = FieldErrors<keyof ProfileFormValues>;
 
 export function toFormValues(profile: ProfileData): ProfileFormValues {
   const patient = isPatientProfile(profile) ? profile : null;

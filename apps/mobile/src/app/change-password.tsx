@@ -1,4 +1,9 @@
-import { PASSWORD_MIN_LENGTH, describeError, type ChangePasswordRequest } from '@drmayday/shared';
+import {
+  PASSWORD_MIN_LENGTH,
+  describeError,
+  type ChangePasswordRequest,
+  type FieldErrors,
+} from '@drmayday/shared';
 import { useState } from 'react';
 import { useAuth } from '@/auth/auth-context';
 import { AuthGate } from '@/components/auth-gate';
@@ -6,7 +11,7 @@ import { Banner } from '@/components/banner';
 import { FormField } from '@/components/form-field';
 import { FormScreen } from '@/components/form-screen';
 import { PrimaryButton } from '@/components/primary-button';
-import { validateChangePassword, type FieldErrors } from '@/lib/validation';
+import { validateChangePassword } from '@/lib/validation';
 
 function ChangePasswordForm({ onChanged }: { onChanged: () => void }) {
   const { changePassword, endSession } = useAuth();

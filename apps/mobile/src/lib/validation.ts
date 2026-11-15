@@ -2,10 +2,8 @@ import {
   PASSWORD_MIN_LENGTH,
   isValidVietnamPhone,
   type ChangePasswordRequest,
+  type FieldErrors,
 } from '@drmayday/shared';
-
-/** Lỗi theo từng trường; rỗng nghĩa là hợp lệ. */
-export type FieldErrors<K extends string> = Partial<Record<K, string>>;
 
 export function validatePhone(phone: string): string | null {
   if (!phone) return 'Vui lòng nhập số điện thoại';

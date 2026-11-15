@@ -1,4 +1,10 @@
-import { GENDER_OPTIONS, PASSWORD_MIN_LENGTH, describeError, type Gender } from '@drmayday/shared';
+import {
+  GENDER_OPTIONS,
+  PASSWORD_MIN_LENGTH,
+  describeError,
+  type FieldErrors,
+  type Gender,
+} from '@drmayday/shared';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { useAuth } from '@/auth/auth-context';
@@ -8,7 +14,7 @@ import { FormField } from '@/components/form-field';
 import { FormScreen } from '@/components/form-screen';
 import { OptionPicker } from '@/components/option-picker';
 import { PrimaryButton } from '@/components/primary-button';
-import { validateSignup, type FieldErrors, type SignupValues } from '@/lib/validation';
+import { validateSignup, type SignupValues } from '@/lib/validation';
 
 function SignupForm() {
   const { signup } = useAuth();

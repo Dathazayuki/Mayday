@@ -102,7 +102,7 @@ describe('LesionPanel', () => {
     expect(await screen.findByText('Nổi mẩn sau ăn')).toBeInTheDocument();
     expect(screen.getByText('Sau ăn hải sản')).toBeInTheDocument();
     expect(screen.getByText('Mẩn đỏ ở tay')).toBeInTheDocument();
-    expect(screen.getByText('14/11/2026 19:30:00')).toBeInTheDocument();
+    expect(screen.getByText('14/11/2026 19:30')).toBeInTheDocument();
     expect(urls).toEqual([`${BASE}/lesion-episodes/record/101`]);
   });
 
