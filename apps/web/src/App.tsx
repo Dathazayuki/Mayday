@@ -4,12 +4,13 @@ import viVN from 'antd/locale/vi_VN';
 import { BrowserRouter } from 'react-router';
 import { AuthProvider } from './auth/AuthContext';
 import { AppRoutes } from './routes';
+import { appTheme } from './theme/antd-theme';
 
 const queryClient = new QueryClient();
 
 export default function App() {
   return (
-    <ConfigProvider locale={viVN}>
+    <ConfigProvider locale={viVN} theme={appTheme}>
       <AntApp>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>

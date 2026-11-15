@@ -14,6 +14,8 @@
   "dependencies": {
     "@ant-design/icons": "^6.3.4",
     "@drmayday/shared": "workspace:*",
+    "@fontsource/be-vietnam-pro": "^5.3.0",
+    "@fontsource/sora": "^5.3.0",
     "@tanstack/react-query": "^5.107.1",
     "antd": "^6.7.0",
     "react": "19.3.0",
