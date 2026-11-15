@@ -1,143 +1,158 @@
-import type {
-  AdminUserDetailData,
-  AdminUserListItem,
-  AssignUserResponseData,
-  Career,
-  CreateStaffResponseData,
-  Gender,
-  LoginUserInfo,
-  PatientEditableField,
-  PatientProfileData,
-  PatientProfileFields,
-  ProfileBase,
-  ProfileData,
-  SignupResponseData,
-  UpdateUserRequest,
+import {
+  CAREER_VALUES,
+  type AdminUserDetailData,
+  type AdminUserListItem,
+  type AssignUserResponseData,
+  type Career,
+  type CreateStaffResponseData,
+  type Gender,
+  type LoginUserInfo,
+  type PatientEditableField,
+  type PatientProfileData,
+  type PatientProfileFields,
+  type ProfileBase,
+  type ProfileData,
+  type SignupResponseData,
+  type UpdateUserRequest,
 } from '@drmayday/shared';
-import type { Placement, StoredPlacement } from '../facilities/placement.js';
-import type {
-  Prisma,
-  patients,
-  patients_nghe_nghiep,
-  staffs,
-  users,
-  users_gioi_tinh,
-} from '../generated/prisma/client.js';
+import type { Prisma } from '../generated/prisma/client.js';
+import { hasChanges } from '../common/require-changes.js';
+import { fromDbId, toDbId } from '../prisma/db-id.js';
 
 /**
- * Ánh xạ API (Sheet) ↔ CSDL của users/patients (spec giai đoạn 1, mục 3.1). Tên và giá trị cột
- * tiếng Việt chỉ xuất hiện ở đây và trong users.repository.ts; service chỉ dùng kiểu tiếng Anh.
+ * Ánh xạ API ↔ CSDL thật của người dùng (spec A, mục 4.1, 5.1–5.2): `nguoi`, `taikhoan`, `benhnhan`,
+ * `nhanvien`. Tên bảng, tên cột tiếng Việt chỉ nằm ở đây và trong users.repository.ts; service dùng
+ * bản ghi miền.
  */
 
-// ---- Kiểu hai phía ----
+// ---- Bản ghi miền ----
 
-/** Người dùng đọc từ CSDL kèm bản ghi subtype: nhân viên có `staffs`, bệnh nhân có `patients`. */
-export type UserRecord = users & { staffs: staffs | null; patients: patients | null };
-export type StaffRecord = UserRecord & { staffs: staffs };
-export type PatientRecord = UserRecord & { patients: patients };
-/** Người dùng hợp lệ: có bản ghi subtype (requireSubtype đã kiểm tra). */
-export type SubtypedUser = StaffRecord | PatientRecord;
+/** Trường của `nguoi` mà API coi là trường bệnh nhân (năm sinh, địa chỉ). */
+export interface PersonFields {
+  birthDate: Date | null;
+  hamletAddress: string | null;
+  communeAddress: string | null;
+  cityAddress: string | null;
+}
 
-/** Dữ liệu tạo tài khoản theo API: họ tên chưa chuẩn hoá, gender theo Sheet. */
-export interface NewUser {
+/** Trường của `benhnhan`, cùng `firstVisit` = MIN(hosobenhan.thoi_diem_kham_lan_dau) (D14, MT-104). */
+export interface PatientFields {
+  career: Career | null;
+  ethnic: string | null;
+  insuranceNumber: string | null;
+  insuranceValidUntil: Date | null;
+  nextOfKinName: string | null;
+  nextOfKinPhone: string | null;
+  firstVisit: Date | null;
+}
+
+export interface StaffFields {
+  branchId: number;
+}
+
+/** "Người dùng" của API giai đoạn 1–2 = `nguoi` có `taikhoan` (D3). */
+export interface UserRecord {
+  userId: number;
+  accountId: number;
+  roleId: number;
+  roleName: string;
+  fullName: string;
+  phone: string;
+  gender: Gender | null;
+  isActive: boolean;
+  passwordHash: string;
+  createdAt: Date;
+  /** `taikhoan.thoi_diem_cap_nhat`: mốc thu hồi token (spec A, mục 6.2). */
+  accountUpdatedAt: Date;
+  person: PersonFields;
+  patient: PatientFields | null;
+  staff: StaffFields | null;
+}
+
+/** Người dùng theo dạng do vai trò quyết định (D4, user-shape.ts). */
+export type PatientUser = UserRecord & { shape: 'patient'; patient: PatientFields };
+export type StaffUser = UserRecord & { shape: 'staff' };
+export type ShapedUser = PatientUser | StaffUser;
+
+/** Tài khoản của phiên đăng nhập, đọc ở mỗi request (spec A, mục 6.1). */
+export interface SessionAccount {
+  roleId: number;
+  isActive: boolean;
+  updatedAt: Date;
+}
+
+/** Tài khoản mới theo API: họ tên chưa chuẩn hoá; tên đăng nhập = số điện thoại (D16). */
+export interface NewAccount {
   fullName: string;
   phone: string;
   passwordHash: string;
   gender: Gender | null;
+  roleId: number;
   /** Vắng = đang hoạt động (Sheet POST admin/users: "Mặc định là 1: active"). */
   isActive?: boolean;
 }
 
-export interface NewPatient extends NewUser {
-  patientRoleId: number;
-}
-
-/** Vai trò và nơi công tác của nhân viên (bảng `staffs`). */
-export interface StaffAssignment extends Placement {
-  roleId: number;
-}
-
-/**
- * Nhân viên mới: create-staff có đủ nơi công tác; POST admin/users chưa phân công nên cả ba là null
- * (gán sau bằng PUT admin/users/:id/assign).
- */
-export interface NewStaff extends NewUser, StoredPlacement {
-  roleId: number;
-}
+/** Bản ghi subtype tạo cùng tài khoản: bệnh nhân; nhân viên có chi nhánh; chưa phân công (D5). */
+export type AccountSubtype =
+  { kind: 'patient' } | { kind: 'staff'; branchId: number } | { kind: 'none' };
 
 /** Bộ lọc của GET admin/users; vắng = không lọc. */
 export interface UserFilter {
   roleId?: number;
 }
 
-/**
- * Giá trị hồ sơ ghi vào CSDL (PUT profile), theo tên trường của Sheet; null = xoá giá trị (chuỗi
- * trống đã được UpdateProfileDto đổi thành null).
- */
+/** Giá trị hồ sơ ghi vào CSDL (PUT profile) theo tên trường của Sheet; null = xoá giá trị. */
 export type ProfileWrite = { full_name: string; gender: Gender | null } & {
   [K in PatientEditableField]: PatientProfileFields[K];
 };
 
-/** Cột cần ghi cho PUT profile (undefined = giữ nguyên); vắng `patient` khi không có trường bệnh nhân. */
+/** Cột cần ghi cho PUT profile; vắng `patient` khi không có trường của benhnhan. */
 export interface ProfileColumns {
-  user: Prisma.usersUpdateInput;
-  patient?: Prisma.patientsUpdateWithoutUserInput;
+  person: Prisma.nguoiUpdateInput;
+  patient?: Prisma.benhnhanUpdateWithoutNguoiInput;
 }
 
-// ---- Giá trị enum ----
-
-// MT-59: tài liệu CSDL chỉ có Nam/Nu, CSDL dev thêm Khac cho "other".
-const GENDER_TO_DB: Record<Gender, users_gioi_tinh> = { male: 'Nam', female: 'Nu', other: 'Khac' };
-
-// API dùng đúng giá trị CSDL; Prisma chỉ đổi dấu cách thành "_" trong tên enum (@map giữ giá trị gốc).
-const CAREER_TO_DB: Record<Career, patients_nghe_nghiep> = {
-  'Cong nhan': 'Cong_nhan',
-  'Nong dan': 'Nong_dan',
-  'Hoc sinh - Sinh vien': 'Hoc_sinh___Sinh_vien',
-  'Can bo cong chuc': 'Can_bo_cong_chuc',
-  Khac: 'Khac',
-};
-
-function invert<K extends string, V extends string>(map: Record<K, V>): Record<V, K> {
-  const entries = Object.entries<V>(map).map(([key, value]) => [value, key]);
-  return Object.fromEntries(entries) as Record<V, K>;
+/** Hàng của câu SQL thô tra tài khoản theo tên đăng nhập (spec A, mục 4.4). */
+export interface AccountIdRow {
+  ma_tai_khoan: bigint;
 }
 
-const GENDER_FROM_DB = invert(GENDER_TO_DB);
-const CAREER_FROM_DB = invert(CAREER_TO_DB);
+// ---- (a) Hằng ánh xạ giá trị ----
 
-export function genderToDb(gender: Gender): users_gioi_tinh {
+/** CSDL chỉ có Nam/Nu (`ck_nguoi_gioi_tinh`, SQL:62; MT-59). */
+const GENDER_TO_DB: Record<Gender, string> = { male: 'Nam', female: 'Nu' };
+const GENDER_FROM_DB: Record<string, Gender> = { Nam: 'male', Nu: 'female' };
+
+export function genderToDb(gender: Gender): string {
   return GENDER_TO_DB[gender];
 }
 
-export function genderFromDb(value: users_gioi_tinh | null): Gender | null {
-  return value === null ? null : GENDER_FROM_DB[value];
+export function genderFromDb(value: string | null): Gender | null {
+  return value === null ? null : (GENDER_FROM_DB[value] ?? null);
 }
 
-export function careerToDb(career: Career): patients_nghe_nghiep {
-  return CAREER_TO_DB[career];
+/** API dùng đúng 5 giá trị của `ck_benh_nhan_nghe_nghiep` (SQL:113–116). */
+export function careerToDb(career: Career): string {
+  return career;
 }
 
-export function careerFromDb(value: patients_nghe_nghiep | null): Career | null {
-  return value === null ? null : CAREER_FROM_DB[value];
+export function careerFromDb(value: string | null): Career | null {
+  return CAREER_VALUES.find((career) => career === value) ?? null;
 }
 
 // ---- Giá trị đơn ----
 
-/** `users.ho_ten` "Tự động in hoa" theo tài liệu CSDL. */
+/** `nguoi.ho_ten` ghi bằng chữ in hoa. */
 export function normalizeFullName(fullName: string): string {
   return fullName.trim().toLocaleUpperCase('vi');
 }
 
-/** year_of_birth đọc từ `patients.ngay_sinh` (MT-13). */
+/** year_of_birth đọc từ `nguoi.ngay_sinh` (MT-13). */
 export function yearFromDate(date: Date | null): number | null {
   return date === null ? null : date.getUTCFullYear();
 }
 
-/**
- * Giá trị ghi vào `patients.ngay_sinh` cho year_of_birth (MT-13): năm không đổi → undefined
- * (giữ nguyên ngày/tháng thật), ngược lại YYYY-01-01.
- */
+/** Năm không đổi → undefined (giữ ngày/tháng thật), ngược lại YYYY-01-01 (MT-13). */
 export function dateForYear(year: number, current: Date | null): Date | undefined {
   if (current?.getUTCFullYear() === year) return undefined;
   return new Date(Date.UTC(year, 0, 1));
@@ -148,7 +163,7 @@ export function isoDate(date: Date | null): string | null {
   return date === null ? null : date.toISOString().slice(0, 10);
 }
 
-/** Cột `datetime` → ISO 8601. */
+/** Cột `timestamptz` → ISO 8601. */
 export function isoDateTime(date: Date | null): string | null {
   return date === null ? null : date.toISOString();
 }
@@ -165,196 +180,250 @@ function change<T, R>(value: T | null | undefined, convert: (value: T) => R): R 
   return convert(value);
 }
 
-/** Cột chữ tự do: bỏ khoảng trắng hai đầu; còn lại chuỗi rỗng thì ghi null (CSDL không lưu ''). */
+/** Cột chữ tự do: bỏ khoảng trắng hai đầu; còn lại chuỗi rỗng thì ghi null (thoả CHECK btrim <> ''). */
 function trimText(text: string): string | null {
   return text.trim() || null;
 }
 
-// ---- Ghi ----
+// ---- (b) Hàng CSDL → bản ghi miền ----
 
-/** Cột `users` khi tạo tài khoản: họ tên in hoa, gender theo enum CSDL. */
-export function newUserToDb({ fullName, phone, passwordHash, gender, isActive = true }: NewUser) {
+/** include của mọi lần đọc người dùng: vai trò, nguoi, nhanvien, benhnhan và hồ sơ sớm nhất (D14). */
+export const ACCOUNT_INCLUDE = {
+  vaitro: { select: { ten_vai_tro: true } },
+  nguoi: {
+    include: {
+      nhanvien: { select: { ma_chi_nhanh: true } },
+      benhnhan: {
+        include: {
+          hosobenhan: {
+            select: { thoi_diem_kham_lan_dau: true },
+            where: { thoi_diem_kham_lan_dau: { not: null } },
+            orderBy: { thoi_diem_kham_lan_dau: 'asc' },
+            take: 1,
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.taikhoanInclude;
+
+export type AccountRow = Prisma.taikhoanGetPayload<{ include: typeof ACCOUNT_INCLUDE }>;
+
+export function toUserRecord(row: AccountRow): UserRecord {
+  const { nguoi } = row;
+  const patient = nguoi.benhnhan;
+  return {
+    userId: fromDbId(row.ma_nguoi),
+    accountId: fromDbId(row.ma_tai_khoan),
+    roleId: fromDbId(row.ma_vai_tro),
+    roleName: row.vaitro.ten_vai_tro,
+    fullName: nguoi.ho_ten,
+    phone: nguoi.so_dien_thoai,
+    gender: genderFromDb(nguoi.gioi_tinh),
+    isActive: row.trang_thai_hoat_dong,
+    passwordHash: row.mat_khau_ma_hoa,
+    createdAt: row.thoi_diem_tao,
+    accountUpdatedAt: row.thoi_diem_cap_nhat,
+    person: {
+      birthDate: nguoi.ngay_sinh,
+      hamletAddress: nguoi.dia_chi_so_nha_thon_pho,
+      communeAddress: nguoi.dia_chi_xa_phuong,
+      cityAddress: nguoi.dia_chi_tinh_tp,
+    },
+    patient: patient && {
+      career: careerFromDb(patient.nghe_nghiep),
+      ethnic: patient.dan_toc,
+      insuranceNumber: patient.bhyt_so_the,
+      insuranceValidUntil: patient.bhyt_gia_tri_den,
+      nextOfKinName: patient.nguoi_nha_ho_ten_dia_chi,
+      nextOfKinPhone: patient.nguoi_nha_so_dien_thoai,
+      firstVisit: patient.hosobenhan[0]?.thoi_diem_kham_lan_dau ?? null,
+    },
+    staff: nguoi.nhanvien && { branchId: fromDbId(nguoi.nhanvien.ma_chi_nhanh) },
+  };
+}
+
+export const SESSION_SELECT = {
+  ma_vai_tro: true,
+  trang_thai_hoat_dong: true,
+  thoi_diem_cap_nhat: true,
+} satisfies Prisma.taikhoanSelect;
+
+export function toSessionAccount(
+  row: Prisma.taikhoanGetPayload<{ select: typeof SESSION_SELECT }>,
+): SessionAccount {
+  return {
+    roleId: fromDbId(row.ma_vai_tro),
+    isActive: row.trang_thai_hoat_dong,
+    updatedAt: row.thoi_diem_cap_nhat,
+  };
+}
+
+// ---- (c) Bản ghi miền / request → input của Prisma ----
+
+/**
+ * Một nested create từ `nguoi` (spec A, mục 4.5): Prisma ghi nguoi, taikhoan và subtype trong một
+ * transaction. Tên đăng nhập = số điện thoại (D16). Không gửi cột thoi_diem_* (CSDL điền, D1).
+ */
+export function newAccountToDb(
+  { fullName, phone, passwordHash, gender, roleId, isActive = true }: NewAccount,
+  subtype: AccountSubtype,
+): Prisma.nguoiCreateInput {
   return {
     ho_ten: normalizeFullName(fullName),
     so_dien_thoai: phone,
-    password_hash: passwordHash,
-    gioi_tinh: change(gender, genderToDb),
-    is_active: isActive,
-  } satisfies Prisma.usersCreateInput;
+    gioi_tinh: gender === null ? null : genderToDb(gender),
+    taikhoan: {
+      create: {
+        ten_dang_nhap: phone,
+        mat_khau_ma_hoa: passwordHash,
+        trang_thai_hoat_dong: isActive,
+        ma_vai_tro: toDbId(roleId),
+      },
+    },
+    ...(subtype.kind === 'patient' ? { benhnhan: { create: {} } } : {}),
+    ...(subtype.kind === 'staff'
+      ? { nhanvien: { create: { ma_chi_nhanh: toDbId(subtype.branchId) } } }
+      : {}),
+  };
 }
 
-/**
- * Cột `users` của họ tên và giới tính khi sửa (PUT profile, PUT admin/users/:id). full_name không
- * xoá được: service đã chặn giá trị trống (2003).
- */
-function nameAndGenderToDb(changes: { full_name?: string; gender?: Gender | null }) {
+/** Họ tên, giới tính khi sửa (PUT profile, PUT admin/users/:id); vắng = giữ nguyên. */
+export function personChangesToDb(changes: { full_name?: string; gender?: Gender | null }) {
   return {
     ho_ten: changes.full_name === undefined ? undefined : normalizeFullName(changes.full_name),
     gioi_tinh: change(changes.gender, genderToDb),
-  } satisfies Prisma.usersUpdateInput;
+  } satisfies Prisma.nguoiUpdateInput;
 }
 
-/** `currentBirthDate`: `patients.ngay_sinh` đang lưu, cho quy tắc năm sinh (MT-13). */
+/** `currentBirthDate`: `nguoi.ngay_sinh` đang lưu, cho quy tắc năm sinh (MT-13). */
 export function profileUpdateToDb(
   changes: Partial<ProfileWrite>,
   currentBirthDate: Date | null,
 ): ProfileColumns {
-  const user = nameAndGenderToDb(changes);
-  const patient = {
+  const person = {
+    ...personChangesToDb(changes),
     ngay_sinh: change(changes.year_of_birth, (year) => dateForYear(year, currentBirthDate)),
-    nghe_nghiep: change(changes.career, careerToDb),
-    dan_toc: change(changes.ethnic, trimText),
     dia_chi_so_nha_thon_pho: change(changes.hamlet_address, trimText),
     dia_chi_xa_phuong: change(changes.commune_address, trimText),
     dia_chi_tinh_tp: change(changes.city_address, trimText),
-    noi_lam_viec: change(changes.work_place, trimText),
+  } satisfies Prisma.nguoiUpdateInput;
+  const patient = {
+    nghe_nghiep: change(changes.career, careerToDb),
+    dan_toc: change(changes.ethnic, trimText),
     bhyt_so_the: change(changes.health_insurance_number, trimText),
     bhyt_gia_tri_den: change(changes.health_insurance_validate, dateFromIso),
     nguoi_nha_ho_ten_dia_chi: change(changes.next_of_kin_name, trimText),
     nguoi_nha_so_dien_thoai: change(changes.next_of_kin_phone, trimText),
-  };
-  const hasPatientChanges = Object.values(patient).some((value) => value !== undefined);
-  return hasPatientChanges ? { user, patient } : { user };
+  } satisfies Prisma.benhnhanUpdateWithoutNguoiInput;
+  return hasChanges(patient) ? { person, patient } : { person };
 }
 
 /**
- * Cột cần ghi cho PUT admin/users/:id (undefined = giữ nguyên). role_id ghi vào bảng subtype mà
- * `current` đang có; AdminUsersService đã chặn đổi vai trò sang nhóm khác (MT-65).
+ * Cột `taikhoan` cho PUT admin/users/:id, **chỉ** những cột có giá trị khác bản ghi hiện tại (D7):
+ * trigger đổi thoi_diem_cap_nhat ở mọi UPDATE, mà mốc này thu hồi token.
  */
-export function userUpdateToDb(
-  changes: UpdateUserRequest,
-  current: UserRecord,
-): Prisma.usersUpdateInput {
-  const role = changes.role_id === undefined ? undefined : { update: { role_id: changes.role_id } };
+export function accountChangesToDb(
+  changes: Pick<UpdateUserRequest, 'role_id' | 'is_active'>,
+  current: Pick<UserRecord, 'roleId' | 'isActive'>,
+) {
+  const isActive = changes.is_active === undefined ? undefined : changes.is_active === 1;
   return {
-    ...nameAndGenderToDb(changes),
-    is_active: changes.is_active === undefined ? undefined : changes.is_active === 1,
-    ...(isPatient(current) ? { patients: role } : { staffs: role }),
-  };
+    ma_vai_tro:
+      changes.role_id === undefined || changes.role_id === current.roleId
+        ? undefined
+        : toDbId(changes.role_id),
+    trang_thai_hoat_dong:
+      isActive === undefined || isActive === current.isActive ? undefined : isActive,
+  } satisfies Prisma.taikhoanUncheckedUpdateInput;
 }
 
-// ---- Đọc ----
-
-/** Bệnh nhân có bản ghi `patients`; nhân viên chỉ có `staffs`. */
-export function isPatient(record: UserRecord): record is PatientRecord {
-  return record.patients !== null;
-}
-
-export function isStaff(record: UserRecord): record is StaffRecord {
-  return record.staffs !== null;
-}
-
-/** role_id nằm ở bảng subtype `staffs` hoặc `patients` (MT-62); nhân viên xét trước. */
-export function roleIdOf(user: SubtypedUser): number {
-  return isStaff(user) ? user.staffs.role_id : user.patients.role_id;
-}
+// ---- (d) Bản ghi miền → contract ----
 
 /** data của signup (1001): ID và is_active kiểu int (MT-06). */
-export function toSignupData(record: UserRecord, roleId: number): SignupResponseData {
+export function toSignupData(user: UserRecord): SignupResponseData {
   return {
-    user_id: record.user_id,
-    full_name: record.ho_ten,
-    phone: record.so_dien_thoai,
-    gender: genderFromDb(record.gioi_tinh),
-    role_id: roleId,
-    is_active: record.is_active ? 1 : 0,
-    created_at: record.created_at.toISOString(),
-  };
-}
-
-/**
- * data của create-staff (1001): mọi trường kiểu int (MT-06), thêm room_id (MT-37). Vai trò và nơi
- * công tác lấy từ `assignment` vừa ghi vào `staffs` (cột trong CSDL cho phép NULL vì admin không có).
- */
-export function toCreateStaffData(
-  record: UserRecord,
-  assignment: StaffAssignment,
-): CreateStaffResponseData {
-  return {
-    user_id: record.user_id,
-    full_name: record.ho_ten,
-    role_id: assignment.roleId,
-    branch_id: assignment.branchId,
-    department_id: assignment.departmentId,
-    room_id: assignment.roomId,
+    user_id: user.userId,
+    full_name: user.fullName,
+    phone: user.phone,
+    gender: user.gender,
+    role_id: user.roleId,
+    is_active: user.isActive ? 1 : 0,
+    created_at: user.createdAt.toISOString(),
   };
 }
 
 /** user_info của login: mọi trường kiểu string (MT-06). */
-export function toLoginUserInfo(record: UserRecord, roleId: number): LoginUserInfo {
+export function toLoginUserInfo(user: UserRecord): LoginUserInfo {
   return {
-    user_id: String(record.user_id),
-    full_name: record.ho_ten,
-    phone: record.so_dien_thoai,
-    role_id: String(roleId),
+    user_id: String(user.userId),
+    full_name: user.fullName,
+    phone: user.phone,
+    role_id: String(user.roleId),
   };
 }
 
-/**
- * data của GET/PUT profile: ID kiểu int (MT-06). Bệnh nhân có đủ trường của tab Sheet (chưa có giá
- * trị → null); nhân viên chỉ có 5 trường chung vì tab ghi "dưới đây là của bệnh nhân".
- */
-export function toProfileData(record: UserRecord, roleId: number): ProfileData {
-  return isPatient(record) ? toPatientProfile(record, roleId) : toProfileBase(record, roleId);
-}
-
-function toProfileBase(record: UserRecord, roleId: number): ProfileBase {
+/** data của create-staff (1001): mọi trường kiểu int; `branchId` là chi nhánh vừa ghi vào nhanvien. */
+export function toCreateStaffData(user: UserRecord, branchId: number): CreateStaffResponseData {
   return {
-    user_id: record.user_id,
-    full_name: record.ho_ten,
-    phone: record.so_dien_thoai,
-    role_id: roleId,
-    gender: genderFromDb(record.gioi_tinh),
+    user_id: user.userId,
+    full_name: user.fullName,
+    role_id: user.roleId,
+    branch_id: branchId,
   };
 }
 
-function toPatientProfile(record: PatientRecord, roleId: number): PatientProfileData {
-  const patient = record.patients;
+function toProfileBase(user: UserRecord): ProfileBase {
   return {
-    ...toProfileBase(record, roleId),
-    year_of_birth: yearFromDate(patient.ngay_sinh),
-    career: careerFromDb(patient.nghe_nghiep),
-    ethnic: patient.dan_toc,
-    hamlet_address: patient.dia_chi_so_nha_thon_pho,
-    commune_address: patient.dia_chi_xa_phuong,
-    city_address: patient.dia_chi_tinh_tp,
-    work_place: patient.noi_lam_viec,
-    health_insurance_number: patient.bhyt_so_the,
-    health_insurance_validate: isoDate(patient.bhyt_gia_tri_den),
-    next_of_kin_name: patient.nguoi_nha_ho_ten_dia_chi,
-    next_of_kin_phone: patient.nguoi_nha_so_dien_thoai,
-    first_visit: isoDateTime(patient.thoi_diem_kham_lan_dau),
+    user_id: user.userId,
+    full_name: user.fullName,
+    phone: user.phone,
+    role_id: user.roleId,
+    gender: user.gender,
   };
 }
 
-/**
- * Phần tử của GET admin/users, cũng là data của POST admin/users (1001): ID và is_active kiểu int
- * (MT-06).
- */
-export function toUserSummary(record: UserRecord, roleId: number): AdminUserListItem {
+function toPatientProfile(user: PatientUser): PatientProfileData {
+  const { person, patient } = user;
   return {
-    user_id: record.user_id,
-    full_name: record.ho_ten,
-    phone: record.so_dien_thoai,
-    role_id: roleId,
-    is_active: record.is_active ? 1 : 0,
+    ...toProfileBase(user),
+    year_of_birth: yearFromDate(person.birthDate),
+    career: patient.career,
+    ethnic: patient.ethnic,
+    hamlet_address: person.hamletAddress,
+    commune_address: person.communeAddress,
+    city_address: person.cityAddress,
+    health_insurance_number: patient.insuranceNumber,
+    health_insurance_validate: isoDate(patient.insuranceValidUntil),
+    next_of_kin_name: patient.nextOfKinName,
+    next_of_kin_phone: patient.nextOfKinPhone,
+    first_visit: isoDateTime(patient.firstVisit),
   };
 }
 
-/**
- * data của GET/PUT admin/users/:id, role_id lấy từ bản ghi subtype: bệnh nhân đúng dạng GET profile;
- * nhân viên thêm nơi công tác (int|null) cho màn phân công.
- */
-export function toAdminUserDetail(user: SubtypedUser): AdminUserDetailData {
-  if (!isStaff(user)) return toPatientProfile(user, user.patients.role_id);
-  const { role_id, branch_id, department_id, room_id } = user.staffs;
-  return { ...toProfileBase(user, role_id), branch_id, department_id, room_id };
+/** data của GET/PUT profile: bệnh nhân có đủ trường của tab Sheet; nhân viên chỉ 5 trường chung. */
+export function toProfileData(user: ShapedUser): ProfileData {
+  return user.shape === 'patient' ? toPatientProfile(user) : toProfileBase(user);
 }
 
-/** data của PUT admin/users/:id/assign: nơi công tác vừa ghi vào `staffs`. */
-export function toAssignUserData(
-  userId: number,
-  { branchId, departmentId, roomId }: Placement,
-): AssignUserResponseData {
-  return { user_id: userId, branch_id: branchId, department_id: departmentId, room_id: roomId };
+/** Phần tử của GET admin/users, cũng là data của POST admin/users (1001). */
+export function toUserSummary(user: UserRecord): AdminUserListItem {
+  return {
+    user_id: user.userId,
+    full_name: user.fullName,
+    phone: user.phone,
+    role_id: user.roleId,
+    is_active: user.isActive ? 1 : 0,
+  };
+}
+
+/** data của GET/PUT admin/users/:id: bệnh nhân như profile; nhân viên thêm branch_id (null: chưa phân công). */
+export function toAdminUserDetail(user: ShapedUser): AdminUserDetailData {
+  if (user.shape === 'patient') return toPatientProfile(user);
+  return { ...toProfileBase(user), branch_id: user.staff?.branchId ?? null };
+}
+
+/** data của PUT admin/users/:id/assign. */
+export function toAssignUserData(userId: number, branchId: number): AssignUserResponseData {
+  return { user_id: userId, branch_id: branchId };
 }

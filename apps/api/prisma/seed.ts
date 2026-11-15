@@ -8,6 +8,7 @@ import {
   type AppPermissionName,
 } from '../src/permissions/app-permissions.js';
 import { fromDbId, toDbId } from '../src/prisma/db-id.js';
+import { findAccountIdByLogin } from '../src/users/users.repository.js';
 
 /**
  * Seed (spec A, mục 3.6). Dữ liệu tham chiếu (quyền) chạy ở mọi môi trường trên máy này; dữ liệu dev
@@ -53,13 +54,6 @@ const SAMPLE_ACCOUNTS: { phone: string; fullName: string; role: SystemRoleName }
   { phone: '0900000004', fullName: 'BỆNH NHÂN MẪU MỘT', role: 'benh_nhan' },
   { phone: '0900000005', fullName: 'BỆNH NHÂN MẪU HAI', role: 'benh_nhan' },
 ];
-
-/** Cùng câu tra của UsersRepository: không phân biệt hoa/thường, dùng chỉ mục uq_tai_khoan_ten_dang_nhap. */
-async function findAccountIdByLogin(prisma: PrismaClient, login: string): Promise<bigint | null> {
-  const rows = await prisma.$queryRaw<{ ma_tai_khoan: bigint }[]>`
-    SELECT ma_tai_khoan FROM taikhoan WHERE lower(ten_dang_nhap) = lower(${login})`;
-  return rows[0]?.ma_tai_khoan ?? null;
-}
 
 async function systemRoleIds(prisma: PrismaClient): Promise<RoleIds> {
   const rows = await prisma.vaitro.findMany({

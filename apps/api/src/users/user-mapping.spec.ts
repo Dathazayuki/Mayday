@@ -1,387 +1,360 @@
-import type { Career, Gender } from '@drmayday/shared';
-import type { patients_nghe_nghiep, staffs, users_gioi_tinh } from '../generated/prisma/client.js';
 import {
+  accountChangesToDb,
   careerFromDb,
-  careerToDb,
   dateForYear,
   genderFromDb,
   genderToDb,
-  isPatient,
-  isStaff,
-  isoDate,
-  isoDateTime,
-  newUserToDb,
-  normalizeFullName,
+  newAccountToDb,
+  personChangesToDb,
   profileUpdateToDb,
-  roleIdOf,
   toAdminUserDetail,
   toAssignUserData,
   toCreateStaffData,
   toLoginUserInfo,
   toProfileData,
+  toSessionAccount,
   toSignupData,
+  toUserRecord,
   toUserSummary,
-  userUpdateToDb,
-  yearFromDate,
+  type AccountRow,
+  type ShapedUser,
 } from './user-mapping.js';
-import { patientRecord, staffUserRecord, userRecord } from './user-record.fixture.js';
+import { patientFields, staffUserRecord, userRecord } from './user-record.fixture.js';
 
-describe('gender API ↔ CSDL (MT-59)', () => {
-  it.each<[Gender, users_gioi_tinh]>([
-    ['male', 'Nam'],
-    ['female', 'Nu'],
-    ['other', 'Khac'],
-  ])('%s ↔ %s', (api, db) => {
-    expect(genderToDb(api)).toBe(db);
-    expect(genderFromDb(db)).toBe(api);
-  });
+const AT = new Date('2026-11-15T01:02:03.000Z');
+const UPDATED_AT = new Date('2026-11-15T05:00:00.000Z');
 
-  it('CSDL null → null', () => {
-    expect(genderFromDb(null)).toBeNull();
-  });
-});
-
-describe('career API ↔ CSDL', () => {
-  // Prisma thay dấu cách bằng "_" trong tên giá trị enum; CSDL vẫn lưu giá trị gốc qua @map.
-  it.each<[Career, patients_nghe_nghiep]>([
-    ['Cong nhan', 'Cong_nhan'],
-    ['Nong dan', 'Nong_dan'],
-    ['Hoc sinh - Sinh vien', 'Hoc_sinh___Sinh_vien'],
-    ['Can bo cong chuc', 'Can_bo_cong_chuc'],
-    ['Khac', 'Khac'],
-  ])('%s ↔ %s', (api, db) => {
-    expect(careerToDb(api)).toBe(db);
-    expect(careerFromDb(db)).toBe(api);
-  });
-
-  it('CSDL null → null', () => {
-    expect(careerFromDb(null)).toBeNull();
-  });
-});
-
-describe('normalizeFullName', () => {
-  it('bỏ khoảng trắng hai đầu và in hoa có dấu', () => {
-    expect(normalizeFullName('  nguyễn văn a ')).toBe('NGUYỄN VĂN A');
-  });
-});
-
-describe('năm sinh ↔ ngay_sinh (MT-13)', () => {
-  it('yearFromDate lấy năm theo UTC, null → null', () => {
-    expect(yearFromDate(new Date('1990-05-06'))).toBe(1990);
-    expect(yearFromDate(null)).toBeNull();
-  });
-
-  it('dateForYear: năm không đổi → undefined (giữ ngày/tháng thật)', () => {
-    expect(dateForYear(1990, new Date('1990-05-06'))).toBeUndefined();
-  });
-
-  it('dateForYear: năm khác → YYYY-01-01 UTC', () => {
-    expect(dateForYear(1991, new Date('1990-05-06'))).toEqual(new Date('1991-01-01T00:00:00.000Z'));
-  });
-
-  it('dateForYear: chưa có ngày sinh → YYYY-01-01 UTC', () => {
-    expect(dateForYear(1990, null)).toEqual(new Date('1990-01-01T00:00:00.000Z'));
-  });
-});
-
-describe('ngày giờ → chuỗi API', () => {
-  it('isoDate trả YYYY-MM-DD theo UTC', () => {
-    expect(isoDate(new Date('2027-03-31T00:00:00.000Z'))).toBe('2027-03-31');
-    expect(isoDate(null)).toBeNull();
-  });
-
-  it('isoDateTime trả ISO 8601', () => {
-    expect(isoDateTime(new Date('2026-11-15T08:30:00.000Z'))).toBe('2026-11-15T08:30:00.000Z');
-    expect(isoDateTime(null)).toBeNull();
-  });
-});
-
-describe('roleIdOf', () => {
-  it('nhân viên lấy role_id từ staffs, bệnh nhân từ patients (MT-62)', () => {
-    expect(roleIdOf(staffUserRecord({ role_id: 1 }))).toBe(1);
-    expect(roleIdOf({ ...userRecord(), patients: patientRecord({ role_id: 2 }) })).toBe(2);
-  });
-});
-
-describe('ghi users khi tạo tài khoản', () => {
-  it('newUserToDb: họ tên in hoa, gender theo enum CSDL', () => {
-    expect(
-      newUserToDb({
-        fullName: '  nguyễn văn a ',
-        phone: '0912345678',
-        passwordHash: 'hash',
-        gender: 'female',
-      }),
-    ).toEqual({
+/** Hàng taikhoan kèm include của repository (ACCOUNT_INCLUDE): bệnh nhân có một hồ sơ. */
+function accountRow(): AccountRow {
+  return {
+    ma_tai_khoan: 70n,
+    ma_nguoi: 7n,
+    ma_vai_tro: 4n,
+    ten_dang_nhap: '0912345678',
+    mat_khau_ma_hoa: 'hash',
+    trang_thai_hoat_dong: true,
+    thoi_diem_tao: AT,
+    thoi_diem_cap_nhat: UPDATED_AT,
+    vaitro: { ten_vai_tro: 'benh_nhan' },
+    nguoi: {
+      ma_nguoi: 7n,
       ho_ten: 'NGUYỄN VĂN A',
+      ngay_sinh: new Date('1990-05-06T00:00:00.000Z'),
+      gioi_tinh: 'Nu',
       so_dien_thoai: '0912345678',
-      password_hash: 'hash',
-      gioi_tinh: 'Nu',
-      is_active: true,
-    });
-  });
-
-  it('newUserToDb: không có gender → null', () => {
-    expect(
-      newUserToDb({ fullName: 'An', phone: '0912345678', passwordHash: 'hash', gender: null }),
-    ).toMatchObject({ gioi_tinh: null });
-  });
-
-  it('newUserToDb: isActive vắng → hoạt động (mặc định 1 của Sheet); false → khoá', () => {
-    const account = { fullName: 'An', phone: '0912345678', passwordHash: 'hash', gender: null };
-    expect(newUserToDb(account)).toMatchObject({ is_active: true });
-    expect(newUserToDb({ ...account, isActive: false })).toMatchObject({ is_active: false });
-  });
-});
-
-describe('userUpdateToDb (PUT admin/users/:id)', () => {
-  it('họ tên in hoa, gender theo enum CSDL, is_active 0/1 → boolean; trường vắng giữ nguyên', () => {
-    expect(
-      userUpdateToDb({ full_name: ' trần b ', gender: 'male', is_active: 0 }, userRecord()),
-    ).toEqual({ ho_ten: 'TRẦN B', gioi_tinh: 'Nam', is_active: false });
-    expect(userUpdateToDb({ gender: null, is_active: 1 }, userRecord())).toMatchObject({
-      ho_ten: undefined,
-      gioi_tinh: null,
-      is_active: true,
-    });
-  });
-
-  it('role_id ghi vào bảng subtype của người dùng: bệnh nhân → patients, nhân viên → staffs', () => {
-    expect(userUpdateToDb({ role_id: 2 }, userRecord())).toMatchObject({
-      patients: { update: { role_id: 2 } },
-    });
-    const staffChanges = userUpdateToDb({ role_id: 8 }, staffUserRecord());
-    expect(staffChanges).toMatchObject({ staffs: { update: { role_id: 8 } } });
-    expect(staffChanges).not.toHaveProperty('patients');
-  });
-});
-
-describe('profileUpdateToDb (PUT profile)', () => {
-  const birthDate = new Date('1990-05-06T00:00:00.000Z');
-
-  it('chỉ có trường của users → không có phần patients', () => {
-    expect(profileUpdateToDb({ full_name: ' trần b ', gender: null }, birthDate)).toEqual({
-      user: { ho_ten: 'TRẦN B', gioi_tinh: null },
-    });
-  });
-
-  it('ánh xạ đủ trường bệnh nhân sang cột CSDL; null xoá giá trị, trường vắng giữ nguyên', () => {
-    const { user, patient } = profileUpdateToDb(
-      {
-        year_of_birth: 1991,
-        career: 'Hoc sinh - Sinh vien',
-        ethnic: 'Kinh',
-        hamlet_address: 'Thôn 1',
-        commune_address: 'Xã A',
-        city_address: 'Hà Nội',
-        work_place: null,
-        health_insurance_number: 'HS4010123456789',
-        health_insurance_validate: '2027-03-31',
-        next_of_kin_name: 'Nguyễn Văn B, Thôn 1',
-        next_of_kin_phone: '0987654321',
-      },
-      birthDate,
-    );
-    expect(user).toEqual({ ho_ten: undefined, gioi_tinh: undefined });
-    expect(patient).toEqual({
-      ngay_sinh: new Date('1991-01-01T00:00:00.000Z'),
-      nghe_nghiep: 'Hoc_sinh___Sinh_vien',
-      dan_toc: 'Kinh',
-      dia_chi_so_nha_thon_pho: 'Thôn 1',
-      dia_chi_xa_phuong: 'Xã A',
       dia_chi_tinh_tp: 'Hà Nội',
-      noi_lam_viec: null,
-      bhyt_so_the: 'HS4010123456789',
-      bhyt_gia_tri_den: new Date('2027-03-31T00:00:00.000Z'),
-      nguoi_nha_ho_ten_dia_chi: 'Nguyễn Văn B, Thôn 1',
-      nguoi_nha_so_dien_thoai: '0987654321',
-    });
-  });
-
-  it('year_of_birth trùng năm đang lưu → không ghi ngay_sinh (MT-13); null → xoá', () => {
-    expect(profileUpdateToDb({ year_of_birth: 1990 }, birthDate).patient).toBeUndefined();
-    expect(profileUpdateToDb({ year_of_birth: null }, birthDate).patient).toMatchObject({
-      ngay_sinh: null,
-    });
-  });
-
-  it('cột chữ tự do được bỏ khoảng trắng hai đầu; còn lại chuỗi rỗng thì ghi null, không ghi ""', () => {
-    const { patient } = profileUpdateToDb(
-      {
-        ethnic: ' Kinh ',
-        commune_address: '  Xã A',
-        next_of_kin_name: 'Nguyễn Văn C  ',
-        work_place: '   ',
-        health_insurance_number: '',
-      },
-      birthDate,
-    );
-    expect(patient).toMatchObject({
-      dan_toc: 'Kinh',
       dia_chi_xa_phuong: 'Xã A',
-      nguoi_nha_ho_ten_dia_chi: 'Nguyễn Văn C',
-      noi_lam_viec: null,
-      bhyt_so_the: null,
-    });
-  });
-});
-
-describe('isPatient / isStaff', () => {
-  it('bệnh nhân có bản ghi patients, nhân viên thì không', () => {
-    expect(isPatient(userRecord())).toBe(true);
-    expect(isPatient(userRecord({ staffs: { role_id: 1 } as staffs, patients: null }))).toBe(false);
-  });
-
-  it('nhân viên có bản ghi staffs; bệnh nhân hoặc người dùng không có subtype thì không', () => {
-    expect(isStaff(staffUserRecord())).toBe(true);
-    expect(isStaff(userRecord())).toBe(false);
-    expect(isStaff(userRecord({ patients: null }))).toBe(false);
-  });
-});
-
-describe('toProfileData (GET/PUT profile)', () => {
-  const COMMON = { user_id: 7, full_name: 'NGUYỄN VĂN A', phone: '0912345678' };
-
-  it('bệnh nhân: đủ 17 trường của tab Sheet, ID kiểu int (MT-06), ngày theo YYYY-MM-DD / ISO 8601', () => {
-    const record = userRecord({
-      gioi_tinh: 'Nu',
-      patients: patientRecord({
-        ngay_sinh: new Date('1990-05-06T00:00:00.000Z'),
-        nghe_nghiep: 'Can_bo_cong_chuc',
+      dia_chi_so_nha_thon_pho: 'Thôn 1',
+      thoi_diem_tao: AT,
+      thoi_diem_cap_nhat: AT,
+      nhanvien: null,
+      benhnhan: {
+        ma_benh_nhan: 7n,
+        ma_his: null,
+        nghe_nghiep: 'Can bo cong chuc',
         dan_toc: 'Kinh',
-        dia_chi_so_nha_thon_pho: 'Thôn 1',
-        dia_chi_xa_phuong: 'Xã A',
-        dia_chi_tinh_tp: 'Hà Nội',
-        noi_lam_viec: 'Công ty B',
         bhyt_so_the: 'HS4010123456789',
         bhyt_gia_tri_den: new Date('2027-03-31T00:00:00.000Z'),
         nguoi_nha_ho_ten_dia_chi: 'Nguyễn Văn C, Thôn 1',
         nguoi_nha_so_dien_thoai: '0987654321',
-        thoi_diem_kham_lan_dau: new Date('2026-11-15T08:30:00.000Z'),
-      }),
-    });
-    expect(toProfileData(record, 2)).toStrictEqual({
-      ...COMMON,
-      role_id: 2,
-      gender: 'female',
-      year_of_birth: 1990,
-      career: 'Can bo cong chuc',
-      ethnic: 'Kinh',
-      hamlet_address: 'Thôn 1',
-      commune_address: 'Xã A',
-      city_address: 'Hà Nội',
-      work_place: 'Công ty B',
-      health_insurance_number: 'HS4010123456789',
-      health_insurance_validate: '2027-03-31',
-      next_of_kin_name: 'Nguyễn Văn C, Thôn 1',
-      next_of_kin_phone: '0987654321',
-      first_visit: '2026-11-15T08:30:00.000Z',
-    });
+        hosobenhan: [{ thoi_diem_kham_lan_dau: new Date('2026-11-15T08:30:00.000Z') }],
+      },
+    },
+  } as AccountRow;
+}
+
+const patient = (record = userRecord()): ShapedUser => ({
+  ...record,
+  shape: 'patient',
+  patient: record.patient ?? patientFields(),
+});
+const staff = (record = staffUserRecord()): ShapedUser => ({ ...record, shape: 'staff' });
+
+describe('giá trị gender, career (spec A, mục 4.1 (a))', () => {
+  it('gender: male ↔ Nam, female ↔ Nu; CSDL null hoặc giá trị lạ → null (MT-59)', () => {
+    expect(genderToDb('male')).toBe('Nam');
+    expect(genderToDb('female')).toBe('Nu');
+    expect(genderFromDb('Nam')).toBe('male');
+    expect(genderFromDb('Nu')).toBe('female');
+    expect(genderFromDb(null)).toBeNull();
+    expect(genderFromDb('Khac')).toBeNull();
   });
 
-  it('bệnh nhân chưa điền hồ sơ: vẫn đủ 17 khoá, giá trị null', () => {
-    expect(toProfileData(userRecord(), 2)).toStrictEqual({
-      ...COMMON,
-      role_id: 2,
-      gender: null,
-      year_of_birth: null,
-      career: null,
-      ethnic: null,
-      hamlet_address: null,
-      commune_address: null,
-      city_address: null,
-      work_place: null,
-      health_insurance_number: null,
-      health_insurance_validate: null,
-      next_of_kin_name: null,
-      next_of_kin_phone: null,
-      first_visit: null,
-    });
-  });
-
-  it('nhân viên: chỉ 5 trường chung (tab Sheet ghi "dưới đây là của bệnh nhân")', () => {
-    const staff = userRecord({
-      gioi_tinh: 'Nam',
-      staffs: { user_id: 7, role_id: 1 } as staffs,
-      patients: null,
-    });
-    expect(toProfileData(staff, 1)).toStrictEqual({ ...COMMON, role_id: 1, gender: 'male' });
+  it('career: đúng 5 giá trị của ck_benh_nhan_nghe_nghiep; giá trị khác → null', () => {
+    expect(careerFromDb('Hoc sinh - Sinh vien')).toBe('Hoc sinh - Sinh vien');
+    expect(careerFromDb(null)).toBeNull();
+    expect(careerFromDb('Bac si')).toBeNull();
   });
 });
 
-describe('UserRecord → data trả về', () => {
-  const record = userRecord({ gioi_tinh: 'Khac' });
+describe('hàng CSDL → bản ghi miền', () => {
+  it('toUserRecord: id bigint → number, ngày giữ Date, first_visit = hồ sơ sớm nhất (D14)', () => {
+    expect(toUserRecord(accountRow())).toEqual({
+      userId: 7,
+      accountId: 70,
+      roleId: 4,
+      roleName: 'benh_nhan',
+      fullName: 'NGUYỄN VĂN A',
+      phone: '0912345678',
+      gender: 'female',
+      isActive: true,
+      passwordHash: 'hash',
+      createdAt: AT,
+      accountUpdatedAt: UPDATED_AT,
+      person: {
+        birthDate: new Date('1990-05-06T00:00:00.000Z'),
+        hamletAddress: 'Thôn 1',
+        communeAddress: 'Xã A',
+        cityAddress: 'Hà Nội',
+      },
+      patient: {
+        career: 'Can bo cong chuc',
+        ethnic: 'Kinh',
+        insuranceNumber: 'HS4010123456789',
+        insuranceValidUntil: new Date('2027-03-31T00:00:00.000Z'),
+        nextOfKinName: 'Nguyễn Văn C, Thôn 1',
+        nextOfKinPhone: '0987654321',
+        firstVisit: new Date('2026-11-15T08:30:00.000Z'),
+      },
+      staff: null,
+    });
+  });
 
-  it('toSignupData: ID và is_active kiểu int, created_at ISO (MT-06)', () => {
-    expect(toSignupData(record, 2)).toEqual({
+  it('toUserRecord: chưa có hồ sơ → firstVisit null; có nhanvien → staff.branchId', () => {
+    const row = accountRow();
+    row.nguoi.benhnhan!.hosobenhan = [];
+    expect(toUserRecord(row).patient?.firstVisit).toBeNull();
+    row.nguoi.benhnhan = null;
+    row.nguoi.nhanvien = { ma_chi_nhanh: 10n };
+    expect(toUserRecord(row)).toMatchObject({ patient: null, staff: { branchId: 10 } });
+  });
+
+  it('toSessionAccount', () => {
+    expect(
+      toSessionAccount({
+        ma_vai_tro: 2n,
+        trang_thai_hoat_dong: false,
+        thoi_diem_cap_nhat: UPDATED_AT,
+      }),
+    ).toEqual({ roleId: 2, isActive: false, updatedAt: UPDATED_AT });
+  });
+});
+
+describe('ghi tài khoản mới (spec A, mục 4.5, D16)', () => {
+  const account = {
+    fullName: '  nguyễn văn a ',
+    phone: '0912345678',
+    passwordHash: 'hash',
+    gender: 'female' as const,
+    roleId: 4,
+  };
+
+  it('bệnh nhân: nguoi (in hoa) + taikhoan (tên đăng nhập = số điện thoại) + benhnhan', () => {
+    expect(newAccountToDb(account, { kind: 'patient' })).toEqual({
+      ho_ten: 'NGUYỄN VĂN A',
+      so_dien_thoai: '0912345678',
+      gioi_tinh: 'Nu',
+      taikhoan: {
+        create: {
+          ten_dang_nhap: '0912345678',
+          mat_khau_ma_hoa: 'hash',
+          trang_thai_hoat_dong: true,
+          ma_vai_tro: 4n,
+        },
+      },
+      benhnhan: { create: {} },
+    });
+  });
+
+  it('nhân viên được phân công: thêm nhanvien; chưa phân công (D5): không có subtype; khoá tài khoản', () => {
+    expect(
+      newAccountToDb({ ...account, roleId: 2 }, { kind: 'staff', branchId: 10 }),
+    ).toMatchObject({
+      nhanvien: { create: { ma_chi_nhanh: 10n } },
+    });
+    const none = newAccountToDb({ ...account, gender: null, isActive: false }, { kind: 'none' });
+    expect(none).not.toHaveProperty('benhnhan');
+    expect(none).not.toHaveProperty('nhanvien');
+    expect(none).toMatchObject({
+      gioi_tinh: null,
+      taikhoan: { create: { trang_thai_hoat_dong: false } },
+    });
+  });
+});
+
+describe('ghi khi sửa', () => {
+  const birthDate = new Date('1990-05-06T00:00:00.000Z');
+
+  it('personChangesToDb: họ tên in hoa, gender theo CSDL; vắng giữ nguyên', () => {
+    expect(personChangesToDb({ full_name: ' trần b ', gender: null })).toEqual({
+      ho_ten: 'TRẦN B',
+      gioi_tinh: null,
+    });
+    expect(personChangesToDb({})).toEqual({ ho_ten: undefined, gioi_tinh: undefined });
+  });
+
+  it('profileUpdateToDb: địa chỉ và năm sinh vào nguoi, còn lại vào benhnhan; chữ được trim, rỗng → null', () => {
+    const { person, patient } = profileUpdateToDb(
+      {
+        year_of_birth: 1991,
+        career: 'Hoc sinh - Sinh vien',
+        ethnic: ' Kinh ',
+        hamlet_address: 'Thôn 1',
+        commune_address: '  Xã A',
+        city_address: 'Hà Nội',
+        health_insurance_number: '',
+        health_insurance_validate: '2027-03-31',
+        next_of_kin_name: 'Nguyễn Văn C  ',
+        next_of_kin_phone: '0987654321',
+      },
+      birthDate,
+    );
+    expect(person).toEqual({
+      ho_ten: undefined,
+      gioi_tinh: undefined,
+      ngay_sinh: new Date('1991-01-01T00:00:00.000Z'),
+      dia_chi_so_nha_thon_pho: 'Thôn 1',
+      dia_chi_xa_phuong: 'Xã A',
+      dia_chi_tinh_tp: 'Hà Nội',
+    });
+    expect(patient).toEqual({
+      nghe_nghiep: 'Hoc sinh - Sinh vien',
+      dan_toc: 'Kinh',
+      bhyt_so_the: null,
+      bhyt_gia_tri_den: new Date('2027-03-31T00:00:00.000Z'),
+      nguoi_nha_ho_ten_dia_chi: 'Nguyễn Văn C',
+      nguoi_nha_so_dien_thoai: '0987654321',
+    });
+  });
+
+  it('profileUpdateToDb: chỉ trường của nguoi → không có phần benhnhan; năm sinh trùng giữ ngày thật (MT-13)', () => {
+    expect(profileUpdateToDb({ full_name: 'An', year_of_birth: 1990 }, birthDate)).toEqual({
+      person: {
+        ho_ten: 'AN',
+        gioi_tinh: undefined,
+        ngay_sinh: undefined,
+        dia_chi_so_nha_thon_pho: undefined,
+        dia_chi_xa_phuong: undefined,
+        dia_chi_tinh_tp: undefined,
+      },
+    });
+    expect(dateForYear(1990, birthDate)).toBeUndefined();
+  });
+
+  it('accountChangesToDb (D7): chỉ cột có giá trị khác bản ghi hiện tại', () => {
+    const current = { roleId: 2, isActive: true };
+    expect(accountChangesToDb({ role_id: 2, is_active: 1 }, current)).toEqual({
+      ma_vai_tro: undefined,
+      trang_thai_hoat_dong: undefined,
+    });
+    expect(accountChangesToDb({ role_id: 3, is_active: 0 }, current)).toEqual({
+      ma_vai_tro: 3n,
+      trang_thai_hoat_dong: false,
+    });
+    expect(accountChangesToDb({}, current)).toEqual({
+      ma_vai_tro: undefined,
+      trang_thai_hoat_dong: undefined,
+    });
+  });
+});
+
+describe('bản ghi miền → contract', () => {
+  const EMPTY_PATIENT_FIELDS = {
+    year_of_birth: null,
+    career: null,
+    ethnic: null,
+    hamlet_address: null,
+    commune_address: null,
+    city_address: null,
+    health_insurance_number: null,
+    health_insurance_validate: null,
+    next_of_kin_name: null,
+    next_of_kin_phone: null,
+    first_visit: null,
+  };
+  const BASE = { user_id: 7, full_name: 'NGUYỄN VĂN A', phone: '0912345678', gender: null };
+
+  it('toSignupData: ID và is_active kiểu int, created_at = taikhoan.thoi_diem_tao (ISO)', () => {
+    expect(toSignupData(userRecord({ gender: 'male' }))).toStrictEqual({
       user_id: 7,
       full_name: 'NGUYỄN VĂN A',
       phone: '0912345678',
-      gender: 'other',
-      role_id: 2,
+      gender: 'male',
+      role_id: 4,
       is_active: 1,
       created_at: '2026-11-15T01:02:03.000Z',
     });
   });
 
-  it('toCreateStaffData: mọi trường kiểu int, room_id null khi không có phòng (MT-06, MT-37)', () => {
-    const assignment = { roleId: 6, branchId: 10, departmentId: 20, roomId: null };
-    expect(toCreateStaffData(record, assignment)).toEqual({
-      user_id: 7,
-      full_name: 'NGUYỄN VĂN A',
-      role_id: 6,
-      branch_id: 10,
-      department_id: 20,
-      room_id: null,
-    });
-  });
-
   it('toLoginUserInfo: mọi trường kiểu string (MT-06)', () => {
-    expect(toLoginUserInfo(record, 2)).toEqual({
+    expect(toLoginUserInfo(userRecord())).toStrictEqual({
       user_id: '7',
       full_name: 'NGUYỄN VĂN A',
       phone: '0912345678',
-      role_id: '2',
+      role_id: '4',
     });
   });
 
-  it('toUserSummary (GET/POST admin/users): ID và is_active kiểu int (MT-06)', () => {
-    expect(toUserSummary(record, 2)).toStrictEqual({
+  it('toCreateStaffData: {user_id, full_name, role_id, branch_id} kiểu int', () => {
+    expect(toCreateStaffData(staffUserRecord(), 10)).toStrictEqual({
       user_id: 7,
       full_name: 'NGUYỄN VĂN A',
-      phone: '0912345678',
       role_id: 2,
-      is_active: 1,
-    });
-    expect(toUserSummary(userRecord({ is_active: false }), 2)).toMatchObject({ is_active: 0 });
-  });
-
-  it('toAssignUserData: nơi công tác vừa ghi, room_id null khi không có phòng', () => {
-    expect(toAssignUserData(7, { branchId: 10, departmentId: 20, roomId: null })).toStrictEqual({
-      user_id: 7,
       branch_id: 10,
-      department_id: 20,
-      room_id: null,
     });
   });
-});
 
-describe('toAdminUserDetail (GET/PUT admin/users/:id)', () => {
-  it('bệnh nhân: đúng dạng GET profile của bệnh nhân, role_id từ patients', () => {
-    const patient = { ...userRecord(), patients: patientRecord() };
-    expect(toAdminUserDetail(patient)).toStrictEqual(toProfileData(patient, 2));
+  it('toProfileData: bệnh nhân đủ 16 khoá (không còn work_place); nhân viên 5 khoá', () => {
+    expect(toProfileData(patient())).toStrictEqual({
+      ...BASE,
+      role_id: 4,
+      ...EMPTY_PATIENT_FIELDS,
+    });
+    expect(toProfileData(staff())).toStrictEqual({ ...BASE, role_id: 2 });
   });
 
-  it('nhân viên: 5 trường chung cùng nơi công tác kiểu int|null, role_id từ staffs', () => {
-    expect(toAdminUserDetail(staffUserRecord({ room_id: null }))).toStrictEqual({
+  it('toProfileData: đọc địa chỉ, năm sinh từ nguoi; ngày theo YYYY-MM-DD / ISO 8601', () => {
+    const record = userRecord({
+      person: {
+        birthDate: new Date('1990-05-06T00:00:00.000Z'),
+        hamletAddress: 'Thôn 1',
+        communeAddress: 'Xã A',
+        cityAddress: 'Hà Nội',
+      },
+      patient: patientFields({
+        insuranceValidUntil: new Date('2027-03-31T00:00:00.000Z'),
+        firstVisit: new Date('2026-11-15T08:30:00.000Z'),
+      }),
+    });
+    expect(toProfileData(patient(record))).toMatchObject({
+      year_of_birth: 1990,
+      hamlet_address: 'Thôn 1',
+      commune_address: 'Xã A',
+      city_address: 'Hà Nội',
+      health_insurance_validate: '2027-03-31',
+      first_visit: '2026-11-15T08:30:00.000Z',
+    });
+  });
+
+  it('toUserSummary: ID, is_active kiểu int', () => {
+    expect(toUserSummary(userRecord({ isActive: false }))).toStrictEqual({
       user_id: 7,
       full_name: 'NGUYỄN VĂN A',
       phone: '0912345678',
-      role_id: 6,
-      gender: null,
-      branch_id: 10,
-      department_id: 20,
-      room_id: null,
+      role_id: 4,
+      is_active: 0,
     });
+  });
+
+  it('toAdminUserDetail: bệnh nhân như profile; nhân viên thêm branch_id, null khi chưa phân công', () => {
+    expect(toAdminUserDetail(patient())).toStrictEqual(toProfileData(patient()));
+    expect(toAdminUserDetail(staff())).toStrictEqual({ ...BASE, role_id: 2, branch_id: 10 });
+    expect(toAdminUserDetail(staff(staffUserRecord({ staff: null })))).toMatchObject({
+      branch_id: null,
+    });
+  });
+
+  it('toAssignUserData', () => {
+    expect(toAssignUserData(7, 11)).toStrictEqual({ user_id: 7, branch_id: 11 });
   });
 });

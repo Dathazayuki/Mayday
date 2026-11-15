@@ -1,156 +1,238 @@
 import { Injectable } from '@nestjs/common';
 import type { PageResult, UpdateUserRequest } from '@drmayday/shared';
-import { AppException } from '../common/app.exception.js';
+import { AppException, conflict, invalidReference } from '../common/app.exception.js';
 import type { PageWindow } from '../common/paginated.js';
-import type { Placement } from '../facilities/placement.js';
-import type { Prisma } from '../generated/prisma/client.js';
-import { isUniqueViolation } from '../prisma/prisma-errors.js';
+import { hasChanges } from '../common/require-changes.js';
+import type { Prisma, PrismaClient } from '../generated/prisma/client.js';
+import { toDbId } from '../prisma/db-id.js';
+import {
+  isForeignKeyViolation,
+  isRecordNotFound,
+  isUniqueViolation,
+} from '../prisma/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
-  newUserToDb,
+  ACCOUNT_INCLUDE,
+  SESSION_SELECT,
+  accountChangesToDb,
+  newAccountToDb,
+  personChangesToDb,
   profileUpdateToDb,
-  userUpdateToDb,
-  type NewPatient,
-  type NewStaff,
+  toSessionAccount,
+  toUserRecord,
+  type AccountIdRow,
+  type AccountSubtype,
+  type NewAccount,
   type ProfileWrite,
+  type SessionAccount,
   type UserFilter,
   type UserRecord,
 } from './user-mapping.js';
 
-const WITH_SUBTYPES = { staffs: true, patients: true } satisfies Prisma.usersInclude;
+/** Unique trên biểu thức lower(ten_dang_nhap) (SQL:1289). */
+const LOGIN_UNIQUE = 'uq_tai_khoan_ten_dang_nhap';
+const ACCOUNT_ROLE_FK = 'fk_tai_khoan_vai_tro';
+const STAFF_BRANCH_FK = 'fk_nhan_vien_chi_nhanh';
 
-/** Tên index mặc định của Prisma cho `users.so_dien_thoai @unique` (kiểm lại khi có schema thật, MT-57). */
-const PHONE_UNIQUE_INDEX = 'users_so_dien_thoai_key';
-
-/** role_id nằm ở bảng subtype `staffs` hoặc `patients` (MT-62). */
-function whereOf({ roleId }: UserFilter): Prisma.usersWhereInput {
-  if (roleId === undefined) return {};
-  return { OR: [{ staffs: { role_id: roleId } }, { patients: { role_id: roleId } }] };
+/**
+ * Tài khoản theo tên đăng nhập, không phân biệt hoa/thường, dùng chỉ mục uq_tai_khoan_ten_dang_nhap
+ * (spec A, mục 4.4). Không dùng `mode: 'insensitive'`: ILIKE coi % và _ là ký tự đại diện. Seed dùng
+ * chung hàm này.
+ */
+export async function findAccountIdByLogin(
+  db: Pick<PrismaClient, '$queryRaw'>,
+  login: string,
+): Promise<bigint | null> {
+  const rows = await db.$queryRaw<AccountIdRow[]>`
+    SELECT ma_tai_khoan FROM taikhoan WHERE lower(ten_dang_nhap) = lower(${login})`;
+  return rows[0]?.ma_tai_khoan ?? null;
 }
 
-/** Bảng `users` và hai bảng subtype `staffs`/`patients`. */
+/** Bảng `nguoi`, `taikhoan`, `benhnhan`, `nhanvien` (spec A, mục 4.1, 5.1). */
 @Injectable()
 export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findByPhone(phone: string): Promise<UserRecord | null> {
-    return this.prisma.db.users.findUnique({
-      where: { so_dien_thoai: phone },
-      include: WITH_SUBTYPES,
+  /** Login, forgot-password: tra theo `taikhoan.ten_dang_nhap`. */
+  async findByLogin(login: string): Promise<UserRecord | null> {
+    const accountId = await findAccountIdByLogin(this.prisma.db, login);
+    if (accountId === null) return null;
+    const row = await this.prisma.db.taikhoan.findUnique({
+      where: { ma_tai_khoan: accountId },
+      include: ACCOUNT_INCLUDE,
     });
+    return row && toUserRecord(row);
   }
 
-  findById(userId: number): Promise<UserRecord | null> {
-    return this.prisma.db.users.findUnique({ where: { user_id: userId }, include: WITH_SUBTYPES });
+  /** Số đã có tài khoản chưa (3006). */
+  async loginExists(login: string): Promise<boolean> {
+    return (await findAccountIdByLogin(this.prisma.db, login)) !== null;
   }
 
-  /**
-   * Người dùng của token cho JwtAuthGuard. Chưa cấu hình CSDL thì không tra được
-   * → undefined; người dùng không còn → null.
-   */
-  async findSessionUser(userId: number): Promise<UserRecord | null | undefined> {
+  /** Người không có tài khoản → null (D3). */
+  async findById(userId: number): Promise<UserRecord | null> {
+    const row = await this.prisma.db.taikhoan.findUnique({
+      where: { ma_nguoi: toDbId(userId) },
+      include: ACCOUNT_INCLUDE,
+    });
+    return row && toUserRecord(row);
+  }
+
+  /** Tài khoản của token cho JwtAuthGuard; chưa cấu hình CSDL → undefined; không còn → null. */
+  async findSessionAccount(userId: number): Promise<SessionAccount | null | undefined> {
     if (!this.prisma.configured) return undefined;
-    return this.findById(userId);
+    const row = await this.prisma.db.taikhoan.findUnique({
+      where: { ma_nguoi: toDbId(userId) },
+      select: SESSION_SELECT,
+    });
+    return row && toSessionAccount(row);
   }
 
-  /**
-   * Một trang người dùng theo `filter` (user_id tăng dần) và tổng số người dùng khớp `filter`, đọc
-   * trong cùng một transaction để `total` khớp với trang.
-   */
-  async listPage(filter: UserFilter, { skip, take }: PageWindow): Promise<PageResult<UserRecord>> {
+  /** Một trang người dùng (ma_nguoi tăng dần) và tổng số, đọc trong cùng một transaction. */
+  async listPage(
+    { roleId }: UserFilter,
+    { skip, take }: PageWindow,
+  ): Promise<PageResult<UserRecord>> {
     const db = this.prisma.db;
-    const where = whereOf(filter);
-    const [items, total] = await db.$transaction([
-      db.users.findMany({ where, include: WITH_SUBTYPES, orderBy: { user_id: 'asc' }, skip, take }),
-      db.users.count({ where }),
+    const where = {
+      ma_vai_tro: roleId === undefined ? undefined : toDbId(roleId),
+    } satisfies Prisma.taikhoanWhereInput;
+    const [rows, total] = await db.$transaction([
+      db.taikhoan.findMany({
+        where,
+        include: ACCOUNT_INCLUDE,
+        orderBy: { ma_nguoi: 'asc' },
+        skip,
+        take,
+      }),
+      db.taikhoan.count({ where }),
     ]);
-    return { items, total };
-  }
-
-  async phoneExists(phone: string): Promise<boolean> {
-    const user = await this.prisma.db.users.findUnique({
-      where: { so_dien_thoai: phone },
-      select: { user_id: true },
-    });
-    return user !== null;
-  }
-
-  createPatient({ patientRoleId, ...user }: NewPatient): Promise<UserRecord> {
-    return this.createUser({
-      ...newUserToDb(user),
-      patients: { create: { role_id: patientRoleId } },
-    });
-  }
-
-  createStaff({ roleId, branchId, departmentId, roomId, ...user }: NewStaff): Promise<UserRecord> {
-    return this.createUser({
-      ...newUserToDb(user),
-      staffs: {
-        create: {
-          role_id: roleId,
-          branch_id: branchId,
-          department_id: departmentId,
-          room_id: roomId,
-        },
-      },
-    });
-  }
-
-  async updatePasswordHash(userId: number, passwordHash: string): Promise<void> {
-    await this.prisma.db.users.update({
-      where: { user_id: userId },
-      data: { password_hash: passwordHash },
-    });
-  }
-
-  /** Đọc ngày sinh đang lưu (quy tắc năm sinh, MT-13) rồi ghi users + patients trong một transaction. */
-  updateProfile(userId: number, changes: Partial<ProfileWrite>): Promise<UserRecord> {
-    return this.prisma.db.$transaction(async (tx) => {
-      const current = await tx.patients.findUnique({
-        where: { user_id: userId },
-        select: { ngay_sinh: true },
-      });
-      const { user, patient } = profileUpdateToDb(changes, current?.ngay_sinh ?? null);
-      return tx.users.update({
-        where: { user_id: userId },
-        data: { ...user, patients: patient && { update: patient } },
-        include: WITH_SUBTYPES,
-      });
-    });
-  }
-
-  /** `current`: bản ghi đang có, cho biết role_id nằm ở bảng subtype nào. Trả bản ghi sau khi ghi. */
-  update(current: UserRecord, changes: UpdateUserRequest): Promise<UserRecord> {
-    return this.prisma.db.users.update({
-      where: { user_id: current.user_id },
-      data: userUpdateToDb(changes, current),
-      include: WITH_SUBTYPES,
-    });
-  }
-
-  /** Ghi nơi công tác vào bản ghi `staffs` của nhân viên. */
-  async assign(userId: number, { branchId, departmentId, roomId }: Placement): Promise<void> {
-    await this.prisma.db.staffs.update({
-      where: { user_id: userId },
-      data: { branch_id: branchId, department_id: departmentId, room_id: roomId },
-    });
-  }
-
-  /** staffs/patients tự CASCADE. Trả false khi không có người dùng này. */
-  async delete(userId: number): Promise<boolean> {
-    const { count } = await this.prisma.db.users.deleteMany({ where: { user_id: userId } });
-    return count > 0;
+    return { items: rows.map(toUserRecord), total };
   }
 
   /**
-   * Nested create: users và bản ghi subtype được ghi trong cùng một transaction. Hai request
-   * cùng số điện thoại đều qua được phoneExists thì request sau vấp khoá unique → 3006.
+   * Một nested create từ `nguoi` (spec A, mục 4.5). Hai request cùng số chạy đồng thời đều qua được
+   * loginExists thì request sau vấp uq_tai_khoan_ten_dang_nhap → 3006. Vai trò hoặc chi nhánh bị xoá
+   * giữa lúc kiểm tra và lúc ghi → 2003 kèm field.
    */
-  private async createUser(data: Prisma.usersCreateInput): Promise<UserRecord> {
+  async create(account: NewAccount, subtype: AccountSubtype): Promise<UserRecord> {
     try {
-      return await this.prisma.db.users.create({ data, include: WITH_SUBTYPES });
+      const person = await this.prisma.db.nguoi.create({
+        data: newAccountToDb(account, subtype),
+        select: { taikhoan: { include: ACCOUNT_INCLUDE } },
+      });
+      if (!person.taikhoan) throw new Error('nested create không trả về taikhoan');
+      return toUserRecord(person.taikhoan);
     } catch (error) {
-      if (isUniqueViolation(error, PHONE_UNIQUE_INDEX)) throw new AppException('3006');
+      if (isUniqueViolation(error, LOGIN_UNIQUE)) throw new AppException('3006');
+      if (isForeignKeyViolation(error, ACCOUNT_ROLE_FK)) throw invalidReference('role_id');
+      if (isForeignKeyViolation(error, STAFF_BRANCH_FK)) throw invalidReference('branch_id');
+      throw error;
+    }
+  }
+
+  /** Trigger đổi thoi_diem_cap_nhat: mọi token cũ của tài khoản bị từ chối (3001, MT-95). */
+  async updatePasswordHash(userId: number, passwordHash: string): Promise<void> {
+    await this.prisma.db.taikhoan.update({
+      where: { ma_nguoi: toDbId(userId) },
+      data: { mat_khau_ma_hoa: passwordHash },
+    });
+  }
+
+  /**
+   * PUT /profile trong một transaction: đọc ngay_sinh (MT-13) rồi ghi nguoi và benhnhan. Không chạm
+   * taikhoan nên token không bị ảnh hưởng. Người không còn → null.
+   */
+  async updateProfile(userId: number, changes: Partial<ProfileWrite>): Promise<UserRecord | null> {
+    const id = toDbId(userId);
+    try {
+      return await this.prisma.db.$transaction(async (tx) => {
+        const current = await tx.nguoi.findUniqueOrThrow({
+          where: { ma_nguoi: id },
+          select: { ngay_sinh: true },
+        });
+        const { person, patient } = profileUpdateToDb(changes, current.ngay_sinh);
+        await tx.nguoi.update({
+          where: { ma_nguoi: id },
+          data: patient ? { ...person, benhnhan: { update: patient } } : person,
+        });
+        const row = await tx.taikhoan.findUniqueOrThrow({
+          where: { ma_nguoi: id },
+          include: ACCOUNT_INCLUDE,
+        });
+        return toUserRecord(row);
+      });
+    } catch (error) {
+      if (isRecordNotFound(error)) return null;
+      throw error;
+    }
+  }
+
+  /**
+   * PUT /admin/users/:id trong một transaction: nguoi (họ tên, giới tính) và taikhoan (vai trò, trạng
+   * thái) — taikhoan chỉ UPDATE khi giá trị thực sự đổi, so với bản ghi đọc trong cùng transaction (D7).
+   * Người không còn → null; vai trò bị xoá đồng thời → 2003 (role_id).
+   */
+  async update(userId: number, changes: UpdateUserRequest): Promise<UserRecord | null> {
+    const id = toDbId(userId);
+    try {
+      return await this.prisma.db.$transaction(async (tx) => {
+        const current = await tx.taikhoan.findUnique({
+          where: { ma_nguoi: id },
+          include: ACCOUNT_INCLUDE,
+        });
+        if (!current) return null;
+        const person = personChangesToDb(changes);
+        if (hasChanges(person)) await tx.nguoi.update({ where: { ma_nguoi: id }, data: person });
+        const account = accountChangesToDb(changes, toUserRecord(current));
+        if (hasChanges(account))
+          await tx.taikhoan.update({ where: { ma_nguoi: id }, data: account });
+        const row = await tx.taikhoan.findUniqueOrThrow({
+          where: { ma_nguoi: id },
+          include: ACCOUNT_INCLUDE,
+        });
+        return toUserRecord(row);
+      });
+    } catch (error) {
+      if (isForeignKeyViolation(error, ACCOUNT_ROLE_FK)) throw invalidReference('role_id');
+      throw error;
+    }
+  }
+
+  /** Phân công = tạo hoặc sửa dòng nhanvien (MT-106); chi nhánh bị xoá đồng thời → 2003 (branch_id). */
+  async assign(userId: number, branchId: number): Promise<void> {
+    const id = toDbId(userId);
+    const branch = toDbId(branchId);
+    try {
+      await this.prisma.db.nhanvien.upsert({
+        where: { ma_nhan_vien: id },
+        create: { ma_nhan_vien: id, ma_chi_nhanh: branch },
+        update: { ma_chi_nhanh: branch },
+      });
+    } catch (error) {
+      if (isForeignKeyViolation(error, STAFF_BRANCH_FK)) throw invalidReference('branch_id');
+      throw error;
+    }
+  }
+
+  /**
+   * Xoá taikhoan, benhnhan, nhanvien rồi nguoi trong một transaction (D6, MT-107). Còn bản ghi khác
+   * tham chiếu (FK RESTRICT: hồ sơ, phiên khám, ma_nguoi_gan…) → rollback, 2003 (409). Không có tài
+   * khoản → false.
+   */
+  async delete(userId: number): Promise<boolean> {
+    const id = toDbId(userId);
+    try {
+      return await this.prisma.db.$transaction(async (tx) => {
+        const { count } = await tx.taikhoan.deleteMany({ where: { ma_nguoi: id } });
+        if (count === 0) return false;
+        await tx.benhnhan.deleteMany({ where: { ma_benh_nhan: id } });
+        await tx.nhanvien.deleteMany({ where: { ma_nhan_vien: id } });
+        await tx.nguoi.delete({ where: { ma_nguoi: id } });
+        return true;
+      });
+    } catch (error) {
+      if (isForeignKeyViolation(error)) throw conflict();
       throw error;
     }
   }
