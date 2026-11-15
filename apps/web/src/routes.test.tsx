@@ -2,12 +2,17 @@ import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { UNAUTHENTICATED_EVENT } from './api';
 import { AppRoutes } from './routes';
+import { dashboardSummary } from './test/dashboard-fixture';
 import { errorResponse, jsonResponse, okResponse, renderApp, seedSession } from './test/helpers';
 import { medicalRecord } from './test/medical-record-fixture';
 
 function renderAt(path: string) {
   return renderApp(<AppRoutes />, path);
 }
+
+/** Trang `/` là Tổng quan: GET /dashboard/summary trả dữ liệu mẫu, route khác do `other` quyết định. */
+const withDashboard = (other: (url: string) => Response) => (url: string) =>
+  Promise.resolve(url.endsWith('/dashboard/summary') ? okResponse(dashboardSummary()) : other(url));
 
 async function submitLogin(phone: string, password: string) {
   const user = userEvent.setup();
@@ -110,8 +115,8 @@ describe('Định tuyến và đăng nhập', () => {
   it('menu người dùng có Hồ sơ cá nhân, Đổi mật khẩu và Đăng xuất (gọi API rồi về đăng nhập)', async () => {
     seedSession();
     // Chuông thông báo ở header tải danh sách phân trang nên /notifications phải trả mảng.
-    const fetchMock = vi.fn((url: string) =>
-      Promise.resolve(
+    const fetchMock = vi.fn(
+      withDashboard((url) =>
         url.includes('/notifications')
           ? jsonResponse(200, { code: '1000', message: 'OK', data: [], total: 0 })
           : okResponse(),
@@ -153,10 +158,7 @@ describe('Định tuyến và đăng nhập', () => {
   it('menu "Quản trị hệ thống" hiện với admin (GET /roles thành công)', async () => {
     seedSession();
     // Mỗi lời gọi phải trả Response mới: body của một Response chỉ đọc được một lần.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(okResponse([]))),
-    );
+    vi.stubGlobal('fetch', vi.fn(withDashboard(() => okResponse([]))));
     renderAt('/');
     expect(await screen.findByText('Quản trị hệ thống')).toBeInTheDocument();
     expect(screen.getByText('Cơ sở vật chất')).toBeInTheDocument();
@@ -208,6 +210,14 @@ describe('Định tuyến và đăng nhập', () => {
     );
     renderAt('/medical-records');
     expect(await screen.findByRole('region', { name: 'Cột Chờ tiếp nhận' })).toBeInTheDocument();
+  });
+
+  it('vào / (nhân viên) hiện Tổng quan thay cho trang "Sắp ra mắt" (spec B, mục 8.8)', async () => {
+    seedSession();
+    vi.stubGlobal('fetch', vi.fn(withDashboard(() => okResponse([]))));
+    renderAt('/');
+    expect(await screen.findByText('Phiên khám hôm nay')).toBeInTheDocument();
+    expect(screen.queryByText('Chức năng đang được phát triển.')).not.toBeInTheDocument();
   });
 
   it('vào /patients hiện trang tìm bệnh nhân', async () => {
@@ -272,10 +282,7 @@ describe('Định tuyến và đăng nhập', () => {
 
   it('menu "Quản trị hệ thống" không còn mục "Mẫu phiếu khám" (spec A, mục 7.1)', async () => {
     seedSession();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(okResponse([]))),
-    );
+    vi.stubGlobal('fetch', vi.fn(withDashboard(() => okResponse([]))));
     renderAt('/');
     expect(await screen.findByText('Quản trị hệ thống')).toBeInTheDocument();
     expect(screen.queryByText('Mẫu phiếu khám')).not.toBeInTheDocument();

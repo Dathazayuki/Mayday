@@ -387,3 +387,36 @@
   gap: 8px;
   cursor: pointer;
 }
+
+/* Tổng quan (spec B, mục 8.8): hàng ô số liệu, thẻ rút gọn "tôi phụ trách". */
+.dm-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+.dm-stat {
+  display: block;
+  color: inherit;
+}
+.dm-stat:hover .dm-panel.ant-card {
+  border-color: var(--dm-primary);
+}
+.dm-stat__label {
+  font-size: 13px;
+  color: var(--dm-ink2);
+}
+.dm-stat__value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--dm-ink);
+}
+.dm-stats__more {
+  font-size: 12.5px;
+  color: var(--dm-ink2);
+}
+.dm-queue {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}

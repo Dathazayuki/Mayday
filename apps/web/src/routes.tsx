@@ -5,6 +5,7 @@ import { AppShell } from './layout/AppShell';
 import { NAV_GROUPS, type NavItem } from './layout/menu';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
+import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
 import { MedicalRecordDetailPage } from './pages/clinical/MedicalRecordDetailPage';
 import { PatientDetailPage } from './pages/clinical/PatientDetailPage';
@@ -28,7 +29,7 @@ export function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
-          <Route index element={<ComingSoonPage title="Tổng quan" />} />
+          <Route index element={<DashboardPage />} />
           {NAV_GROUPS.filter((group) => !group.adminOnly).flatMap((group) =>
             group.items.map(pageRoute),
           )}
