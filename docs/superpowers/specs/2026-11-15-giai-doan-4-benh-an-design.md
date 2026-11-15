@@ -1,5 +1,7 @@
 # Thiết kế giai đoạn 4: Bệnh nhân và hồ sơ bệnh án
 
+> Đã được thay toàn bộ bởi spec B: [2026-11-15-csdl-that-b-benh-an-design.md](2026-11-15-csdl-that-b-benh-an-design.md).
+
 - **Ngày:** 2026-11-15
 - **Trạng thái:** đã được duyệt theo uỷ quyền chung của người dùng ("cứ làm đầy đủ các task của dự án… cứ mạnh dạn triển khai tôi luôn đồng ý").
 - **Nguồn:**

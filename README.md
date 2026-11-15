@@ -59,6 +59,8 @@ Sau khi gộp một thay đổi của `packages/shared` (vd. B2): chạy `pnpm -
 
 **Sau khi gộp B3:** chạy `pnpm --filter @drmayday/shared build`, rồi chạy lại `pnpm --filter @drmayday/api db:seed` trên CSDL dev để có dữ liệu lâm sàng mẫu (hồ sơ ở đủ 5 trạng thái và phiên khám, xem "Ghi chú vận hành"), rồi khởi động lại API dev (route tiếp nhận, phiên khám mới; seed ghi thẳng vào CSDL nên cache quyền cần nạp lại).
 
+**Sau khi gộp B5:** chạy `pnpm install` (Web thêm phụ thuộc `dayjs`, đúng bản antd đang dùng), `pnpm --filter @drmayday/shared build`, rồi tải lại Web và Expo. B5 không đổi API, không cần seed lại.
+
 Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXPO_PUBLIC_API_BASE_URL=http://<IP-LAN-của-máy>:3000`.
 
 ### Ghi chú vận hành
@@ -75,7 +77,7 @@ Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXP
 - Swagger (`/api/v1/docs`) chỉ mở khi `APP_ENV` là `development` hoặc `test`; `APP_ENV=production` (hoặc để trống) thì tắt.
 - `APP_ENV=production` bắt buộc có `DATABASE_URL` và nên đặt `CORS_ORIGINS` cho domain của Web (để trống thì trình duyệt ở origin khác bị chặn). App mobile không bị CORS chặn.
 - `.env` gốc dùng chung với Vite: **không** đặt `NODE_ENV` trong đó (API dùng `APP_ENV`).
-- Hiện đã chạy: API giai đoạn 1 và 2 (xác thực, hồ sơ, cơ sở vật chất, quản trị, vai trò, quyền), API bệnh nhân, hồ sơ bệnh án, chuyển trạng thái, phiên khám và Tổng quan của giai đoạn 4 (`/doctor/patients…`, `/medical_records…`, `/visits/:id`, `/dashboard/summary`, tiểu dự án B1–B4); Web có trang bệnh án hai chế độ bảng/cột (kéo thả) và trang Tổng quan. Màn chi tiết bệnh án có kiểu (B5), bệnh nhân tự khai (B6) chưa làm; các màn giai đoạn 5–8 trên Web, Mobile chưa có API tương ứng nên sẽ nhận 404. Xem [docs/07-tien-do.md](docs/07-tien-do.md).
+- Hiện đã chạy: API giai đoạn 1 và 2 (xác thực, hồ sơ, cơ sở vật chất, quản trị, vai trò, quyền), API bệnh nhân, hồ sơ bệnh án, chuyển trạng thái, phiên khám và Tổng quan của giai đoạn 4 (`/doctor/patients…`, `/medical_records…`, `/visits/:id`, `/dashboard/summary`, tiểu dự án B1–B5); Web có trang bệnh án hai chế độ bảng/cột (kéo thả), trang Tổng quan và màn chi tiết bệnh án có kiểu (tự khai, hồ sơ, bệnh án cấp/mạn, phiên khám); Mobile xem bệnh án và các lần khám (chỉ đọc). Bệnh nhân tự khai (B6) chưa làm; các màn giai đoạn 5–8 trên Web, Mobile chưa có API tương ứng nên sẽ nhận 404. Xem [docs/07-tien-do.md](docs/07-tien-do.md).
 
 ## Kiểm tra
 
