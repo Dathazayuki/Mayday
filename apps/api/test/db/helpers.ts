@@ -1,6 +1,8 @@
 import { Controller, Get, type INestApplication, type Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { SYSTEM_ROLE_NAMES, type MedicalRecordStatus, type RecordType } from '@drmayday/shared';
+import bcrypt from 'bcryptjs';
+import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import {
   seedDevAdmin,
@@ -232,4 +234,55 @@ export function findAccount(prisma: PrismaClient, phone: string) {
     where: { ten_dang_nhap: phone },
     include: { vaitro: true, nguoi: { include: { benhnhan: true, nhanvien: true } } },
   });
+}
+
+/** Mật khẩu của tài khoản test đăng nhập qua API (signIn). */
+export const TEST_PASSWORD = 'matkhau123';
+
+/** Người dùng test đã đăng nhập: id = ma_nguoi, token của POST /auth/login. */
+export interface TestUser {
+  id: number;
+  token: string;
+}
+
+/** Dòng subtype của tài khoản test: benhnhan, nhanvien ở chi nhánh `branchId` (đã phân công, MT-106) hoặc không có. */
+export type TestUserKind = 'patient' | 'staff' | 'none';
+
+export interface TestUserSpec {
+  roleId: number;
+  phone: string;
+  fullName: string;
+  kind: TestUserKind;
+  /** Chi nhánh của dòng nhanvien (chỉ dùng khi kind là 'staff'). */
+  branchId: number;
+}
+
+/**
+ * Tài khoản chèn thẳng (mật khẩu băm bcrypt cost 4 cho nhanh) rồi đăng nhập thật qua POST /auth/login, nên
+ * đi đúng JwtAuthGuard. Dùng chung cho test API bệnh án từ B3.
+ */
+export async function signIn(app: INestApplication<App>, user: TestUserSpec): Promise<TestUser> {
+  const prisma = app.get(PrismaService).db;
+  const person = await prisma.nguoi.create({
+    data: {
+      ho_ten: user.fullName,
+      so_dien_thoai: user.phone,
+      taikhoan: {
+        create: {
+          ten_dang_nhap: user.phone,
+          mat_khau_ma_hoa: await bcrypt.hash(TEST_PASSWORD, 4),
+          ma_vai_tro: BigInt(user.roleId),
+        },
+      },
+      ...(user.kind === 'patient' ? { benhnhan: { create: {} } } : {}),
+      ...(user.kind === 'staff'
+        ? { nhanvien: { create: { ma_chi_nhanh: BigInt(user.branchId) } } }
+        : {}),
+    },
+  });
+  const res = await request(app.getHttpServer())
+    .post('/api/v1/auth/login')
+    .send({ phone: user.phone, password: TEST_PASSWORD })
+    .expect(200);
+  return { id: Number(person.ma_nguoi), token: res.body.data.token as string };
 }
