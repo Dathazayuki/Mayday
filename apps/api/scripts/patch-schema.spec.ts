@@ -69,4 +69,9 @@ describe('patchSchema (spec A, mục 3.4)', () => {
     );
     expect(() => patchSchema(renamed)).toThrow(/benhanmaydayman\.loai_benh_an/);
   });
+
+  it('không còn @default(now()) nào để đổi → ném lỗi bảo xem lại script', () => {
+    const none = pulled.replaceAll('@default(now())', '');
+    expect(() => patchSchema(none)).toThrow(/không thấy @default\(now\(\)\)/);
+  });
 });

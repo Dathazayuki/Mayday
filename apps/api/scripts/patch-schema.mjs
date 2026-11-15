@@ -57,6 +57,12 @@ export function patchSchema(input) {
   }
   // Bước 3 (D1): giờ tạo bản ghi do CSDL ghi, cùng đồng hồ với trigger cập nhật; Prisma không gửi
   // cột có default dbgenerated.
+  // Chạy lại trên file đã sửa thì không còn now() nhưng đã có dbgenerated: không phải lỗi.
+  if (
+    !text.includes('@default(now())') &&
+    !text.includes('@default(dbgenerated("CURRENT_TIMESTAMP"))')
+  )
+    throw schemaChanged('không thấy @default(now())');
   text = text.replaceAll('@default(now())', '@default(dbgenerated("CURRENT_TIMESTAMP"))');
   // Bước 4: chú thích đầu file.
   return `${SCHEMA_HEADER}\n${text}`;

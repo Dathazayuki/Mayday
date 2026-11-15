@@ -28,6 +28,15 @@ describe('assertLocalDatabase (D2)', () => {
     },
   );
 
+  it.each(['?host=remote.example', '?hostaddr=1.2.3.4', '?host=localhost'])(
+    'tham số %s có thể đổi host kết nối → từ chối, không lộ mật khẩu',
+    (query) => {
+      const error = errorOf(() => assertLocalDatabase(`${urlAt('localhost')}${query}`));
+      expect(error.message).toMatch(/tham số host/);
+      expect(error.message).not.toContain(SECRET);
+    },
+  );
+
   it('URL sai dạng → từ chối', () => {
     expect(() => assertLocalDatabase('khong-phai-url')).toThrow(/URL CSDL không hợp lệ/);
   });

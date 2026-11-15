@@ -17,12 +17,17 @@ const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 
 /** Từ chối CSDL không nằm trên máy này. Thông báo chỉ nêu host, không nêu URL (có mật khẩu). */
 export function assertLocalDatabase(url) {
-  let host;
+  let parsed;
   try {
-    host = new URL(url).hostname;
+    parsed = new URL(url);
   } catch {
     throw new Error('URL CSDL không hợp lệ.');
   }
+  // pg cho tham số host/hostaddr ghi đè host trong URL: không cho qua để không vòng được kiểm tra.
+  if (parsed.searchParams.has('host') || parsed.searchParams.has('hostaddr')) {
+    throw new Error('URL CSDL không được có tham số host hoặc hostaddr (có thể đổi nơi kết nối).');
+  }
+  const host = parsed.hostname;
   if (!LOCAL_HOSTS.has(host)) {
     throw new Error(
       `Chỉ chạy trên CSDL nằm trên máy này (127.0.0.1, localhost, ::1); host đang là "${host}". ` +
@@ -35,8 +40,8 @@ export async function loadSchema(url) {
   assertLocalDatabase(url);
   const sql = await readFile(SQL_PATH, 'utf8');
   const client = new pg.Client({ connectionString: url, connectionTimeoutMillis: 5000 });
-  await client.connect();
   try {
+    await client.connect();
     await client.query('DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;');
     // Một lệnh query không tham số dùng giao thức simple query: chạy được cả file nhiều câu lệnh,
     // file tự bọc BEGIN … COMMIT nên lỗi giữa chừng không để lại schema dở dang.
