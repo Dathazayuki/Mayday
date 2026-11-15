@@ -1,7 +1,18 @@
 # Tiến độ triển khai
 
-> Tài liệu viết tay, cập nhật sau mỗi slice. Ký hiệu: `[x]` xong (đã kiểm thử và review), `[~]` đang làm, `[ ]` chưa làm.
-> Kế hoạch chi tiết từng giai đoạn: [superpowers/plans/](superpowers/plans/). Mâu thuẫn cần chốt: [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md).
+> Tài liệu viết tay, cập nhật sau mỗi đợt triển khai (lần gần nhất: đêm 2026-11-15). Ký hiệu: `[x]` xong (đã kiểm thử và review), `[ ]` chưa làm, `—` không có phần này.
+> Kế hoạch chi tiết từng giai đoạn: [superpowers/plans/](superpowers/plans/). Spec: [superpowers/specs/](superpowers/specs/). Mâu thuẫn và quyết định cần duyệt: [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md).
+
+## Kết quả kiểm tra lần gần nhất (nhánh `giai-doan-1-xac-thuc`, sau khi lắp ráp)
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `pnpm lint`, `pnpm typecheck`, `pnpm build` | Xanh |
+| `pnpm test` | shared 223, API 572, Web 220 |
+| `pnpm --filter @drmayday/api test:e2e` | 12 |
+| `pnpm --filter @drmayday/api test:db` | 187 (chạy hai lần liên tiếp đều xanh) |
+| Mobile: `expo export --platform android`, `expo-doctor` | Xuất được bundle Android; 20/20 mục đạt |
+| Chạy thử thật trên CSDL dev bằng curl | 34/34 bước đúng mã (bỏ qua 1 bước vì chưa có API gắn quyền với endpoint) |
 
 ## Giai đoạn 0 — Nền tảng (xong 2026-11-15)
 
@@ -11,26 +22,98 @@
 - [x] Khung Mobile (đăng nhập, 5 tab)
 - [x] MinIO bằng Docker
 
+## Bảng tổng hợp giai đoạn × phần
+
+| Giai đoạn | API | Web | Mobile | Ghi chú |
+|---|---|---|---|---|
+| 1 — Xác thực, tài khoản, hồ sơ | [x] | [x] | [x] | 8 API |
+| 2 — Quản trị người dùng, vai trò, quyền (RBAC động), cơ sở vật chất | [x] | [x] | — | Giai đoạn này không có Mobile |
+| 3 — Mẫu phiếu khám động | [ ] | [x] | — | Web: trình thiết kế mẫu phiếu. API là G3-2 |
+| 4 — Bệnh nhân, bệnh án | [ ] | [x] | [x] | API là G4-2 |
+| 5/6b — Kho ảnh, tổn thương da | [ ] | [x] | [x] | API là G5-2/G5-3 |
+| 6a — UAS7 | [ ] | [x] | [x] | API là G6-2 |
+| 7–8 — Đơn thuốc, xét nghiệm, thông báo | [ ] | [x] | [x] | API là G7-2. Gửi FCM thật chờ MT-79 |
+| 9 — AI | [ ] | [ ] | [ ] | Chờ MT-24 |
+
+Các phần Web và Mobile của giai đoạn 3–8 đã dựng xong nhưng **chưa có API tương ứng**, nên chạy thật sẽ nhận 404 ở các màn đó.
+
 ## Giai đoạn 1 — Xác thực, tài khoản, hồ sơ
 
 Spec: [2026-11-15-giai-doan-1-xac-thuc-design.md](superpowers/specs/2026-11-15-giai-doan-1-xac-thuc-design.md) · Kế hoạch: [2026-11-15-giai-doan-1-xac-thuc.md](superpowers/plans/2026-11-15-giai-doan-1-xac-thuc.md)
 
-- [ ] Slice 1.1 — Hợp đồng dùng chung (kiểu request/response, giới tính, nghề nghiệp, validators)
-- [ ] Slice 1.2 — CSDL MySQL dev + schema nhóm A + seed + test tích hợp
-- [ ] Slice 1.3 — API đăng ký / đăng nhập / đăng xuất + blacklist token
-- [ ] Slice 1.4 — API quên mật khẩu / đổi mật khẩu / hồ sơ cá nhân
-- [ ] Slice 1.5 — API tạo nhân viên (admin) + guard vai trò
-- [ ] Slice 1.6 — Web: đăng xuất qua API, hồ sơ cá nhân, đổi mật khẩu
-- [ ] Slice 1.7 — Mobile: đăng ký, quên mật khẩu, hồ sơ, đổi mật khẩu, đăng xuất
-- [ ] Slice 1.8 — Tích hợp, chạy thử thật, tài liệu
+- [x] API: đăng ký, đăng nhập, đăng xuất (blacklist token), quên mật khẩu, đổi mật khẩu, tạo nhân viên (admin), xem và sửa hồ sơ. Đã làm xong, chưa có `reset-password` (MT-16)
+- [x] Web: đăng nhập, đăng xuất qua API, hồ sơ cá nhân, đổi mật khẩu
+- [x] Mobile: đăng ký, đăng nhập, quên mật khẩu, hồ sơ, đổi mật khẩu, đăng xuất
+- [x] CSDL MySQL dev, schema nhóm A, seed, test tích hợp (`test:db`)
 
-## Các giai đoạn tiếp theo
+## Giai đoạn 2 — Quản trị, RBAC động, cơ sở vật chất
 
-- [ ] Giai đoạn 2 — Quản trị người dùng, vai trò, quyền (RBAC động), cơ sở vật chất
-- [ ] Giai đoạn 3 — Mẫu phiếu khám động
-- [ ] Giai đoạn 4 — Bệnh nhân, bệnh án
-- [ ] Giai đoạn 5 — Kho ảnh / tệp đính kèm (MinIO)
-- [ ] Giai đoạn 6 — Tổn thương da, UAS7
-- [ ] Giai đoạn 7 — Đơn thuốc, xét nghiệm
-- [ ] Giai đoạn 8 — Thông báo (FCM)
-- [ ] Giai đoạn 9 — AI (chờ MT-24)
+Spec: [2026-11-15-giai-doan-2-quan-tri-design.md](superpowers/specs/2026-11-15-giai-doan-2-quan-tri-design.md) · Kế hoạch: [2026-11-15-giai-doan-2-quan-tri.md](superpowers/plans/2026-11-15-giai-doan-2-quan-tri.md)
+
+- [x] API: chi nhánh, khoa, phòng; vai trò; quyền; gán quyền cho vai trò; quản trị người dùng; guard theo quyền động (cache quyền theo tiến trình); đồng bộ `api_endpoints`
+- [x] Web: quản lý cơ sở vật chất, người dùng, vai trò và phân quyền
+- Chưa có API gán quyền với endpoint (`permissions_endpoints`); phần này nhập qua seed và chỉ được kiểm thử bằng `test:db`.
+
+## Giai đoạn 3 — Mẫu phiếu khám động
+
+Spec: [2026-11-15-giai-doan-3-mau-phieu-design.md](superpowers/specs/2026-11-15-giai-doan-3-mau-phieu-design.md) · Kế hoạch: [2026-11-15-giai-doan-3-mau-phieu.md](superpowers/plans/2026-11-15-giai-doan-3-mau-phieu.md)
+
+- [x] Shared: kiểu và quy tắc dùng chung (G3-1)
+- [x] Web: trình thiết kế mẫu phiếu (G3-3)
+- [ ] API (G3-2)
+
+## Giai đoạn 4 — Bệnh nhân, bệnh án
+
+Spec: [2026-11-15-giai-doan-4-benh-an-design.md](superpowers/specs/2026-11-15-giai-doan-4-benh-an-design.md) · Kế hoạch: [2026-11-15-giai-doan-4-benh-an.md](superpowers/plans/2026-11-15-giai-doan-4-benh-an.md)
+
+- [x] Shared: kiểu, `form-rules` (G4-1)
+- [x] Web: danh sách bệnh nhân, bệnh án, phiếu khám (G4-3)
+- [x] Mobile: điền phiếu bệnh án (G4-4)
+- [ ] API (G4-2)
+
+## Giai đoạn 5/6b — Kho ảnh, tổn thương da
+
+Spec: [2026-11-15-giai-doan-5-6b-anh-ton-thuong-design.md](superpowers/specs/2026-11-15-giai-doan-5-6b-anh-ton-thuong-design.md) · Kế hoạch: [2026-11-15-giai-doan-5-6b-anh-ton-thuong.md](superpowers/plans/2026-11-15-giai-doan-5-6b-anh-ton-thuong.md)
+
+- [x] Shared (G5-1)
+- [x] Web (G5-4)
+- [x] Mobile: chụp và chọn ảnh, đợt và vị trí tổn thương (G5-5)
+- [ ] API (G5-2: kho ảnh MinIO; G5-3: tổn thương da)
+
+## Giai đoạn 6a — UAS7
+
+Spec: [2026-11-15-giai-doan-6a-uas7-design.md](superpowers/specs/2026-11-15-giai-doan-6a-uas7-design.md) · Kế hoạch: [2026-11-15-giai-doan-6a-uas7.md](superpowers/plans/2026-11-15-giai-doan-6a-uas7.md)
+
+- [x] Shared (G6-1)
+- [x] Mobile (G6-3)
+- [x] Web (G6-4)
+- [ ] API (G6-2)
+
+## Giai đoạn 7–8 — Đơn thuốc, xét nghiệm, thông báo
+
+Spec: [2026-11-15-giai-doan-7-8-don-thuoc-xet-nghiem-thong-bao-design.md](superpowers/specs/2026-11-15-giai-doan-7-8-don-thuoc-xet-nghiem-thong-bao-design.md) · Kế hoạch: [2026-11-15-giai-doan-7-8-don-thuoc-xet-nghiem-thong-bao.md](superpowers/plans/2026-11-15-giai-doan-7-8-don-thuoc-xet-nghiem-thong-bao.md)
+
+- [x] Shared (G7-1)
+- [x] Web: đơn thuốc, xét nghiệm, chuông thông báo (G7-3)
+- [x] Mobile: kết quả xét nghiệm và tab Thông báo (G7-4)
+- [ ] API (G7-2)
+- [ ] Đăng ký token FCM và gửi push thật: chờ cấu hình Firebase (MT-79)
+
+## Giai đoạn 9 — AI
+
+- [ ] Chờ thông tin từ nhóm AI (MT-24)
+
+## Việc tiếp theo
+
+1. **API còn thiếu, theo thứ tự phụ thuộc:** G3-2 (mẫu phiếu) → G4-2 (bệnh nhân, bệnh án) → G6-2 (UAS7) và G7-2 (đơn thuốc, xét nghiệm, thông báo) → G5-2/G5-3 (kho ảnh, tổn thương da). Các API sau phụ thuộc bệnh án của G4-2.
+2. **Đối chiếu schema thật** của nhóm DB (MT-57) bằng `prisma db pull`, rồi sửa tầng truy cập dữ liệu và các mục MT-59, 62, 63, 67, 70, 80, 81... trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md).
+3. **Thử app trên máy thật** (Expo Go: camera, chọn ảnh, bàn phím, `router.replace('/login')`).
+4. **Duyệt mục E và F** trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md); cần chốt riêng `gender: ''` (2001 hay 2003), `reset-password` (MT-16).
+5. **Các mục Minor còn mở** (rút gọn từ sổ theo dõi review):
+   - API: thêm Swagger request schema (plugin CLI không chạy với ESM nên schema yêu cầu đang rỗng); `session lookup` nên `select` hẹp; bản ghi có cả hai subtype xử lý chưa thống nhất; seed tạo và gán quyền chưa atomic; route `@Param` số phải dùng `parseIdPipe`.
+   - Hạ tầng: `docker-compose` MinIO dùng `latest` chưa ghim phiên bản; `JWT_SECRET` mẫu trong `.env.example` dùng được như thật (đổi khi triển khai); `Number()` nhận `1e3`/`0x10` làm port.
+   - Web: chunk antd lớn hơn 500 kB; `AuthContext.tsx` còn cảnh báo `only-export-components`; bảng hàng chỉ click chuột (thiếu truy cập bàn phím); khung CRUD chung có vài cast và lặp (`useDeleteAction`).
+   - Mobile: xoá phiên lỗi thì token còn trên máy; `keyboardVerticalOffset` trên iOS; vài dependency mẫu chưa dùng; `records.tsx`/`uas7.tsx` còn `Number(user?.user_id)`; `mix_text_image` mới là placeholder.
+   - Shared: chuyển Web sang dùng `form-rules` của shared; thống nhất hiển thị giờ tổn thương (Web nay hiển thị `HH:mm` theo shared).
+   - Test: spec HTTP status chỉ kiểm 11/71 mã; thiếu e2e 9902 qua HTTP khi CSDL tắt.
+6. **Quy tắc cho route/provider mới:** không dùng `@Inject(token)` với danh sách tham số riêng lẻ, vì làm hỏng `db:seed` chạy bằng tsx (đã có test chặn).
