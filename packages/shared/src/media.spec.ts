@@ -100,10 +100,36 @@ describe('resolveMediaUrl', () => {
     );
   });
 
-  it('giữ nguyên URL tuyệt đối', () => {
-    expect(resolveMediaUrl('http://a', 'https://cdn.example.com/a.jpg')).toBe(
-      'https://cdn.example.com/a.jpg',
+  it('giữ URL tuyệt đối cùng origin với API (không phân biệt hoa thường, cổng mặc định)', () => {
+    const view = '/api/v1/image-attachments/view/1';
+    expect(resolveMediaUrl('http://localhost:3000', `http://localhost:3000${view}`)).toBe(
+      `http://localhost:3000${view}`,
     );
+    expect(resolveMediaUrl('https://api.example.vn/', `HTTPS://API.example.vn:443${view}`)).toBe(
+      `HTTPS://API.example.vn:443${view}`,
+    );
+  });
+
+  it('từ chối URL tuyệt đối tới origin khác (khác host, cổng hoặc scheme)', () => {
+    expect(resolveMediaUrl('http://localhost:3000', 'https://cdn.example.com/a.jpg')).toBeNull();
+    expect(resolveMediaUrl('http://localhost:3000', 'http://localhost:3001/a.jpg')).toBeNull();
+    expect(resolveMediaUrl('http://localhost:3000', 'https://localhost:3000/a.jpg')).toBeNull();
+    expect(resolveMediaUrl('http://localhost:3000', 'http://localhost:3000@evil.com/a')).toBeNull();
+    expect(resolveMediaUrl('http://localhost:3000', 'http://localhost:3000\\@evil.com')).toBeNull();
+  });
+
+  it('từ chối protocol-relative (//host) và scheme khác http(s)', () => {
+    expect(resolveMediaUrl('http://localhost:3000', '//evil.com/a.jpg')).toBeNull();
+    expect(resolveMediaUrl('http://localhost:3000', '/\\evil.com/a.jpg')).toBeNull();
+    expect(resolveMediaUrl('http://localhost:3000', 'javascript:alert(1)')).toBeNull();
+    expect(resolveMediaUrl('http://localhost:3000', ' JavaScript:alert(1)')).toBeNull();
+    expect(resolveMediaUrl('http://localhost:3000', 'data:image/png;base64,AAAA')).toBeNull();
+    expect(resolveMediaUrl('http://localhost:3000', 'blob:http://localhost:3000/x')).toBeNull();
+    expect(resolveMediaUrl('http://localhost:3000', 'http:/evil.com/a.jpg')).toBeNull();
+  });
+
+  it('từ chối URL tuyệt đối khi địa chỉ API không phải http(s) hợp lệ', () => {
+    expect(resolveMediaUrl('', 'http://localhost:3000/a.jpg')).toBeNull();
   });
 });
 

@@ -6,32 +6,49 @@ Tài liệu chuẩn của dự án nằm ở [docs/README.md](docs/README.md). K
 
 ## Cấu trúc
 
-| Thư mục | Nội dung |
-|---|---|
-| `apps/api` | API NestJS 12 + Prisma 7, tiền tố `/api/v1`, Swagger ở `/api/v1/docs` |
-| `apps/web` | Web bác sĩ và quản trị: React 19, Vite, Ant Design |
-| `apps/mobile` | App bệnh nhân: Expo SDK 58, expo-router |
-| `packages/shared` | Mã phản hồi, API client, kiểm tra dữ liệu dùng chung |
-| `docs/` | Tài liệu chuẩn, spec và kế hoạch triển khai |
-| `tai-lieu-goc/` | Slide gốc |
+| Thư mục           | Nội dung                                                                                 |
+| ----------------- | ---------------------------------------------------------------------------------------- |
+| `apps/api`        | API NestJS 12 + Prisma 7, tiền tố `/api/v1`, Swagger ở `/api/v1/docs` (ngoài production) |
+| `apps/web`        | Web bác sĩ và quản trị: React 19, Vite, Ant Design                                       |
+| `apps/mobile`     | App bệnh nhân: Expo SDK 58, expo-router                                                  |
+| `packages/shared` | Mã phản hồi, API client, kiểm tra dữ liệu dùng chung                                     |
+| `docs/`           | Tài liệu chuẩn, spec và kế hoạch triển khai                                              |
+| `tai-lieu-goc/`   | Slide gốc                                                                                |
 
 ## Yêu cầu
 
 - Node.js 22 trở lên
 - pnpm 11.5.3: `npm install -g pnpm@11.5.3`
-- Docker (để chạy MinIO)
+- Docker (để chạy MySQL và MinIO)
 
 ## Cài đặt
 
 ```bash
 pnpm install
-cp .env.example .env    # rồi điền JWT_SECRET (tối thiểu 32 ký tự); DATABASE_URL để trống khi chưa có CSDL
+cp .env.example .env
 ```
+
+Điền vào `.env`:
+
+- `JWT_SECRET`: chuỗi ngẫu nhiên tối thiểu 32 ký tự (mẫu lệnh tạo chuỗi nằm trong `.env.example`);
+- `APP_ENV=development`;
+- `SEED_ADMIN_PHONE` và `SEED_ADMIN_PASSWORD`: tài khoản admin do seed tạo, **chỉ dùng cho CSDL dev**. Seed chỉ tạo khi số chưa có (chạy lại không ghi đè mật khẩu, họ tên), từ chối khi `APP_ENV` không phải `development`/`test` hoặc khi số đã thuộc bệnh nhân/nhân viên vai trò khác;
+- `CORS_ORIGINS` (không bắt buộc): origin trình duyệt được gọi API, cách nhau bởi dấu phẩy. Để trống thì development/test chỉ cho Web dev `http://localhost:5173`, production không cho origin nào;
+- các biến còn lại (`DATABASE_URL`, `TEST_DATABASE_URL`, `MYSQL_*`, `MINIO_*`...) theo gợi ý trong `.env.example`.
 
 ## Chạy khi phát triển
 
+Khởi động CSDL, tạo bảng và nạp dữ liệu mẫu (một lần, và lại khi schema đổi):
+
 ```bash
-docker compose up -d minio   # kho ảnh MinIO (console: http://localhost:9101)
+docker compose up -d mysql minio                # MySQL cổng 3307, MinIO cổng 9100 (console: http://localhost:9101), chỉ mở trên 127.0.0.1
+pnpm --filter @drmayday/api db:push             # tạo bảng theo prisma/schema.prisma
+pnpm --filter @drmayday/api db:seed             # đồng bộ api_endpoints; seed vai trò, quyền, cơ sở vật chất, admin (cần đủ .env)
+```
+
+Chạy các ứng dụng:
+
+```bash
 pnpm dev:api                 # http://localhost:3000/api/v1/health
 pnpm dev:web                 # http://localhost:5173
 pnpm dev:mobile              # quét mã QR bằng Expo Go
@@ -40,11 +57,22 @@ pnpm dev:shared              # biên dịch lại packages/shared khi sửa (API
 
 Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXPO_PUBLIC_API_BASE_URL=http://<IP-LAN-của-máy>:3000`.
 
+### Ghi chú vận hành
+
+- Guard đọc CSDL ở mỗi request: chưa chạy `db:push` thì các route có bảo vệ trả 9901.
+- Cache quyền giữ trong bộ nhớ của từng tiến trình API. `db:seed` ghi gắn quyền–endpoint và cấp quyền thẳng vào CSDL, không qua API, nên chạy seed khi API đang chạy thì phải **khởi động lại mọi tiến trình API** để quyền mới có hiệu lực. Gán quyền qua API quản trị thì tiến trình nhận request xoá cache ngay; nếu chạy nhiều tiến trình, các tiến trình khác vẫn giữ cache cũ.
+- Swagger (`/api/v1/docs`) chỉ mở khi `APP_ENV` là `development` hoặc `test`; `APP_ENV=production` (hoặc để trống) thì tắt.
+- `APP_ENV=production` bắt buộc có `DATABASE_URL` và nên đặt `CORS_ORIGINS` cho domain của Web (để trống thì trình duyệt ở origin khác bị chặn). App mobile không bị CORS chặn.
+- `.env` gốc dùng chung với Vite: **không** đặt `NODE_ENV` trong đó (API dùng `APP_ENV`).
+- Hiện chỉ API giai đoạn 1 và 2 (xác thực, hồ sơ, cơ sở vật chất, quản trị, vai trò, quyền) đã chạy. Các màn Web và Mobile của giai đoạn 3–8 chưa có API tương ứng nên sẽ nhận 404. Xem [docs/07-tien-do.md](docs/07-tien-do.md).
+
 ## Kiểm tra
 
 ```bash
+pnpm format:check                     # Prettier cho toàn repo (sửa bằng pnpm format)
 pnpm lint && pnpm typecheck && pnpm test
 pnpm --filter @drmayday/api test:e2e
+pnpm --filter @drmayday/api test:db   # test tích hợp trên CSDL drmayday_test (xoá dữ liệu của CSDL này)
 pnpm build
 ```
 

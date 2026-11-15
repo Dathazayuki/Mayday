@@ -5,5 +5,6 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [react()],
   envDir: '../..',
-  server: { port: 5173 },
+  // strictPort: API chỉ cho phép CORS từ http://localhost:5173, không tự đổi sang cổng khác.
+  server: { port: 5173, strictPort: true },
 });

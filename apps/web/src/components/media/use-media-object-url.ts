@@ -18,16 +18,20 @@ async function isSessionExpired(response: Response): Promise<boolean> {
 /**
  * Tải ảnh từ endpoint view (cần Bearer token, MT-85) thành object URL để gán cho `<img>`.
  * Đổi `fileUrl` hoặc unmount thì huỷ request đang chạy và thu hồi object URL.
+ * `fileUrl` trỏ ra ngoài API (origin khác, `javascript:`, `data:`…) → lỗi ngay, không gọi fetch để
+ * không gửi token ra ngoài.
  */
 export function useMediaObjectUrl(fileUrl: string): Result {
   // Kết quả gắn với fileUrl đã tải; fileUrl mới chưa có kết quả thì coi là đang tải.
   const [loaded, setLoaded] = useState<{ fileUrl: string; result: Result }>();
+  const requestUrl = resolveMediaUrl(API_BASE_URL, fileUrl);
 
   useEffect(() => {
+    if (requestUrl === null) return;
     const controller = new AbortController();
     let objectUrl: string | null = null;
 
-    fetch(resolveMediaUrl(API_BASE_URL, fileUrl), {
+    fetch(requestUrl, {
       headers: authHeaders(),
       signal: controller.signal,
     })
@@ -49,7 +53,8 @@ export function useMediaObjectUrl(fileUrl: string): Result {
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [fileUrl]);
+  }, [fileUrl, requestUrl]);
 
+  if (requestUrl === null) return { status: 'error' };
   return loaded?.fileUrl === fileUrl ? loaded.result : { status: 'loading' };
 }

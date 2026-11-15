@@ -1,7 +1,7 @@
 import { resolveMediaUrl } from '@drmayday/shared';
 import { Image, type ImageContentFit } from 'expo-image';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, type ImageStyle, type StyleProp } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ImageStyle, type StyleProp } from 'react-native';
 import { useAuth } from '@/auth/auth-context';
 import { API_BASE_URL } from '@/lib/config';
 
@@ -12,13 +12,28 @@ interface AuthorizedImageProps {
   contentFit?: ImageContentFit;
 }
 
-/** Ảnh trong kho cần Bearer token (MT-85) nên không dùng được URL trần. Chạm vào ô lỗi để thử lại. */
+/**
+ * Ảnh trong kho cần Bearer token (MT-85) nên không dùng được URL trần. Chạm vào ô lỗi để thử lại.
+ * file_url trỏ ra ngoài API (origin khác, `javascript:`, `data:`…) → chỉ hiện ô lỗi, không gửi token.
+ */
 export function AuthorizedImage({ fileUrl, style, contentFit = 'cover' }: AuthorizedImageProps) {
   const { token } = useAuth();
   // Lỗi gắn với đúng file_url đã lỗi, nên đổi sang ảnh khác là hết lỗi.
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const uri = resolveMediaUrl(API_BASE_URL, fileUrl);
 
+  if (uri === null) {
+    return (
+      <View
+        style={[styles.placeholder, style]}
+        accessible
+        accessibilityLabel="Không hiển thị được ảnh"
+      >
+        <Text style={styles.failedText}>Không hiển thị được ảnh</Text>
+      </View>
+    );
+  }
   if (failedUrl === fileUrl || !token) {
     return (
       <Pressable
@@ -38,7 +53,7 @@ export function AuthorizedImage({ fileUrl, style, contentFit = 'cover' }: Author
     <Image
       key={attempt}
       source={{
-        uri: resolveMediaUrl(API_BASE_URL, fileUrl),
+        uri,
         headers: { Authorization: `Bearer ${token}` },
       }}
       style={[styles.image, style]}

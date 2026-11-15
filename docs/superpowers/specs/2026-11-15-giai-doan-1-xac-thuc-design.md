@@ -1,6 +1,7 @@
 # Thiết kế giai đoạn 1: Xác thực, tài khoản, hồ sơ
 
 - **Ngày:** 2026-11-15
+- **Trạng thái triển khai:** đã triển khai; xem [docs/05 mục F](../../05-mau-thuan-can-chot.md) cho các quyết định bổ sung.
 - **Trạng thái:** đã được duyệt theo uỷ quyền chung của người dùng ("tôi đồng ý với mọi quyết định của bạn miễn là nó bám sát với tài liệu gốc"; "trong thời gian đó bạn cứ phát triển dự án thôi"). Nhóm DB chưa trả lời (MT-57).
 - **Nguồn:** [02-api/01-xac-thuc-tai-khoan.md](../../02-api/01-xac-thuc-tai-khoan.md) (Sheet tab 1.1–1.6, GET/PUT profile; SLIDE2), [03-co-so-du-lieu.md](../../03-co-so-du-lieu.md) mục 2 (nhóm A), bảng mã [00-quy-uoc-va-ma-phan-hoi.md](../../02-api/00-quy-uoc-va-ma-phan-hoi.md), [05-mau-thuan-can-chot.md](../../05-mau-thuan-can-chot.md).
 - **Nền:** [spec giai đoạn 0](2026-11-15-giai-doan-0-nen-tang-design.md).
@@ -25,7 +26,7 @@
   - tên model = tên bảng, tên field = tên cột (kể cả cột tiếng Việt), không dùng `@map` cho cột;
   - enum đặt tên `<bảng>_<cột>`, giá trị có dấu cách dùng `@map` của giá trị.
   
-  Khi có schema thật chỉ cần `db pull` rồi sửa tầng repository.
+  Khi có schema thật chỉ cần `db pull` rồi sửa tầng truy cập dữ liệu (repository và file mapping cạnh nó).
 - Các sửa đổi theo dõi (track changes) trong tài liệu CSDL được coi là **đã chấp nhận** (chúng khớp Sheet, xem đầu docs/05).
 - Dùng `prisma db push` cho CSDL dev, **không commit migration**, vì CSDL thật thuộc nhóm DB.
 - Toàn bộ truy cập dữ liệu nằm trong các `*.repository.ts`. Service và controller chỉ dùng kiểu tiếng Anh như Sheet (MT-12). Ánh xạ tên/giá trị nằm trong một file mapping có unit test.
@@ -72,7 +73,7 @@ Enum:
 
 Quy ước chung như giai đoạn 0: envelope `{code, message, data}`, tiền tố `/api/v1`, HTTP status theo catalog. Kiểu dữ liệu của ID lấy theo đúng từng tab Sheet (đề xuất MT-06, đã áp dụng cho login từ giai đoạn 0).
 
-### 3.1. Ánh xạ API ↔ CSDL (tầng repository)
+### 3.1. Ánh xạ API ↔ CSDL (tầng truy cập dữ liệu: repository và file mapping cạnh nó)
 
 | API | CSDL |
 |---|---|
@@ -125,9 +126,9 @@ Quy ước chung như giai đoạn 0: envelope `{code, message, data}`, tiền t
 **`POST /auth/forgot-password`** (public, 1000, `data: {}`):
 - Thiếu số điện thoại → 2001, sai định dạng → 2004.
 - Không tồn tại → 3007.
-- Sinh OTP 6 chữ số bằng `crypto.randomInt`, lưu **mã băm SHA-256** của OTP vào `reset_token` và `reset_token_expires` = bây giờ + 10 phút (bảng mã 3005 ghi "Sau 10 phút").
+- Sinh OTP 6 chữ số bằng `crypto.randomInt`, lưu **HMAC-SHA256** của OTP (khoá suy từ `JWT_SECRET`) vào `reset_token` và `reset_token_expires` = bây giờ + 10 phút (bảng mã 3005 ghi "Sau 10 phút").
 - Gửi qua interface `OtpSender`:
-  - chỉ có bản dev: ghi log OTP khi `NODE_ENV !== 'production'`;
+  - chỉ có bản dev: ghi log OTP theo `APP_ENV` (chỉ `development`/`test`; không đặt thì coi như production);
   - production chưa có kênh nên trả 9903 (MT-16).
 
 **`PUT /auth/change-password`** (cần token, 1000, `data: {}`):

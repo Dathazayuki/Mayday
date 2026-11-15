@@ -50,6 +50,29 @@ describe('AuthorizedImage', () => {
     expect(createObjectURL).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['origin khác', 'https://cdn.example.com/a.jpg'],
+    ['protocol-relative', '//evil.example/a.jpg'],
+    ['javascript:', 'javascript:alert(1)'],
+    ['data:', 'data:image/png;base64,AAAA'],
+  ])('file_url ngoài API (%s) thì hiện lỗi và không gọi fetch', async (_name, fileUrl) => {
+    const fetchMock = vi.fn(() => Promise.resolve(imageResponse()));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AuthorizedImage fileUrl={fileUrl} alt="Ảnh" />);
+    expect(await screen.findByText('Không tải được ảnh')).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('URL tuyệt đối cùng origin với API vẫn tải kèm token', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(imageResponse()));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AuthorizedImage fileUrl={FULL_URL} alt="Ảnh" />);
+    await screen.findByRole('img', { name: 'Ảnh' });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(FULL_URL);
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer jwt-token');
+  });
+
   it('đổi fileUrl thì huỷ request cũ', async () => {
     const signals: AbortSignal[] = [];
     vi.stubGlobal(

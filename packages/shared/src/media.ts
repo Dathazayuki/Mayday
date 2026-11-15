@@ -60,11 +60,42 @@ export function mediaFileUrl(id: string | number): string {
   return `${API_PREFIX}${MEDIA_PATHS.view(id)}`;
 }
 
-/** Ghép file_url tương đối với địa chỉ API; URL tuyệt đối http(s) giữ nguyên. */
-export function resolveMediaUrl(baseUrl: string, fileUrl: string): string {
-  if (/^https?:\/\//i.test(fileUrl)) return fileUrl;
-  const path = fileUrl.startsWith('/') ? fileUrl : `/${fileUrl}`;
-  return `${baseUrl.replace(/\/+$/, '')}${path}`;
+const DEFAULT_PORTS: Readonly<Record<string, string>> = { http: '80', https: '443' };
+
+/**
+ * Origin dạng `scheme://host:port` (chữ thường, bỏ cổng mặc định) của URL tuyệt đối http(s); URL
+ * khác, có userinfo (`a@b`) hoặc có ký tự lạ trong phần host → null. Tự phân tích chuỗi thay vì
+ * dùng `URL` để chạy giống nhau trên Node, trình duyệt và React Native.
+ */
+function httpOrigin(url: string): string | null {
+  const match = /^(https?):\/\/([^/?#]*)/i.exec(url);
+  if (!match) return null;
+  const scheme = match[1].toLowerCase();
+  const authority = match[2].toLowerCase();
+  if (!/^[a-z0-9.-]+(:\d+)?$|^\[[0-9a-f:.]+\](:\d+)?$/.test(authority)) return null;
+  const portMatch = /:(\d+)$/.exec(authority);
+  const host = portMatch ? authority.slice(0, -portMatch[0].length) : authority;
+  const port = portMatch ? String(Number(portMatch[1])) : DEFAULT_PORTS[scheme];
+  if (host === '') return null;
+  return port === DEFAULT_PORTS[scheme] ? `${scheme}://${host}` : `${scheme}://${host}:${port}`;
+}
+
+/**
+ * Địa chỉ đầy đủ để tải `fileUrl` kèm Bearer token. Chỉ trả URL thuộc chính API: đường dẫn tương
+ * đối (MT-84) ghép với `baseUrl`; URL tuyệt đối http(s) chỉ giữ khi cùng origin với `baseUrl`. URL
+ * tới origin khác, protocol-relative (`//host`) hoặc scheme khác (`javascript:`, `data:`, `blob:`…)
+ * → null: client hiện trạng thái lỗi và không gửi token ra ngoài API.
+ */
+export function resolveMediaUrl(baseUrl: string, fileUrl: string): string | null {
+  const url = fileUrl.trim();
+  if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
+    const apiOrigin = httpOrigin(baseUrl.trim());
+    return apiOrigin !== null && httpOrigin(url) === apiOrigin ? url : null;
+  }
+  // `//host`, `\\host`, `/\host`: trình duyệt hiểu là protocol-relative tới host khác.
+  if (/^[\\/]{2}/.test(url)) return null;
+  const path = url.startsWith('/') ? url : `/${url}`;
+  return `${baseUrl.trim().replace(/\/+$/, '')}${path}`;
 }
 
 /**

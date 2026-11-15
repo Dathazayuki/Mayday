@@ -22,13 +22,10 @@ describe('isValidIsoDate', () => {
     expect(isValidIsoDate(date)).toBe(true);
   });
 
-  it.each([
-    '2026-02-29',
-    '2026-13-01',
-    '2026-1-01',
-    '2026-01-01T00:00:00Z',
-    20260101,
-  ])('từ chối %s', (date) => {
-    expect(isValidIsoDate(date)).toBe(false);
-  });
+  it.each(['2026-02-29', '2026-13-01', '2026-1-01', '2026-01-01T00:00:00Z', 20260101])(
+    'từ chối %s',
+    (date) => {
+      expect(isValidIsoDate(date)).toBe(false);
+    },
+  );
 });
