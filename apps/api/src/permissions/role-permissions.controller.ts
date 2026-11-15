@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { RolePermissionData } from '@drmayday/shared';
 import { parseIdPipe } from '../common/parse-id.pipe.js';
 import { RequireRole } from '../roles/require-role.decorator.js';
+import { RequirePermission } from './require-permission.decorator.js';
 import { SetRolePermissionsDto } from './dto/set-role-permissions.dto.js';
 import { RolePermissionsService } from './role-permissions.service.js';
 
@@ -10,6 +11,7 @@ import { RolePermissionsService } from './role-permissions.service.js';
 @ApiTags('role_permissions')
 @ApiBearerAuth()
 @RequireRole('admin')
+@RequirePermission('manage_permissions')
 @Controller('role_permissions')
 export class RolePermissionsController {
   constructor(private readonly rolePermissions: RolePermissionsService) {}

@@ -4,6 +4,7 @@ import type { BranchData, BranchListItem } from '@drmayday/shared';
 import { parseIdPipe } from '../common/parse-id.pipe.js';
 import { ResponseCode } from '../common/response-code.decorator.js';
 import { RequireRole } from '../roles/require-role.decorator.js';
+import { RequirePermission } from '../permissions/require-permission.decorator.js';
 import { BranchesService } from './branches.service.js';
 import { CreateBranchDto, UpdateBranchDto } from './dto/branch.dto.js';
 
@@ -16,6 +17,7 @@ export class BranchesController {
 
   @Post()
   @RequireRole('admin')
+  @RequirePermission('manage_facilities')
   @ResponseCode('1001')
   create(@Body() dto: CreateBranchDto): Promise<BranchData> {
     return this.branches.create(dto);
@@ -33,6 +35,7 @@ export class BranchesController {
 
   @Put(':id')
   @RequireRole('admin')
+  @RequirePermission('manage_facilities')
   update(
     @Param('id', parseIdPipe()) id: number,
     @Body() dto: UpdateBranchDto,
@@ -42,6 +45,7 @@ export class BranchesController {
 
   @Delete(':id')
   @RequireRole('admin')
+  @RequirePermission('manage_facilities')
   async remove(@Param('id', parseIdPipe()) id: number): Promise<Record<string, never>> {
     await this.branches.remove(id);
     return {};

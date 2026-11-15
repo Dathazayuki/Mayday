@@ -4,6 +4,7 @@ import type { PermissionData, PermissionSummary } from '@drmayday/shared';
 import { parseIdPipe } from '../common/parse-id.pipe.js';
 import { ResponseCode } from '../common/response-code.decorator.js';
 import { RequireRole } from '../roles/require-role.decorator.js';
+import { RequirePermission } from './require-permission.decorator.js';
 import { CreatePermissionDto } from './dto/create-permission.dto.js';
 import { UpdatePermissionDto } from './dto/update-permission.dto.js';
 import { PermissionsService } from './permissions.service.js';
@@ -12,6 +13,7 @@ import { PermissionsService } from './permissions.service.js';
 @ApiTags('permissions')
 @ApiBearerAuth()
 @RequireRole('admin')
+@RequirePermission('manage_permissions')
 @Controller('permissions')
 export class PermissionsController {
   constructor(private readonly permissions: PermissionsService) {}

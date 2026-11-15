@@ -75,14 +75,14 @@ describe('RolePermissionsService', () => {
           permission_id: 2,
           created_at: assignedAt,
           updated_at: assignedAt,
-          permission: { permission_id: 2, name: 'view_facilities', description: null },
+          permission: { permission_id: 2, name: 'manage_users', description: null },
         } as GrantedPermission,
       ]);
       await expect(service.listByRole(DOCTOR)).resolves.toEqual([
         {
           role_permission_id: null,
           permission_id: 2,
-          name: 'view_facilities',
+          name: 'manage_users',
           description: null,
           assigned_at: '2026-11-15T03:00:00.000Z',
         },

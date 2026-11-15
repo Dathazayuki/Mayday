@@ -1,32 +1,41 @@
-import type { INestApplication } from '@nestjs/common';
+import { Controller, Get, type INestApplication, type Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { App } from 'supertest/types.js';
 import { seedBase, type SeedOptions, type SeedResult } from '../../prisma/seed.js';
-import { syncDeclaredPermissions, syncEndpoints } from '../../scripts/sync-endpoints.js';
 import { AppModule } from '../../src/app.module.js';
 import { configureApp } from '../../src/app.setup.js';
 import { PermissionCache } from '../../src/permissions/permission-cache.js';
+import { RequirePermission } from '../../src/permissions/require-permission.decorator.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { RolesRepository } from '../../src/roles/roles.repository.js';
 
+/** Controller chỉ có trong test: khai báo quyền manage_users, không giới hạn vai trò (spec A, mục 9.2). */
+@Controller('test-permission-probe')
+export class PermissionProbeController {
+  @RequirePermission('manage_users')
+  @Get()
+  probe() {
+    return {};
+  }
+}
+
 /**
  * App đầy đủ như main.ts, kết nối CSDL test (test-db.mjs đặt DATABASE_URL = TEST_DATABASE_URL).
- * Đồng bộ api_endpoints một lần cho mỗi file test như db:seed làm: route không đổi giữa các test nên
- * resetData giữ nguyên bảng này.
+ * `controllers`: controller chỉ có trong test (vd. kiểm PermissionsGuard với route chỉ khai báo quyền).
  */
-export async function createTestApp(): Promise<INestApplication<App>> {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+export async function createTestApp({ controllers = [] }: { controllers?: Type[] } = {}): Promise<
+  INestApplication<App>
+> {
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule], controllers }).compile();
   const app = moduleRef.createNestApplication<INestApplication<App>>();
   configureApp(app);
   await app.init();
-  await syncEndpoints(app, app.get(PrismaService).db);
   return app;
 }
 
 /**
- * Xoá dữ liệu mọi bảng trừ api_endpoints (bảng con trước bảng cha), seed lại vai trò, quyền, cơ sở
- * vật chất, gắn lại quyền khai báo bằng @RequirePermission như db:seed, rồi xoá cache
- * trong bộ nhớ của app (id đổi sau mỗi lần seed lại). `opts` truyền cho seedBase (ví dụ tài khoản admin).
+ * Xoá dữ liệu mọi bảng (bảng con trước bảng cha), seed lại vai trò, quyền và cơ sở vật chất dev, rồi
+ * xoá cache trong bộ nhớ của app (id đổi sau mỗi lần seed lại). `opts` truyền cho seedBase.
  */
 export async function resetData(
   app: INestApplication,
@@ -34,7 +43,6 @@ export async function resetData(
 ): Promise<SeedResult> {
   const prisma = app.get(PrismaService).db;
   await prisma.$transaction([
-    prisma.permissions_endpoints.deleteMany(),
     prisma.role_permissions.deleteMany(),
     prisma.permissions.deleteMany(),
     prisma.token_blacklist.deleteMany(),
@@ -50,7 +58,6 @@ export async function resetData(
     prisma.roles.deleteMany(),
   ]);
   const seed = await seedBase(prisma, opts);
-  await syncDeclaredPermissions(app, prisma);
   app.get(RolesRepository).clearCache();
   app.get(PermissionCache).invalidate();
   return seed;

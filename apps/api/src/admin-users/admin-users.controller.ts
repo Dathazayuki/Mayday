@@ -13,6 +13,7 @@ import { parseIdPipe } from '../common/parse-id.pipe.js';
 import { ResponseCode } from '../common/response-code.decorator.js';
 import { PlacementDto } from '../facilities/dto/placement.dto.js';
 import { RequireRole } from '../roles/require-role.decorator.js';
+import { RequirePermission } from '../permissions/require-permission.decorator.js';
 import { AdminUsersService } from './admin-users.service.js';
 import { CreateUserDto, ListUsersQuery, UpdateUserDto } from './dto/admin-user.dto.js';
 
@@ -20,6 +21,7 @@ import { CreateUserDto, ListUsersQuery, UpdateUserDto } from './dto/admin-user.d
 @ApiTags('admin-users')
 @ApiBearerAuth()
 @RequireRole('admin')
+@RequirePermission('manage_users')
 @Controller('admin/users')
 export class AdminUsersController {
   constructor(private readonly adminUsers: AdminUsersService) {}

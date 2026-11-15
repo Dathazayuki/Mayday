@@ -3,7 +3,6 @@ import { conflict } from '../common/app.exception.js';
 import type { permissions, role_permissions } from '../generated/prisma/client.js';
 import { isRecordNotFound, isUniqueViolation } from '../prisma/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { RouteKey } from './route-key.js';
 
 /** Tên index mặc định của Prisma cho `permissions.name @unique` (kiểm lại khi có schema thật, MT-57). */
 const NAME_UNIQUE_INDEX = 'permissions_name_key';
@@ -16,17 +15,13 @@ export interface NewPermission {
 /** Quyền đã gán cho vai trò, kèm thông tin quyền. */
 export type GrantedPermission = role_permissions & { permission: permissions };
 
-/**
- * Dữ liệu của PermissionsGuard: quyền gắn với từng endpoint, quyền của từng vai trò và tên của mọi
- * quyền (để tra quyền khai báo bằng @RequirePermission).
- */
+/** Dữ liệu của PermissionsGuard: quyền của từng vai trò và tên của mọi quyền (để tra quyền khai báo). */
 export interface AccessRules {
-  endpointPermissions: (RouteKey & { permissionId: number })[];
   rolePermissions: { roleId: number; permissionId: number }[];
   permissions: { permissionId: number; name: string }[];
 }
 
-/** Bảng `permissions`, `role_permissions` và (chỉ đọc) `permissions_endpoints` ⋈ `api_endpoints`. */
+/** Bảng `permissions` và `role_permissions`. */
 @Injectable()
 export class PermissionsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -59,7 +54,7 @@ export class PermissionsRepository {
     }
   }
 
-  /** Các dòng `role_permissions`, `permissions_endpoints` của quyền tự CASCADE. Trả false nếu không tồn tại. */
+  /** Các dòng `role_permissions` của quyền tự CASCADE. Trả false nếu không tồn tại. */
   async delete(permissionId: number): Promise<boolean> {
     const { count } = await this.prisma.db.permissions.deleteMany({
       where: { permission_id: permissionId },
@@ -100,28 +95,15 @@ export class PermissionsRepository {
     return count > 0;
   }
 
-  /**
-   * Chưa cấu hình CSDL thì chưa endpoint nào gắn quyền: chỉ còn quyền khai báo bằng @RequirePermission
-   * (PermissionsGuard vẫn áp dụng).
-   */
+  /** Chưa cấu hình CSDL thì chưa có quyền nào được cấp (quyền khai báo chỉ cho admin qua). */
   async findAccessRules(): Promise<AccessRules> {
-    if (!this.prisma.configured) {
-      return { endpointPermissions: [], rolePermissions: [], permissions: [] };
-    }
-    const [endpointPermissions, rolePermissions, permissions] = await this.prisma.db.$transaction([
-      this.prisma.db.permissions_endpoints.findMany({
-        select: { permission_id: true, endpoint: { select: { method: true, path: true } } },
-      }),
-      this.prisma.db.role_permissions.findMany({
-        select: { role_id: true, permission_id: true },
-      }),
-      this.prisma.db.permissions.findMany({ select: { permission_id: true, name: true } }),
+    if (!this.prisma.configured) return { rolePermissions: [], permissions: [] };
+    const db = this.prisma.db;
+    const [rolePermissions, permissions] = await db.$transaction([
+      db.role_permissions.findMany({ select: { role_id: true, permission_id: true } }),
+      db.permissions.findMany({ select: { permission_id: true, name: true } }),
     ]);
     return {
-      endpointPermissions: endpointPermissions.map(({ permission_id, endpoint }) => ({
-        ...endpoint,
-        permissionId: permission_id,
-      })),
       rolePermissions: rolePermissions.map(({ role_id, permission_id }) => ({
         roleId: role_id,
         permissionId: permission_id,

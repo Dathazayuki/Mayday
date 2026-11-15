@@ -4,6 +4,7 @@ import type { RoomCreatedData, RoomData, RoomListItem } from '@drmayday/shared';
 import { parseIdPipe } from '../common/parse-id.pipe.js';
 import { ResponseCode } from '../common/response-code.decorator.js';
 import { RequireRole } from '../roles/require-role.decorator.js';
+import { RequirePermission } from '../permissions/require-permission.decorator.js';
 import { CreateRoomDto, ListRoomsQuery, UpdateRoomDto } from './dto/room.dto.js';
 import { RoomsService } from './rooms.service.js';
 
@@ -16,6 +17,7 @@ export class RoomsController {
 
   @Post()
   @RequireRole('admin')
+  @RequirePermission('manage_facilities')
   @ResponseCode('1001')
   create(@Body() dto: CreateRoomDto): Promise<RoomCreatedData> {
     return this.rooms.create(dto);
@@ -33,12 +35,14 @@ export class RoomsController {
 
   @Put(':id')
   @RequireRole('admin')
+  @RequirePermission('manage_facilities')
   update(@Param('id', parseIdPipe()) id: number, @Body() dto: UpdateRoomDto): Promise<RoomData> {
     return this.rooms.update(id, dto);
   }
 
   @Delete(':id')
   @RequireRole('admin')
+  @RequirePermission('manage_facilities')
   async remove(@Param('id', parseIdPipe()) id: number): Promise<Record<string, never>> {
     await this.rooms.remove(id);
     return {};

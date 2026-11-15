@@ -7,6 +7,7 @@ import type {
 } from '@drmayday/shared';
 import { ResponseCode } from '../common/response-code.decorator.js';
 import { RequireRole } from '../roles/require-role.decorator.js';
+import { RequirePermission } from '../permissions/require-permission.decorator.js';
 import { AuthService } from './auth.service.js';
 import { CurrentUser } from './current-user.decorator.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
@@ -63,6 +64,7 @@ export class AuthController {
   @ApiBearerAuth()
   @Post('admin/create-staff')
   @RequireRole('admin')
+  @RequirePermission('manage_users')
   @ResponseCode('1001')
   createStaff(@Body() dto: CreateStaffDto): Promise<CreateStaffResponseData> {
     return this.auth.createStaff(dto);

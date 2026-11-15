@@ -43,7 +43,7 @@ Khởi động CSDL, tạo bảng và nạp dữ liệu mẫu (một lần, và 
 ```bash
 docker compose up -d mysql minio                # MySQL cổng 3307, MinIO cổng 9100 (console: http://localhost:9101), chỉ mở trên 127.0.0.1
 pnpm --filter @drmayday/api db:push             # tạo bảng theo prisma/schema.prisma
-pnpm --filter @drmayday/api db:seed             # đồng bộ api_endpoints; seed vai trò, quyền, cơ sở vật chất, admin (cần đủ .env)
+pnpm --filter @drmayday/api db:seed             # seed vai trò, quyền, cơ sở vật chất, admin (cần đủ .env)
 ```
 
 Chạy các ứng dụng:
@@ -60,7 +60,7 @@ Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXP
 ### Ghi chú vận hành
 
 - Guard đọc CSDL ở mỗi request: chưa chạy `db:push` thì các route có bảo vệ trả 9901.
-- Cache quyền giữ trong bộ nhớ của từng tiến trình API. `db:seed` ghi gắn quyền–endpoint và cấp quyền thẳng vào CSDL, không qua API, nên chạy seed khi API đang chạy thì phải **khởi động lại mọi tiến trình API** để quyền mới có hiệu lực. Gán quyền qua API quản trị thì tiến trình nhận request xoá cache ngay; nếu chạy nhiều tiến trình, các tiến trình khác vẫn giữ cache cũ.
+- Cache vai trò/quyền giữ trong bộ nhớ của từng tiến trình API. `db:seed` ghi thẳng vào CSDL nên chạy seed khi API đang chạy thì phải **khởi động lại mọi tiến trình API**. Gán quyền qua API quản trị thì tiến trình nhận request xoá cache ngay; tiến trình khác vẫn giữ cache cũ.
 - Swagger (`/api/v1/docs`) chỉ mở khi `APP_ENV` là `development` hoặc `test`; `APP_ENV=production` (hoặc để trống) thì tắt.
 - `APP_ENV=production` bắt buộc có `DATABASE_URL` và nên đặt `CORS_ORIGINS` cho domain của Web (để trống thì trình duyệt ở origin khác bị chặn). App mobile không bị CORS chặn.
 - `.env` gốc dùng chung với Vite: **không** đặt `NODE_ENV` trong đó (API dùng `APP_ENV`).

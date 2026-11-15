@@ -5,10 +5,7 @@ import type { Env } from '../config/env.js';
 
 /**
  * Kênh gửi OTP khôi phục mật khẩu tới số điện thoại; SMS hay email chưa chốt (MT-16).
- * Lớp trừu tượng làm luôn injection token: AuthService không cần `@Inject(token)`. Lệnh CSDL chạy bằng
- * tsx (esbuild không sinh metadata kiểu tham số) dựng AppModule ở chế độ preview, mà Nest vẫn duyệt
- * tham số constructor: một `@Inject` lẻ để các tham số khác thành undefined và lệnh lỗi
- * (scripts/db-script.ts).
+ * Lớp trừu tượng làm luôn injection token: AuthService không cần `@Inject(token)`.
  */
 export abstract class OtpSender {
   /** Kênh đang dùng được: AuthService kiểm tra trước khi ghi reset_token. */

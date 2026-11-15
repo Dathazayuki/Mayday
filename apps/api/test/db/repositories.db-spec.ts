@@ -136,7 +136,7 @@ describe('Repository (MySQL thật)', () => {
         permissions.grant(seed.roles.doctor, ids),
       ]);
       expect(await prisma.role_permissions.count({ where: { role_id: seed.roles.doctor } })).toBe(
-        3,
+        2,
       );
     });
 
