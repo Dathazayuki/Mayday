@@ -278,6 +278,29 @@ describe('PatientsRepository (PostgreSQL thật)', () => {
       expect(after.thoi_diem_cap_nhat).toEqual(before.thoi_diem_cap_nhat);
     });
 
+    it('chỉ sửa trường của nguoi: benhnhan và taikhoan giữ nguyên', async () => {
+      const { id } = await patients.create(account('0922222222', 'Phạm Văn Nam'), {
+        ethnic: 'Kinh',
+        career: 'Cong nhan',
+      });
+      const before = await findAccount(prisma, '0922222222');
+      const benhnhanBefore = await prisma.benhnhan.findUniqueOrThrow({
+        where: { ma_benh_nhan: BigInt(id) },
+      });
+
+      const updated = await patients.update(id, { gender: 'male' });
+
+      expect(updated).toMatchObject({ patient: { ethnic: 'Kinh', career: 'Cong nhan' } });
+      const nguoi = await prisma.nguoi.findUniqueOrThrow({ where: { ma_nguoi: BigInt(id) } });
+      expect(nguoi.gioi_tinh).toBe('Nam');
+      expect(nguoi.ho_ten).toBe('PHẠM VĂN NAM');
+      await expect(
+        prisma.benhnhan.findUniqueOrThrow({ where: { ma_benh_nhan: BigInt(id) } }),
+      ).resolves.toEqual(benhnhanBefore);
+      const after = await findAccount(prisma, '0922222222');
+      expect(after.thoi_diem_cap_nhat).toEqual(before.thoi_diem_cap_nhat);
+    });
+
     it('không có dòng benhnhan (nhân viên, id không tồn tại) → null, không ghi gì', async () => {
       const staffId = await createStaff('0955555555', 'BÁC SĨ');
       await expect(patients.update(staffId, { full_name: 'ĐỔI TÊN' })).resolves.toBeNull();

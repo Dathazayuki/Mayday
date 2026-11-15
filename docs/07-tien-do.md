@@ -135,8 +135,8 @@ Spec: [2026-11-15-giao-dien-cendo-design.md](superpowers/specs/2026-11-15-giao-d
 
 ## Việc tiếp theo
 
-1. **API còn thiếu, theo thứ tự phụ thuộc:** G4-2 (bệnh nhân, bệnh án) → G6-2 (UAS7) và G7-2 (đơn thuốc, xét nghiệm, thông báo) → G5-2/G5-3 (kho ảnh, tổn thương da). Các API sau phụ thuộc bệnh án của G4-2.
-2. **Tiểu dự án B** (spec B, mục 13): B2 (bệnh án lõi) → B3 (chuyển trạng thái, phiên khám, seed lâm sàng) → B4/B5 → B6; sau đó tiểu dự án C. Sau khi gộp B1, chạy lại `pnpm --filter @drmayday/api db:seed` trên CSDL dev để có 5 dòng quyền mới và quyền mặc định (thiếu thì bác sĩ, điều dưỡng nhận 3101 ở trang Bệnh nhân).
+1. **API còn thiếu, theo thứ tự phụ thuộc:** bệnh án (tiểu dự án B, B2–B6) → G6-2 (UAS7) và G7-2 (đơn thuốc, xét nghiệm, thông báo) → G5-2/G5-3 (kho ảnh, tổn thương da). Các API sau phụ thuộc bệnh án của tiểu dự án B.
+2. **Tiểu dự án B** (spec B, mục 13): B2 (bệnh án lõi) → B3 (chuyển trạng thái, phiên khám, seed lâm sàng) → B4/B5 → B6; sau đó tiểu dự án C. Sau khi gộp B1, chạy lại `pnpm --filter @drmayday/api db:seed` trên CSDL dev để có 5 dòng quyền mới và quyền mặc định (thiếu thì bác sĩ, điều dưỡng nhận 3101 ở trang Bệnh nhân), rồi khởi động lại API dev (cache quyền nằm trong bộ nhớ).
 3. **Thử app trên máy thật** (Expo Go: camera, chọn ảnh, bàn phím, `router.replace('/login')`).
 4. **Duyệt mục E và F** trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md); cần chốt riêng `gender: ''` (2001 hay 2003), `reset-password` (MT-16), và các mục từ review tổng thể: chưa giới hạn tần suất đăng nhập/quên mật khẩu (MT-96), giới hạn tối đa 72 byte của mật khẩu (MT-97).
 5. **Các mục Minor còn mở** (rút gọn từ sổ theo dõi review và review tổng thể trước khi gộp vào `main`):

@@ -9,12 +9,12 @@ import { RolePermissionsService } from './role-permissions.service.js';
 
 /**
  * API quyền và gán quyền (spec giai đoạn 2, mục 3.4). Export PermissionChecker (luật phân quyền dùng
- * chung, spec B mục 7.3) và PermissionCacheModule cho PermissionsGuard (đăng ký ở AuthModule).
+ * chung, spec B mục 7.3) mà PermissionsGuard (đăng ký ở AuthModule) inject.
  */
 @Module({
   imports: [RolesModule, PermissionCacheModule],
   controllers: [PermissionsController, RolePermissionsController],
   providers: [PermissionsService, RolePermissionsService, PermissionChecker],
-  exports: [PermissionCacheModule, PermissionChecker],
+  exports: [PermissionChecker],
 })
 export class PermissionsModule {}
