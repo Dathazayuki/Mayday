@@ -1,6 +1,6 @@
 import type {
   CreatePatientRequest,
-  CreatePatientResponseData,
+  PatientData,
   PatientSearchItem,
   PatientSearchQuery,
 } from '@drmayday/shared';
@@ -23,5 +23,5 @@ export function usePatientSearch(
 
 export const useCreatePatient = () =>
   useInvalidatingMutation([PATIENTS_KEY], (body: CreatePatientRequest) =>
-    apiClient.post<CreatePatientResponseData>('/doctor/patients/create', body),
+    apiClient.post<PatientData>('/doctor/patients/create', body),
   );

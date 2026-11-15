@@ -15,7 +15,7 @@ import {
   type SignupResponseData,
   type UpdateUserRequest,
 } from '@drmayday/shared';
-import type { Prisma } from '../generated/prisma/client.js';
+import type { Prisma, benhnhan, nguoi } from '../generated/prisma/client.js';
 import { hasChanges } from '../common/require-changes.js';
 import { fromDbId, toDbId } from '../prisma/db-id.js';
 
@@ -147,8 +147,8 @@ function normalizeFullName(fullName: string): string {
   return fullName.trim().toLocaleUpperCase('vi');
 }
 
-/** year_of_birth đọc từ `nguoi.ngay_sinh` (MT-13). */
-function yearFromDate(date: Date | null): number | null {
+/** year_of_birth đọc từ `nguoi.ngay_sinh` (MT-13). Dùng chung với patient-mapping. */
+export function yearFromDate(date: Date | null): number | null {
   return date === null ? null : date.getUTCFullYear();
 }
 
@@ -187,31 +187,59 @@ function trimText(text: string): string | null {
 
 // ---- (b) Hàng CSDL → bản ghi miền ----
 
+/** Hồ sơ sớm nhất có thoi_diem_kham_lan_dau: first_visit (D14, MT-104). Dùng chung với patient-mapping. */
+export const FIRST_VISIT_INCLUDE = {
+  select: { thoi_diem_kham_lan_dau: true },
+  where: { thoi_diem_kham_lan_dau: { not: null } },
+  orderBy: { thoi_diem_kham_lan_dau: 'asc' },
+  take: 1,
+} satisfies Prisma.hosobenhanFindManyArgs;
+
 /** include của mọi lần đọc người dùng: vai trò, nguoi, nhanvien, benhnhan và hồ sơ sớm nhất (D14). */
 export const ACCOUNT_INCLUDE = {
   vaitro: { select: { ten_vai_tro: true } },
   nguoi: {
     include: {
       nhanvien: { select: { ma_chi_nhanh: true } },
-      benhnhan: {
-        include: {
-          hosobenhan: {
-            select: { thoi_diem_kham_lan_dau: true },
-            where: { thoi_diem_kham_lan_dau: { not: null } },
-            orderBy: { thoi_diem_kham_lan_dau: 'asc' },
-            take: 1,
-          },
-        },
-      },
+      benhnhan: { include: { hosobenhan: FIRST_VISIT_INCLUDE } },
     },
   },
 } satisfies Prisma.taikhoanInclude;
 
 export type AccountRow = Prisma.taikhoanGetPayload<{ include: typeof ACCOUNT_INCLUDE }>;
 
+/** Năm sinh, địa chỉ của `nguoi` (API coi là trường bệnh nhân). Dùng chung với patient-mapping. */
+export function toPersonFields(
+  person: Pick<
+    nguoi,
+    'ngay_sinh' | 'dia_chi_so_nha_thon_pho' | 'dia_chi_xa_phuong' | 'dia_chi_tinh_tp'
+  >,
+): PersonFields {
+  return {
+    birthDate: person.ngay_sinh,
+    hamletAddress: person.dia_chi_so_nha_thon_pho,
+    communeAddress: person.dia_chi_xa_phuong,
+    cityAddress: person.dia_chi_tinh_tp,
+  };
+}
+
+/** Dòng `benhnhan` kèm hồ sơ sớm nhất (FIRST_VISIT_INCLUDE). Dùng chung với patient-mapping. */
+export function toPatientFields(
+  patient: benhnhan & { hosobenhan: { thoi_diem_kham_lan_dau: Date | null }[] },
+): PatientFields {
+  return {
+    career: careerFromDb(patient.nghe_nghiep),
+    ethnic: patient.dan_toc,
+    insuranceNumber: patient.bhyt_so_the,
+    insuranceValidUntil: patient.bhyt_gia_tri_den,
+    nextOfKinName: patient.nguoi_nha_ho_ten_dia_chi,
+    nextOfKinPhone: patient.nguoi_nha_so_dien_thoai,
+    firstVisit: patient.hosobenhan[0]?.thoi_diem_kham_lan_dau ?? null,
+  };
+}
+
 export function toUserRecord(row: AccountRow): UserRecord {
   const { nguoi } = row;
-  const patient = nguoi.benhnhan;
   return {
     userId: fromDbId(row.ma_nguoi),
     accountId: fromDbId(row.ma_tai_khoan),
@@ -224,21 +252,8 @@ export function toUserRecord(row: AccountRow): UserRecord {
     passwordHash: row.mat_khau_ma_hoa,
     createdAt: row.thoi_diem_tao,
     accountUpdatedAt: row.thoi_diem_cap_nhat,
-    person: {
-      birthDate: nguoi.ngay_sinh,
-      hamletAddress: nguoi.dia_chi_so_nha_thon_pho,
-      communeAddress: nguoi.dia_chi_xa_phuong,
-      cityAddress: nguoi.dia_chi_tinh_tp,
-    },
-    patient: patient && {
-      career: careerFromDb(patient.nghe_nghiep),
-      ethnic: patient.dan_toc,
-      insuranceNumber: patient.bhyt_so_the,
-      insuranceValidUntil: patient.bhyt_gia_tri_den,
-      nextOfKinName: patient.nguoi_nha_ho_ten_dia_chi,
-      nextOfKinPhone: patient.nguoi_nha_so_dien_thoai,
-      firstVisit: patient.hosobenhan[0]?.thoi_diem_kham_lan_dau ?? null,
-    },
+    person: toPersonFields(nguoi),
+    patient: nguoi.benhnhan && toPatientFields(nguoi.benhnhan),
     staff: nguoi.nhanvien && { branchId: fromDbId(nguoi.nhanvien.ma_chi_nhanh) },
   };
 }
@@ -296,18 +311,21 @@ export function personChangesToDb(changes: { full_name?: string; gender?: Gender
   } satisfies Prisma.nguoiUpdateInput;
 }
 
-/** `currentBirthDate`: `nguoi.ngay_sinh` đang lưu, cho quy tắc năm sinh (MT-13). */
-export function profileUpdateToDb(
+/**
+ * Cột của trường hồ sơ bệnh nhân: năm sinh, địa chỉ ở `nguoi`; còn lại ở `benhnhan`. Giá trị thường nên
+ * dùng được cho cả tạo lẫn sửa; undefined = không ghi, null = xoá. `currentBirthDate`: `nguoi.ngay_sinh`
+ * đang lưu cho quy tắc năm sinh (MT-13); bản ghi mới truyền null. Dùng chung với patient-mapping.
+ */
+export function patientProfileColumns(
   changes: Partial<ProfileWrite>,
   currentBirthDate: Date | null,
-): ProfileColumns {
+) {
   const person = {
-    ...personChangesToDb(changes),
     ngay_sinh: change(changes.year_of_birth, (year) => dateForYear(year, currentBirthDate)),
     dia_chi_so_nha_thon_pho: change(changes.hamlet_address, trimText),
     dia_chi_xa_phuong: change(changes.commune_address, trimText),
     dia_chi_tinh_tp: change(changes.city_address, trimText),
-  } satisfies Prisma.nguoiUpdateInput;
+  } satisfies Partial<Prisma.nguoiCreateInput>;
   const patient = {
     nghe_nghiep: change(changes.career, careerToDb),
     dan_toc: change(changes.ethnic, trimText),
@@ -315,7 +333,21 @@ export function profileUpdateToDb(
     bhyt_gia_tri_den: change(changes.health_insurance_validate, dateFromIso),
     nguoi_nha_ho_ten_dia_chi: change(changes.next_of_kin_name, trimText),
     nguoi_nha_so_dien_thoai: change(changes.next_of_kin_phone, trimText),
-  } satisfies Prisma.benhnhanUpdateWithoutNguoiInput;
+  } satisfies Prisma.benhnhanCreateWithoutNguoiInput;
+  return { person, patient };
+}
+
+/** `currentBirthDate`: `nguoi.ngay_sinh` đang lưu, cho quy tắc năm sinh (MT-13). */
+export function profileUpdateToDb(
+  changes: Partial<ProfileWrite>,
+  currentBirthDate: Date | null,
+): ProfileColumns {
+  const columns = patientProfileColumns(changes, currentBirthDate);
+  const person = {
+    ...personChangesToDb(changes),
+    ...columns.person,
+  } satisfies Prisma.nguoiUpdateInput;
+  const patient = columns.patient satisfies Prisma.benhnhanUpdateWithoutNguoiInput;
   return hasChanges(patient) ? { person, patient } : { person };
 }
 
@@ -383,10 +415,12 @@ function toProfileBase(user: UserRecord): ProfileBase {
   };
 }
 
-function toPatientProfile(user: PatientUser): PatientProfileData {
-  const { person, patient } = user;
+/** Trường hồ sơ bệnh nhân của contract (profile, chi tiết người dùng, bệnh nhân của spec B). */
+export function toPatientProfileFields(
+  person: PersonFields,
+  patient: PatientFields,
+): PatientProfileFields {
   return {
-    ...toProfileBase(user),
     year_of_birth: yearFromDate(person.birthDate),
     career: patient.career,
     ethnic: patient.ethnic,
@@ -399,6 +433,10 @@ function toPatientProfile(user: PatientUser): PatientProfileData {
     next_of_kin_phone: patient.nextOfKinPhone,
     first_visit: isoDateTime(patient.firstVisit),
   };
+}
+
+function toPatientProfile(user: PatientUser): PatientProfileData {
+  return { ...toProfileBase(user), ...toPatientProfileFields(user.person, user.patient) };
 }
 
 /** data của GET/PUT profile: bệnh nhân có đủ trường của tab Sheet; nhân viên chỉ 5 trường chung. */
