@@ -1,5 +1,5 @@
 import { Prisma } from '../generated/prisma/client.js';
-import { isForeignKeyViolation, isUniqueViolation } from './prisma-errors.js';
+import { isForeignKeyViolation, isRecordNotFound, isUniqueViolation } from './prisma-errors.js';
 
 /** Dạng lỗi thật Prisma 7 + adapter mariadb ném khi trùng khoá unique (MySQL 1062). */
 function uniqueViolation(index: string, code = 'P2002') {
@@ -45,5 +45,18 @@ describe('isUniqueViolation', () => {
       ),
     ).toBe(false);
     expect(isUniqueViolation(new Error('P2002'), 'users_so_dien_thoai_key')).toBe(false);
+  });
+});
+
+describe('isRecordNotFound', () => {
+  it('P2025 (update/delete bản ghi không tồn tại) → true; mã khác hoặc lỗi thường → false', () => {
+    const error = (code: string) =>
+      new Prisma.PrismaClientKnownRequestError('Record not found', {
+        code,
+        clientVersion: Prisma.prismaVersion.client,
+      });
+    expect(isRecordNotFound(error('P2025'))).toBe(true);
+    expect(isRecordNotFound(error('P2002'))).toBe(false);
+    expect(isRecordNotFound(new Error('P2025'))).toBe(false);
   });
 });

@@ -19,6 +19,11 @@ export function isForeignKeyViolation(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003';
 }
 
+/** update/delete theo khoá mà bản ghi không tồn tại (P2025). */
+export function isRecordNotFound(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025';
+}
+
 /** Mã Prisma của lỗi kết nối: không tới được server, hết thời gian, kết nối bị đóng. */
 const PRISMA_CONNECTION_CODES = new Set(['P1001', 'P1002', 'P1008', 'P1017']);
 

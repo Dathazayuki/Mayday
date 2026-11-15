@@ -1,6 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { IdQuery, MAX_ID, parseIdText } from './id.js';
+import { IdQuery, IdRule, MAX_ID, parseIdText } from './id.js';
 import { validationErrorsToException } from './validation.js';
 
 describe('parseIdText', () => {
@@ -61,5 +61,34 @@ describe('IdQuery', () => {
 
   it('vượt INT tối đa → 2003', async () => {
     expect((await codeFor({ branch_id: String(MAX_ID + 1) })).code).toBe('2003');
+  });
+});
+
+class Body {
+  @IdRule()
+  role_id: number;
+
+  @IdRule({ each: true })
+  permissions: number[];
+}
+
+describe('IdRule', () => {
+  const codeOf = async (body: Record<string, unknown>) => {
+    const errors = await validate(plainToInstance(Body, { role_id: 1, permissions: [1], ...body }));
+    return errors.length === 0 ? null : validationErrorsToException(errors).code;
+  };
+
+  it('số nguyên tới INT tối đa → hợp lệ (id có tồn tại hay không do service kiểm tra)', async () => {
+    expect(await codeOf({ role_id: MAX_ID, permissions: [1, MAX_ID] })).toBeNull();
+  });
+
+  it.each([
+    ['không phải số nguyên', { role_id: '1' }, '2002'],
+    ['số thực', { role_id: 1.5 }, '2002'],
+    ['vượt INT tối đa', { role_id: MAX_ID + 1 }, '2003'],
+    ['phần tử mảng không phải số nguyên', { permissions: [1, 'a'] }, '2002'],
+    ['phần tử mảng vượt INT tối đa', { permissions: [1, MAX_ID + 1] }, '2003'],
+  ])('%s → %s', async (_name, body, code) => {
+    expect(await codeOf(body)).toBe(code);
   });
 });

@@ -21,7 +21,7 @@ function deniedCode(required: RoleName[]): ResponseCode {
 }
 
 /**
- * Guard toàn cục cho @RequireRole (tạm thời, giai đoạn 2 thay bằng RBAC động). Phải chạy sau
+ * Guard toàn cục cho @RequireRole (vai trò tĩnh, chạy trước PermissionsGuard). Phải chạy sau
  * JwtAuthGuard vì đọc request.user; tra tên vai trò theo role_id hiện tại mà JwtAuthGuard đọc từ CSDL
  * (RolesRepository có cache).
  * Vai trò không còn trong bảng roles → 3101.

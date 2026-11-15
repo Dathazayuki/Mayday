@@ -4,6 +4,7 @@ import type { App } from 'supertest/types.js';
 import type { SeedResult } from '../../prisma/seed.js';
 import { MAX_ID } from '../../src/common/id.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
+import { PermissionCache } from '../../src/permissions/permission-cache.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { createTestApp, resetData } from './helpers.js';
 
@@ -457,6 +458,30 @@ describe('quản trị người dùng /admin/users (MySQL thật)', () => {
         .expect(200);
       const res = await api('get', '/admin/users', token).expect(403);
       expect(res.body).toEqual({ code: '3102', message: 'Admin role required' });
+    });
+
+    it('PermissionsGuard cũng xét vai trò hiện tại: admin bị đổi sang bác sĩ → endpoint gắn quyền bác sĩ không có bị 403 / 3101', async () => {
+      // GET /branches không có @RequireRole nên chỉ PermissionsGuard chặn. Không có API cho
+      // permissions_endpoints (spec giai đoạn 2, mục 1) nên ghi thẳng CSDL rồi xoá cache như API làm.
+      const endpoint = await prisma.api_endpoints.findUniqueOrThrow({
+        where: { method_path: { method: 'GET', path: '/api/v1/branches' } },
+      });
+      await prisma.permissions_endpoints.create({
+        data: {
+          permission_id: seed.permissions.manage_facilities,
+          endpoint_id: endpoint.api_endpoints_id,
+        },
+      });
+      app.get(PermissionCache).invalidate();
+      const otherAdminId = await createUser('0922222222', seed.roles.admin);
+      const token: string = (await login('0922222222').expect(200)).body.data.token;
+      await api('get', '/branches', token).expect(200);
+
+      await api('put', `/admin/users/${otherAdminId}`)
+        .send({ role_id: seed.roles.doctor })
+        .expect(200);
+      const res = await api('get', '/branches', token).expect(403);
+      expect(res.body).toEqual({ code: '3101', message: 'Permission denied' });
     });
   });
 

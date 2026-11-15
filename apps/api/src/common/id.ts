@@ -1,6 +1,6 @@
 import { applyDecorators } from '@nestjs/common';
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, Max } from 'class-validator';
+import { IsInt, IsOptional, Max, type ValidationOptions } from 'class-validator';
 import { isBlank } from './text.js';
 
 /** Giá trị lớn nhất của cột `INT` (khoá chính) trong MySQL. */
@@ -20,8 +20,12 @@ export function parseIdText(value: unknown): number | undefined {
   return id >= 1 ? id : undefined;
 }
 
-/** Id trong body: số nguyên, không vượt MAX_ID (sai kiểu → 2002, vượt → 2003). */
-export const IdRule = () => applyDecorators(IsInt(), Max(MAX_ID));
+/**
+ * Id trong body: số nguyên, không vượt MAX_ID (sai kiểu → 2002, vượt → 2003). Mảng id dùng
+ * `IdRule({ each: true })`.
+ */
+export const IdRule = (options?: ValidationOptions) =>
+  applyDecorators(IsInt(options), Max(MAX_ID, options));
 
 /**
  * Query id tuỳ chọn (`?branch_id=`): vắng, rỗng hoặc chỉ có khoảng trắng = không lọc; còn lại theo

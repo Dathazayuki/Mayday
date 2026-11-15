@@ -3,6 +3,7 @@ import type { App } from 'supertest/types.js';
 import type { SeedResult } from '../../prisma/seed.js';
 import { TokenBlacklistRepository } from '../../src/auth/token-blacklist.repository.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
+import { PermissionsRepository } from '../../src/permissions/permissions.repository.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import type { NewUser } from '../../src/users/user-mapping.js';
 import { UsersRepository } from '../../src/users/users.repository.js';
@@ -123,6 +124,30 @@ describe('Repository (MySQL thật)', () => {
       await expect(blacklist.add(entry)).resolves.toBeUndefined();
       expect(await prisma.token_blacklist.count()).toBe(1);
       await expect(blacklist.has('jti-trung')).resolves.toBe(true);
+    });
+  });
+
+  describe('PermissionsRepository.grant', () => {
+    it('quyền đã gán (gán đồng thời) → bỏ qua, không lỗi', async () => {
+      const permissions = app.get(PermissionsRepository);
+      const ids = [seed.permissions.manage_users, seed.permissions.manage_roles];
+      await Promise.all([
+        permissions.grant(seed.roles.doctor, ids),
+        permissions.grant(seed.roles.doctor, ids),
+      ]);
+      expect(await prisma.role_permissions.count({ where: { role_id: seed.roles.doctor } })).toBe(
+        3,
+      );
+    });
+
+    it('vai trò hoặc quyền bị xoá sau khi service kiểm tra → MySQL INSERT IGNORE bỏ qua dòng vi phạm khoá ngoại, không ném P2003', async () => {
+      const permissions = app.get(PermissionsRepository);
+      await expect(
+        permissions.grant(999_999, [seed.permissions.manage_users]),
+      ).resolves.toBeUndefined();
+      await expect(permissions.grant(seed.roles.doctor, [999_999])).resolves.toBeUndefined();
+      expect(await prisma.role_permissions.count({ where: { role_id: 999_999 } })).toBe(0);
+      expect(await prisma.role_permissions.count({ where: { permission_id: 999_999 } })).toBe(0);
     });
   });
 });
