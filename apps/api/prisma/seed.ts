@@ -35,7 +35,6 @@ const PERMISSION_NAMES = [
   'manage_permissions',
   'manage_facilities',
   'view_facilities',
-  'manage_templates',
 ] as const;
 
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
@@ -110,12 +109,6 @@ const PERMISSION_SEEDS: Record<PermissionName, PermissionSeed> = {
     routes: [],
     grantedTo: ROLE_NAMES,
   },
-  // Spec giai đoạn 3, mục 3.1: API ghi của mẫu phiếu khai báo quyền này bằng @RequirePermission.
-  manage_templates: {
-    description: 'Thiết kế mẫu phiếu khám',
-    routes: [],
-    grantedTo: [ADMIN_ROLE],
-  },
 };
 
 const BRANCH_NAME = 'Cơ sở chính (dữ liệu dev)';
@@ -187,7 +180,6 @@ export async function seedBase(prisma: PrismaClient, opts: SeedOptions = {}): Pr
   const room =
     (await prisma.rooms.findFirst({ where: roomWhere })) ??
     (await prisma.rooms.create({ data: roomWhere }));
-  await seedDevTemplate(prisma);
 
   if (adminSeed) {
     // Chỉ tạo khi số chưa có: không ghi đè mật khẩu, họ tên của admin đã đổi sau lần seed trước.
@@ -279,71 +271,6 @@ async function seedPermissions(
     await linkPermissionRoutes(prisma, permission_id, routes);
   }
   return permissions;
-}
-
-const DEV_TEMPLATE_CODE = 'TMPL_DEV_SAMPLE';
-
-/**
- * Mẫu phiếu dev cho giai đoạn 4 (spec giai đoạn 3, mục 5): 2 section, câu hỏi con hiện khi câu hỏi cha
- * trả lời "YES" (MT-69). Đã có thì giữ nguyên, không ghi đè chỉnh sửa trên trình thiết kế. Tạo bằng
- * một lệnh nested create nên cả cây ghi trong một transaction.
- */
-async function seedDevTemplate(prisma: PrismaClient): Promise<void> {
-  if (await prisma.templates.findUnique({ where: { code_template: DEV_TEMPLATE_CODE } })) return;
-  await prisma.templates.create({
-    data: {
-      code_template: DEV_TEMPLATE_CODE,
-      name: 'Phiếu khám mẫu (dữ liệu dev)',
-      template_sections: {
-        create: [
-          {
-            title: 'Thông tin chung',
-            order: 1,
-            filled_by: 'patient',
-            questions: {
-              create: [
-                {
-                  question_id: 'Q_DEV_HAS_ITCH',
-                  question_text: 'Bạn có bị ngứa không?',
-                  type_question: 'radio',
-                  order: 1,
-                  question_options: {
-                    create: [
-                      { option_text: 'Có', option_value: 'YES', order: 1 },
-                      { option_text: 'Không', option_value: 'NO', order: 2 },
-                    ],
-                  },
-                },
-                {
-                  question_id: 'Q_DEV_ITCH_LEVEL',
-                  question_text: 'Mức độ ngứa (0–10)',
-                  type_question: 'number',
-                  order: 2,
-                  parent_question_id: 'Q_DEV_HAS_ITCH',
-                  show_if_answer: ['YES'],
-                },
-              ],
-            },
-          },
-          {
-            title: 'Khám lâm sàng',
-            order: 2,
-            filled_by: 'doctor',
-            questions: {
-              create: [
-                {
-                  question_id: 'Q_DEV_NOTE',
-                  question_text: 'Ghi chú của bác sĩ',
-                  type_question: 'text',
-                  order: 1,
-                },
-              ],
-            },
-          },
-        ],
-      },
-    },
-  });
 }
 
 if (isEntryPoint(import.meta.url)) {

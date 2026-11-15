@@ -25,7 +25,7 @@ export async function createTestApp(): Promise<INestApplication<App>> {
 
 /**
  * Xoá dữ liệu mọi bảng trừ api_endpoints (bảng con trước bảng cha), seed lại vai trò, quyền, cơ sở
- * vật chất và mẫu phiếu dev, gắn lại quyền khai báo bằng @RequirePermission như db:seed, rồi xoá cache
+ * vật chất, gắn lại quyền khai báo bằng @RequirePermission như db:seed, rồi xoá cache
  * trong bộ nhớ của app (id đổi sau mỗi lần seed lại). `opts` truyền cho seedBase (ví dụ tài khoản admin).
  */
 export async function resetData(
@@ -34,10 +34,6 @@ export async function resetData(
 ): Promise<SeedResult> {
   const prisma = app.get(PrismaService).db;
   await prisma.$transaction([
-    prisma.question_options.deleteMany(),
-    prisma.questions.deleteMany(),
-    prisma.template_sections.deleteMany(),
-    prisma.templates.deleteMany(),
     prisma.permissions_endpoints.deleteMany(),
     prisma.role_permissions.deleteMany(),
     prisma.permissions.deleteMany(),

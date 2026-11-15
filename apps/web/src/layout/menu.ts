@@ -1,7 +1,6 @@
 import {
   BankOutlined,
   FileTextOutlined,
-  FormOutlined,
   SafetyCertificateOutlined,
   TeamOutlined,
   UserOutlined,
@@ -9,7 +8,6 @@ import {
 import type { ComponentType } from 'react';
 import { FacilitiesPage } from '../pages/admin/FacilitiesPage';
 import { RolesPage } from '../pages/admin/RolesPage';
-import { TemplatesPage } from '../pages/admin/TemplatesPage';
 import { UsersPage } from '../pages/admin/UsersPage';
 import { MedicalRecordsPage } from '../pages/clinical/MedicalRecordsPage';
 import { PatientsPage } from '../pages/clinical/PatientsPage';
@@ -67,7 +65,6 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: BankOutlined,
         page: FacilitiesPage,
       },
-      { key: '/admin/templates', label: 'Mẫu phiếu khám', icon: FormOutlined, page: TemplatesPage },
     ],
   },
 ];

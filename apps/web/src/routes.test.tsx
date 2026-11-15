@@ -280,40 +280,27 @@ describe('Định tuyến và đăng nhập', () => {
     expect(screen.queryByRole('tab', { name: 'Chi nhánh' })).not.toBeInTheDocument();
   });
 
-  it('vào /admin/templates/:code hiện trình thiết kế mẫu phiếu cho admin', async () => {
-    seedSession();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) =>
-        Promise.resolve(
-          String(url).endsWith('/templates/TMPL_URT')
-            ? okResponse({ code_template: 'TMPL_URT', name: 'Phiếu hô hấp', sections: [] })
-            : okResponse([]),
-        ),
-      ),
-    );
-    renderAt('/admin/templates/TMPL_URT');
-    expect(await screen.findByRole('button', { name: 'Thêm section' })).toBeInTheDocument();
-  });
-
-  it('không phải admin vào /admin/templates/:code thì thấy 403, không có trình thiết kế', async () => {
-    seedSession();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(errorResponse(403, '3102'))),
-    );
-    renderAt('/admin/templates/TMPL_URT');
-    expect(await screen.findByText('Bạn không có quyền truy cập trang này')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Thêm section' })).not.toBeInTheDocument();
-  });
-
-  it('vào /admin/templates hiện danh sách mẫu phiếu thay vì trang "Sắp ra mắt"', async () => {
+  it('menu "Quản trị hệ thống" không còn mục "Mẫu phiếu khám" (spec A, mục 7.1)', async () => {
     seedSession();
     vi.stubGlobal(
       'fetch',
       vi.fn(() => Promise.resolve(okResponse([]))),
     );
-    renderAt('/admin/templates');
-    expect(await screen.findByRole('button', { name: 'Thêm mẫu phiếu' })).toBeInTheDocument();
+    renderAt('/');
+    expect(await screen.findByText('Quản trị hệ thống')).toBeInTheDocument();
+    expect(screen.queryByText('Mẫu phiếu khám')).not.toBeInTheDocument();
   });
+
+  it.each(['/admin/templates', '/admin/templates/TMPL_URT'])(
+    'vào %s (đã gỡ) hiện trang không tìm thấy',
+    async (path) => {
+      seedSession();
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(okResponse([]))),
+      );
+      renderAt(path);
+      expect(await screen.findByText('Không tìm thấy trang')).toBeInTheDocument();
+    },
+  );
 });

@@ -130,8 +130,6 @@ describe('AppModule dựng bằng tsx ở chế độ preview (như db:seed, db:
         'GET /api/v1/admin/users',
         'GET /api/v1/roles',
         'POST /api/v1/role_permissions',
-        'GET /api/v1/templates/all',
-        'PUT /api/v1/templates/questions/:id',
       ]),
     );
   }, 60_000);

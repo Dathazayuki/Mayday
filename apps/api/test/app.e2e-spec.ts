@@ -74,6 +74,18 @@ describe('Nền tảng API (e2e)', () => {
     expect(res.body).toEqual({ code: '2003', message: 'Invalid parameter value' });
   });
 
+  it.each(['/api/v1/templates/all', '/api/v1/templates/TMPL_A'])(
+    'API mẫu phiếu đã gỡ (spec A, mục 7.1): GET %s → 404 / 2003',
+    async (path) => {
+      const token = await jwt.signAsync(payload);
+      const res = await request(app.getHttpServer())
+        .get(path)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
+      expect(res.body).toEqual({ code: '2003', message: 'Invalid parameter value' });
+    },
+  );
+
   it('body JSON hỏng → 400 / 2007', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/e2e-sample')

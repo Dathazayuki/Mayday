@@ -11,7 +11,6 @@ import { FacilitiesModule } from './facilities/facilities.module.js';
 import { HealthController } from './health/health.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProfileModule } from './profile/profile.module.js';
-import { TemplatesModule } from './templates/templates.module.js';
 
 @Module({
   imports: [
@@ -25,7 +24,6 @@ import { TemplatesModule } from './templates/templates.module.js';
     ProfileModule,
     FacilitiesModule,
     AdminUsersModule,
-    TemplatesModule,
   ],
   controllers: [HealthController],
   providers: [
