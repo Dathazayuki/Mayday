@@ -127,7 +127,8 @@ async function readRecord(db: Db, recordId: number): Promise<MedicalRecord | nul
   return toMedicalRecord(overview, row, intervals);
 }
 
-async function readRecordOrThrow(db: Db, recordId: number): Promise<MedicalRecord> {
+/** Hồ sơ vừa ghi hoặc đang khoá: phải đọc lại được. Export cho chuyển trạng thái (record-transitions.repository.ts). */
+export async function readRecordOrThrow(db: Db, recordId: number): Promise<MedicalRecord> {
   const record = await readRecord(db, recordId);
   if (!record) throw new Error(`Hồ sơ ${recordId} vừa ghi hoặc đang khoá mà không đọc lại được`);
   return record;
