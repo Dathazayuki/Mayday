@@ -71,6 +71,7 @@ export function assertOwnRecord(caller: Caller, patientId: number): void {
  * khám chỉ bác sĩ phụ trách (3105). Quyền manage_medical_records đã kiểm trước khi đọc CSDL.
  */
 export function assertStaffCanEdit(caller: Caller, record: RecordState): void {
+  if (caller.isPatient) throw new AppException('3101');
   const code = transitionError('edit', record.status);
   if (code) throw new AppException(code);
   if (record.status === 'in_progress' && record.assignedDoctorId !== caller.userId) {

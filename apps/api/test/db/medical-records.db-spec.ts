@@ -258,6 +258,12 @@ describe('MedicalRecordsRepository: khoá, tạo, đọc, sửa, xoá (PostgreSQ
     it('không có hồ sơ → null', async () => {
       await expect(records.findById(999_999)).resolves.toBeNull();
     });
+
+    it('hồ sơ bị xoá giữa lúc đọc (tổng quan còn, dòng chi tiết đã mất) → null, không ném P2025', async () => {
+      const { id } = await created('CAP');
+      vi.spyOn(prisma.hosobenhan, 'findUnique').mockResolvedValueOnce(null);
+      await expect(records.findById(id)).resolves.toBeNull();
+    });
   });
 
   describe('update (D-B2: khoá trước khi đọc; chỉ ghi cột được gửi)', () => {

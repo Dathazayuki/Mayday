@@ -11,17 +11,14 @@ import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { SignupDto } from '../../auth/dto/signup.dto.js';
 import { integerQueryValue, PaginationQuery } from '../../common/paginated.js';
-import { isBlank } from '../../common/text.js';
+import { isBlank, trimOr } from '../../common/text.js';
 import { UpdateProfileDto } from '../../profile/dto/update-profile.dto.js';
 
 /** Năm lớn nhất của bộ lọc năm sinh (năm 4 chữ số): ngoài [0, 9999] → 2003; 0 nghĩa như vắng (docpat01). */
 export const BIRTH_YEAR_QUERY_MAX = 9999;
 
 /** Query chuỗi tuỳ chọn: bỏ khoảng trắng hai đầu; vắng, rỗng hoặc chỉ có khoảng trắng = không lọc. */
-const TrimmedQuery = () =>
-  Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() || undefined : value,
-  );
+const TrimmedQuery = () => Transform(({ value }: { value: unknown }) => trimOr(value, undefined));
 
 /** min_year/max_year: chuỗi số nguyên → number; vắng hoặc rỗng = không lọc; sai dạng → 2002. */
 const BirthYearQuery = () =>

@@ -128,7 +128,7 @@ export class MedicalRecordsService {
   }
 
   /**
-   * PATCH /medical_records/:id: 3101 → ít nhất 1 trường (2001) → khoá (4001) → ô trạng thái (4003/4009)
+   * PATCH /medical_records/:id: ít nhất 1 trường (2001) → 3101 → khoá (4001) → ô trạng thái (4003/4009)
    * → bác sĩ phụ trách khi đang khám (3105) → khối lệch loại, luật sau khi gộp → ghi (spec B, mục 6.3).
    */
   async update(
@@ -136,8 +136,8 @@ export class MedicalRecordsService {
     recordId: number,
     dto: UpdateMedicalRecordDto,
   ): Promise<MedicalRecordData> {
-    requireStaffWriter(caller, 'manage_medical_records');
     requireRecordChanges(dto);
+    requireStaffWriter(caller, 'manage_medical_records');
     const updated = await this.records.update(recordId, (current) => {
       assertStaffCanEdit(caller, stateOf(current));
       return planRecordChanges(current, dto);

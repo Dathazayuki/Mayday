@@ -15,6 +15,7 @@ import {
 import { BlankAsNull } from '../../common/blank-as-null.decorator.js';
 import { IsIsoDate, IsIsoDateTime } from '../../common/is-iso-date.decorator.js';
 import { MaxDecimalPlaces } from '../../common/max-decimal-places.decorator.js';
+import { trimOr } from '../../common/text.js';
 
 /**
  * Luật nhập của trường lâm sàng (spec B, mục 5.6): mọi trường không bắt buộc; vắng = không đổi; null
@@ -26,9 +27,7 @@ import { MaxDecimalPlaces } from '../../common/max-decimal-places.decorator.js';
 /** Cột TEXT (D-B29): cắt khoảng trắng hai đầu, chỉ có khoảng trắng = xoá, tối đa clinical_text ký tự. */
 export const ClinicalText = () =>
   applyDecorators(
-    Transform(({ value }: { value: unknown }) =>
-      typeof value === 'string' ? value.trim() || null : value,
-    ),
+    Transform(({ value }: { value: unknown }) => trimOr(value, null)),
     IsOptional(),
     IsString(),
     MaxLength(FIELD_LIMITS.clinical_text),

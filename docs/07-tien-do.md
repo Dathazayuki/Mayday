@@ -133,10 +133,18 @@ Spec: [2026-11-15-giao-dien-cendo-design.md](superpowers/specs/2026-11-15-giao-d
 - [ ] B5: Web màn chi tiết có kiểu, phiên khám; Mobile chỉ đọc; tài liệu
 - [ ] B6: bệnh nhân tự khai (Mobile + nhánh bệnh nhân của API)
 
+Việc còn mở của B (mang sang các bước sau):
+
+- Câu hỏi cho B3: huỷ hồ sơ đang khám qua `PATCH /medical_records/:id/status` (quyền manage + bác sĩ phụ trách) và `PUT /medical_records/:id` (`bac_si` + examine + phụ trách) đang khác luật; `allowed_actions` theo `PUT`. Cần người dùng chốt.
+- B5: Mobile hiển thị "Chờ bác sĩ tiếp nhận" cho hồ sơ huỷ/nháp chưa có phiên; sửa khi làm danh sách Mobile.
+- B5 (cập nhật docs/05): ghi lệch đã chấp nhận: `GET /medical_records/classify-questions` trả 400/2002 thay vì 404/2003 (MT-58, MT-118); tạo hồ sơ với `first_visit_at: null` tường minh được coi là "bây giờ" (MT-116).
+- Tìm kiếm chưa chuẩn hoá Unicode NFC cho từ khoá và họ tên (câu hỏi mở từ B1).
+
 ## Việc tiếp theo
 
 1. **API còn thiếu, theo thứ tự phụ thuộc:** bệnh án (tiểu dự án B, B2–B6) → G6-2 (UAS7) và G7-2 (đơn thuốc, xét nghiệm, thông báo) → G5-2/G5-3 (kho ảnh, tổn thương da). Các API sau phụ thuộc bệnh án của tiểu dự án B.
 2. **Tiểu dự án B** (spec B, mục 13): B3 (chuyển trạng thái, phiên khám, seed lâm sàng) → B4/B5 → B6; sau đó tiểu dự án C. CSDL dev cần quyền mặc định của B1 (`pnpm --filter @drmayday/api db:seed`, rồi khởi động lại API dev vì cache quyền nằm trong bộ nhớ) thì bác sĩ, điều dưỡng mới dùng được API bệnh nhân và bệnh án.
+   - **Sau khi gộp B2:** chạy `pnpm --filter @drmayday/shared build` (hoặc giữ `pnpm dev:shared`), khởi động lại API dev (module `/medical_records` mới), tải lại Web và Expo. B2 không cần seed lại.
 3. **Thử app trên máy thật** (Expo Go: camera, chọn ảnh, bàn phím, `router.replace('/login')`).
 4. **Duyệt mục E và F** trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md); cần chốt riêng `gender: ''` (2001 hay 2003), `reset-password` (MT-16), và các mục từ review tổng thể: chưa giới hạn tần suất đăng nhập/quên mật khẩu (MT-96), giới hạn tối đa 72 byte của mật khẩu (MT-97).
 5. **Các mục Minor còn mở** (rút gọn từ sổ theo dõi review và review tổng thể trước khi gộp vào `main`):

@@ -102,6 +102,10 @@ describe('assertStaffCanEdit (bảng 6.1, hàng "Sửa hồ sơ")', () => {
     );
   });
 
+  it('bệnh nhân → 3101 (hàm tự chặn, không dựa vào requireStaffWriter)', () => {
+    expect(codeOf(() => assertStaffCanEdit(patientCaller(), state('pending')))).toBe('3101');
+  });
+
   it('completed → 4003, cancelled → 4009, kể cả với bác sĩ phụ trách (ô trạng thái trước người làm)', () => {
     expect(codeOf(() => assertStaffCanEdit(doctorCaller(), state('completed', DOCTOR_ID)))).toBe(
       '4003',
@@ -173,6 +177,18 @@ describe('allowedActions (spec B, mục 6.4, 7.5)', () => {
       nurseCaller({ roleName: 'le_tan', permissions: only('view_medical_records') }),
       state('pending'),
       [],
+    ],
+    [
+      'tên vai trò null (vai trò bị đổi tên) dù đủ quyền: không tiếp nhận, không xoá',
+      doctorCaller({ roleName: null }),
+      state('pending'),
+      ['edit', 'cancel'],
+    ],
+    [
+      'tên vai trò null, bác sĩ phụ trách đang khám: chỉ sửa hồ sơ, không phiên, không chốt, không huỷ',
+      doctorCaller({ roleName: null }),
+      state('in_progress', DOCTOR_ID),
+      ['edit'],
     ],
     [
       'bệnh nhân, hồ sơ của mình đang chờ (B6 thêm edit, cancel)',

@@ -55,6 +55,8 @@ pnpm dev:mobile              # quét mã QR bằng Expo Go
 pnpm dev:shared              # biên dịch lại packages/shared khi sửa (API/Web/Mobile dùng bản dist)
 ```
 
+Sau khi gộp một thay đổi của `packages/shared` (vd. B2): chạy `pnpm --filter @drmayday/shared build` (hoặc giữ `pnpm dev:shared`), khởi động lại API dev khi có module mới (B2: `/medical_records`), rồi tải lại Web và Expo.
+
 Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXPO_PUBLIC_API_BASE_URL=http://<IP-LAN-của-máy>:3000`.
 
 ### Ghi chú vận hành

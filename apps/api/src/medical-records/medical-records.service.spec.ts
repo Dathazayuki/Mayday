@@ -305,6 +305,20 @@ describe('MedicalRecordsService (spec B, mục 5.3, 6.3)', () => {
       expect(records.update).not.toHaveBeenCalled();
     });
 
+    it('body rỗng thắng thiếu quyền: nhân viên thiếu manage gửi body không có trường → 2001 (mục 6.3)', async () => {
+      const { service, records } = setup();
+      await expect(
+        codeOf(
+          service.update(
+            nurseCaller({ permissions: only('view_medical_records') }),
+            12,
+            updateDto({ self_report: {} }),
+          ),
+        ),
+      ).resolves.toMatchObject({ code: '2001' });
+      expect(records.update).not.toHaveBeenCalled();
+    });
+
     it('không có hồ sơ → 4001', async () => {
       const { service, records } = setup();
       records.update.mockResolvedValue(null);

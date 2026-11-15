@@ -117,10 +117,12 @@ async function readRecord(db: Db, recordId: number): Promise<MedicalRecord | nul
   const id = toDbId(recordId);
   const [overview] = await readOverviews(db, Prisma.sql`WHERE h.ma_ho_so = ${id}`);
   if (!overview) return null;
-  const row = await db.hosobenhan.findUniqueOrThrow({
+  const row = await db.hosobenhan.findUnique({
     where: { ma_ho_so: id },
     include: RECORD_DETAIL_INCLUDE,
   });
+  // DELETE có thể commit giữa hai lần đọc (READ COMMITTED): dòng đã mất = hồ sơ không còn (4001).
+  if (!row) return null;
   const intervals = overview.type === 'CAP' ? await readIntervals(db, id) : null;
   return toMedicalRecord(overview, row, intervals);
 }

@@ -1,10 +1,8 @@
 import {
   MEDIA_PATHS,
   MEDIA_UPLOAD_FIELD,
-  MEDIA_UPLOAD_MULTIPLE_FIELD,
   type MediaAttachmentData,
   type UploadAttachmentFields,
-  type UploadedAttachmentItem,
   type UserAttachmentItem,
 } from '@drmayday/shared';
 import { apiClient } from './api';
@@ -29,19 +27,6 @@ export function uploadImage(
     if (value !== undefined) form.append(name, value);
   }
   return apiClient.post<MediaAttachmentData>(MEDIA_PATHS.upload, form, {
-    timeoutMs: UPLOAD_TIMEOUT_MS,
-  });
-}
-
-/** upload-multiple: tối đa MEDIA_MAX_BATCH_FILES ảnh, thành công tất cả hoặc không có gì (MT-86). */
-export function uploadImages(
-  images: readonly PickedImage[],
-  userId: string,
-): Promise<UploadedAttachmentItem[]> {
-  const form = new FormData();
-  for (const image of images) appendImage(form, MEDIA_UPLOAD_MULTIPLE_FIELD, image);
-  form.append('user_id', userId);
-  return apiClient.post<UploadedAttachmentItem[]>(MEDIA_PATHS.uploadMultiple, form, {
     timeoutMs: UPLOAD_TIMEOUT_MS,
   });
 }
