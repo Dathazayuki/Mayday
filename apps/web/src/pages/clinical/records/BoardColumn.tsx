@@ -6,14 +6,17 @@ import {
   type MedicalRecordStatus,
 } from '@drmayday/shared';
 import { Button, Skeleton } from 'antd';
-import type { ReactNode } from 'react';
+import type { DragEvent, ReactNode } from 'react';
 import { useColumnRecords } from '../../../clinical/medical-records-api';
 import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
+
+/** Vai trò của cột khi đang kéo một thẻ: `target` là đích hợp lệ (sáng lên), `muted` thì mờ đi. */
+export type DropState = 'idle' | 'target' | 'muted';
 
 /**
  * Một cột của bảng cột (spec B, mục 8.5): tiêu đề + số đếm (status-counts), thẻ mã hồ sơ giảm dần, 20 thẻ
  * một lần và nút "Xem thêm". Cột thu gọn (Nháp, Đã huỷ) hẹp, tiêu đề dọc + số đếm, bấm để mở; chỉ tải thẻ
- * khi mở.
+ * khi mở. Cột nhận thả (HTML5 gốc) khi `drop` là `target`; thả chỉ báo cho bảng, không gọi API.
  */
 export function BoardColumn({
   status,
@@ -21,6 +24,8 @@ export function BoardColumn({
   filter,
   collapsed,
   onToggle,
+  drop,
+  onDrop,
   renderCard,
 }: {
   status: MedicalRecordStatus;
@@ -30,16 +35,38 @@ export function BoardColumn({
   collapsed: boolean;
   /** Có ở cột thu gọn được: mở hoặc thu gọn lại. */
   onToggle?: () => void;
+  drop: DropState;
+  onDrop: () => void;
   renderCard: (record: MedicalRecordListItem) => ReactNode;
 }) {
   const label = MEDICAL_RECORD_STATUS_LABELS[status];
   const { data, error, isPending, hasNextPage, fetchNextPage, isFetchingNextPage } =
     useColumnRecords(status, filter, !collapsed);
   const countText = <span className="num dm-board__count">{count ?? '–'}</span>;
+  // preventDefault ở dragenter/dragover là cách HTML5 đánh dấu "thả được vào đây".
+  const allowDrop = (event: DragEvent) => {
+    if (drop === 'target') event.preventDefault();
+  };
+  const columnProps = {
+    className: [
+      'dm-board__col',
+      collapsed && 'dm-board__col--collapsed',
+      drop !== 'idle' && `dm-board__col--${drop}`,
+    ]
+      .filter(Boolean)
+      .join(' '),
+    'aria-label': `Cột ${label}`,
+    onDragEnter: allowDrop,
+    onDragOver: allowDrop,
+    onDrop: (event: DragEvent) => {
+      event.preventDefault();
+      if (drop === 'target') onDrop();
+    },
+  };
 
   if (collapsed) {
     return (
-      <section className="dm-board__col dm-board__col--collapsed" aria-label={`Cột ${label}`}>
+      <section {...columnProps}>
         <button
           type="button"
           className="dm-board__expand"
@@ -55,7 +82,7 @@ export function BoardColumn({
 
   const records = data?.pages.flatMap((page) => page.items) ?? [];
   return (
-    <section className="dm-board__col" aria-label={`Cột ${label}`}>
+    <section {...columnProps}>
       <header className="dm-board__col-head">
         <span className="dm-board__col-title">{label}</span>
         {countText}

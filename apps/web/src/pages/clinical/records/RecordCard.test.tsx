@@ -1,5 +1,5 @@
 import type { MedicalRecordListItem } from '@drmayday/shared';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { formatShortDateTime } from '../../../lib/format-date';
 import { medicalRecordListItem } from '../../../test/medical-record-fixture';
@@ -25,9 +25,21 @@ const IN_PROGRESS = medicalRecordListItem({
 
 function renderCard(record: MedicalRecordListItem, busy = false) {
   const onAction = vi.fn();
-  render(<RecordCard record={record} busy={busy} onAction={onAction} />);
+  const onDragStart = vi.fn();
+  const onDragEnd = vi.fn();
+  render(
+    <RecordCard
+      record={record}
+      busy={busy}
+      onAction={onAction}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+    />,
+  );
   return {
     onAction,
+    onDragStart,
+    onDragEnd,
     card: screen.getByRole('article', { name: `Bệnh án #${record.medical_record_id}` }),
   };
 }
@@ -106,5 +118,27 @@ describe('RecordCard (spec B, mục 8.6)', () => {
     expect(within(card).getByRole('button', { name: 'Tiếp nhận' })).toBeDisabled();
     await user.click(within(card).getByText('LÊ THỊ MAI'));
     expect(onAction).not.toHaveBeenCalled();
+  });
+
+  it('kéo được khi có cột đích (board-rules); dragstart ghi mã hồ sơ vào dataTransfer rồi báo bảng; dragend báo kết thúc', () => {
+    const { card, onDragStart, onDragEnd } = renderCard(PENDING);
+    expect(card).toHaveAttribute('draggable', 'true');
+    const dataTransfer = { setData: vi.fn(), effectAllowed: 'all' };
+    fireEvent.dragStart(card, { dataTransfer });
+    expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', '101');
+    expect(dataTransfer.effectAllowed).toBe('move');
+    expect(onDragStart).toHaveBeenCalledWith(PENDING);
+    fireEvent.dragEnd(card, { dataTransfer });
+    expect(onDragEnd).toHaveBeenCalled();
+  });
+
+  it('không có cột đích (hoàn tất, không có thao tác) hoặc đang xử lý → không kéo được', () => {
+    expect(
+      renderCard({ ...IN_PROGRESS, status: 'completed', allowed_actions: [] }).card,
+    ).toHaveAttribute('draggable', 'false');
+    expect(renderCard({ ...PENDING, medical_record_id: 102 }, true).card).toHaveAttribute(
+      'draggable',
+      'false',
+    );
   });
 });

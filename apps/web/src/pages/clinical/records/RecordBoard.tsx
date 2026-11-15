@@ -5,6 +5,7 @@ import type {
 } from '@drmayday/shared';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
+import { boardMove } from '../../../clinical/board-rules';
 import { useStatusCounts } from '../../../clinical/medical-records-api';
 import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
 import { BoardColumn } from './BoardColumn';
@@ -25,7 +26,8 @@ const COLUMNS: readonly { status: MedicalRecordStatus; collapsible: boolean }[] 
 
 /**
  * Chế độ cột kiểu Trello của trang bệnh án (spec B, mục 8.5–8.6). Thẻ và thao tác theo `allowed_actions`;
- * mọi chuyển trạng thái qua cùng hộp xác nhận (`useTransitions`), không cập nhật lạc quan.
+ * kéo thả HTML5 gốc theo bảng đích của board-rules. Nút trên thẻ và kéo thả mở cùng hộp xác nhận
+ * (`useTransitions`): thả không bao giờ gọi API ngay, không cập nhật lạc quan.
  */
 export function RecordBoard({
   filter,
@@ -38,6 +40,10 @@ export function RecordBoard({
   const counts = useStatusCounts(filter);
   const transitions = useTransitions();
   const [expanded, setExpanded] = useState<ReadonlySet<MedicalRecordStatus>>(() => new Set());
+  /** Thẻ đang được kéo; null khi không kéo. */
+  const [dragged, setDragged] = useState<MedicalRecordListItem | null>(null);
+  const moveTo = (status: MedicalRecordStatus) =>
+    dragged && boardMove(dragged.status, status, dragged.allowed_actions);
 
   function toggle(status: MedicalRecordStatus) {
     setExpanded((current) => {
@@ -56,6 +62,12 @@ export function RecordBoard({
     else transitions.start(action, record);
   }
 
+  function dropOn(status: MedicalRecordStatus) {
+    const kind = moveTo(status);
+    setDragged(null);
+    if (dragged && kind) transitions.start(kind, dragged);
+  }
+
   return (
     <>
       <QueryErrorAlert error={counts.error} />
@@ -69,12 +81,16 @@ export function RecordBoard({
               count={counts.data?.[status]}
               collapsed={collapsible && !expanded.has(status)}
               onToggle={collapsible ? () => toggle(status) : undefined}
+              drop={dragged ? (moveTo(status) ? 'target' : 'muted') : 'idle'}
+              onDrop={() => dropOn(status)}
               renderCard={(record) => (
                 <RecordCard
                   key={record.medical_record_id}
                   record={record}
                   busy={transitions.pendingId === record.medical_record_id}
                   onAction={handleAction}
+                  onDragStart={setDragged}
+                  onDragEnd={() => setDragged(null)}
                 />
               )}
             />

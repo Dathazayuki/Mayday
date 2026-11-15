@@ -5,10 +5,16 @@ import {
   type MedicalRecordStatus,
 } from '@drmayday/shared';
 import { App, ConfigProvider } from 'antd';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes, useLocation } from 'react-router';
-import { jsonResponse, okResponse, renderApp, seedSession } from '../../../test/helpers';
+import {
+  errorResponse,
+  jsonResponse,
+  okResponse,
+  renderApp,
+  seedSession,
+} from '../../../test/helpers';
 import { medicalRecordListItem } from '../../../test/medical-record-fixture';
 import { RecordBoard } from './RecordBoard';
 
@@ -46,14 +52,22 @@ function move(board: Board, id: number, to: MedicalRecordStatus) {
   }
 }
 
-/** API giả của bảng cột: danh sách theo `status`/`page`, số đếm theo cột, các route chuyển trạng thái. */
-function stubBoardApi(board: Board) {
+/**
+ * API giả của bảng cột: danh sách theo `status`/`page`, số đếm theo cột, các route chuyển trạng thái.
+ * `fail`: phản hồi riêng cho một lời gọi (lỗi, hoặc promise chưa xong để thử lúc đang xử lý).
+ */
+function stubBoardApi(
+  board: Board,
+  fail?: (call: Call) => Response | Promise<Response> | undefined,
+) {
   const calls: Call[] = [];
   vi.stubGlobal(
     'fetch',
     vi.fn((url: string, init: RequestInit) => {
       const call = { method: init.method ?? 'GET', url, body: init.body as string | undefined };
       calls.push(call);
+      const failed = fail?.(call);
+      if (failed) return Promise.resolve(failed);
       const { pathname, searchParams } = new URL(url);
       const path = pathname.replace('/api/v1', '');
       if (path === '/medical_records/status-counts') {
@@ -214,5 +228,149 @@ describe('RecordBoard: chế độ cột (spec B, mục 8.5–8.6)', () => {
     );
     await user.click(await screen.findByRole('menuitem', { name: 'Thêm phiên khám' }));
     expect(await screen.findByText('Đang ở /medical-records/12#visits')).toBeInTheDocument();
+  });
+});
+
+/** Kéo thẻ `id` từ cột `from` thả vào cột `to` bằng sự kiện HTML5 (jsdom không có DataTransfer). */
+async function dragCard(id: number, from: string, to: string) {
+  const source = await cardIn(from, id);
+  const dataTransfer = { setData: vi.fn(), effectAllowed: 'all', dropEffect: 'none' };
+  fireEvent.dragStart(source, { dataTransfer });
+  const target = column(to);
+  fireEvent.dragEnter(target, { dataTransfer });
+  fireEvent.dragOver(target, { dataTransfer });
+  fireEvent.drop(target, { dataTransfer });
+  fireEvent.dragEnd(source, { dataTransfer });
+}
+
+const writes = (calls: Call[]) => calls.filter((call) => call.method !== 'GET');
+
+describe('RecordBoard: kéo thả (spec B, mục 8.6, D-B25)', () => {
+  it('khi kéo: cột đích hợp lệ sáng (target), cột khác mờ (muted); dragend thì hết', async () => {
+    stubBoardApi(sampleBoard());
+    renderBoard();
+    const source = await cardIn('Chờ tiếp nhận', 101);
+    fireEvent.dragStart(source, { dataTransfer: { setData: vi.fn() } });
+
+    expect(column('Đang khám')).toHaveClass('dm-board__col--target');
+    expect(column('Nháp')).toHaveClass('dm-board__col--muted');
+    expect(column('Chờ tiếp nhận')).toHaveClass('dm-board__col--muted');
+    expect(column('Hoàn tất')).toHaveClass('dm-board__col--muted');
+
+    fireEvent.dragEnd(source);
+    expect(column('Đang khám')).not.toHaveClass('dm-board__col--target');
+    expect(column('Hoàn tất')).not.toHaveClass('dm-board__col--muted');
+  });
+
+  it('Chờ tiếp nhận → Đang khám: mở hộp Tiếp nhận (chưa gọi API); xác nhận → POST /:id/accept; tải lại thì thẻ sang cột mới', async () => {
+    const calls = stubBoardApi(sampleBoard());
+    renderBoard();
+    const user = userEvent.setup();
+
+    await dragCard(101, 'Chờ tiếp nhận', 'Đang khám');
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Tiếp nhận bệnh án #101 của LÊ THỊ MAI?');
+    expect(writes(calls)).toEqual([]);
+    await user.click(within(dialog).getByRole('button', { name: 'Tiếp nhận' }));
+    expect(await cardIn('Đang khám', 101)).toBeInTheDocument();
+    expect(writes(calls).map((call) => `${call.method} ${call.url}`)).toEqual([
+      'POST http://localhost:3000/api/v1/medical_records/101/accept',
+    ]);
+  });
+
+  it('Đang khám → Hoàn tất: hộp Hoàn tất → PUT /:id {status: completed}', async () => {
+    const calls = stubBoardApi(sampleBoard());
+    renderBoard();
+    const user = userEvent.setup();
+
+    await dragCard(12, 'Đang khám', 'Hoàn tất');
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Hoàn tất bệnh án #12')).toBeInTheDocument();
+    await within(dialog).findByLabelText('Dặn dò');
+    await user.click(within(dialog).getByRole('button', { name: 'Hoàn tất' }));
+    expect(await cardIn('Hoàn tất', 12)).toBeInTheDocument();
+    expect(writes(calls)).toEqual([
+      {
+        method: 'PUT',
+        url: 'http://localhost:3000/api/v1/medical_records/12',
+        body: '{"status":"completed"}',
+      },
+    ]);
+  });
+
+  it('thả vào cột Đã huỷ (đang hiện, kể cả khi thu gọn) → hộp Huỷ → PATCH /:id/status', async () => {
+    const calls = stubBoardApi(sampleBoard());
+    renderBoard(true);
+    const user = userEvent.setup();
+
+    await dragCard(101, 'Chờ tiếp nhận', 'Đã huỷ');
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Huỷ bệnh án #101?');
+    await user.click(within(dialog).getByRole('button', { name: 'Huỷ bệnh án' }));
+    expect(await screen.findByText('Đã huỷ bệnh án #101')).toBeInTheDocument();
+    expect(writes(calls).map((call) => `${call.method} ${call.url}`)).toEqual([
+      'PATCH http://localhost:3000/api/v1/medical_records/101/status',
+    ]);
+  });
+
+  it('đích không hợp lệ (nhảy cột Chờ tiếp nhận → Hoàn tất, lùi cột Đang khám → Chờ tiếp nhận) → không mở hộp, không gọi API', async () => {
+    const calls = stubBoardApi(sampleBoard());
+    renderBoard();
+
+    await dragCard(101, 'Chờ tiếp nhận', 'Hoàn tất');
+    await dragCard(12, 'Đang khám', 'Chờ tiếp nhận');
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(writes(calls)).toEqual([]);
+    expect(await cardIn('Chờ tiếp nhận', 101)).toBeInTheDocument();
+  });
+
+  it('bấm "Huỷ" ở hộp → không đổi gì; API lỗi → message.error, thẻ ở nguyên cột', async () => {
+    const calls = stubBoardApi(sampleBoard(), (call) =>
+      call.method === 'POST' ? errorResponse(409, '4005') : undefined,
+    );
+    renderBoard();
+    const user = userEvent.setup();
+
+    await dragCard(101, 'Chờ tiếp nhận', 'Đang khám');
+    let dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Huỷ' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(writes(calls)).toEqual([]);
+
+    await dragCard(101, 'Chờ tiếp nhận', 'Đang khám');
+    dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Tiếp nhận' }));
+    expect(await screen.findByText('Bệnh án đã có bác sĩ khác tiếp nhận')).toBeInTheDocument();
+    expect(await cardIn('Chờ tiếp nhận', 101)).toBeInTheDocument();
+    expect(
+      within(column('Đang khám')).queryByRole('article', { name: 'Bệnh án #101' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('đang chờ API: thẻ hiện đang xử lý và không kéo được', async () => {
+    let finish: (response: Response) => void = () => undefined;
+    stubBoardApi(sampleBoard(), (call) =>
+      call.method === 'POST'
+        ? new Promise<Response>((resolve) => {
+            finish = resolve;
+          })
+        : undefined,
+    );
+    renderBoard();
+    const user = userEvent.setup();
+
+    await dragCard(101, 'Chờ tiếp nhận', 'Đang khám');
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Tiếp nhận' }));
+
+    const busy = await cardIn('Chờ tiếp nhận', 101);
+    await waitFor(() => expect(busy).toHaveAttribute('aria-busy', 'true'));
+    expect(busy).toHaveAttribute('draggable', 'false');
+    finish(errorResponse(409, '4005'));
+    await waitFor(() => expect(busy).toHaveAttribute('aria-busy', 'false'));
   });
 });

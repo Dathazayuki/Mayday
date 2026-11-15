@@ -1,7 +1,7 @@
 import { EllipsisOutlined } from '@ant-design/icons';
 import { MEDICAL_RECORD_ACTION_LABELS, type MedicalRecordListItem } from '@drmayday/shared';
 import { Button, Dropdown, Spin, type MenuProps } from 'antd';
-import type { TransitionKind } from '../../../clinical/board-rules';
+import { canDrag, type TransitionKind } from '../../../clinical/board-rules';
 import { RecordTypeBadge } from '../../../clinical/record-type';
 import { formatDate, formatShortDateTime } from '../../../lib/format-date';
 
@@ -62,16 +62,21 @@ export function RecordCardSummary({ record }: { record: MedicalRecordListItem })
 /**
  * Thẻ bệnh án của bảng cột (`RecordCard`, spec B mục 8.6). Bấm thẻ → màn chi tiết. Nút "Tiếp nhận",
  * "Hoàn tất" khi có trong `allowed_actions`; menu "⋯" luôn có "Mở" (đường cho bàn phím), thêm "Thêm phiên
- * khám", "Huỷ" khi có. `busy`: hồ sơ đang chờ API, thẻ mờ đi và không bấm được.
+ * khám", "Huỷ" khi có. Kéo được (HTML5 gốc) khi có ít nhất một cột đích; kéo thả chỉ là đường tắt của các
+ * nút. `busy`: hồ sơ đang chờ API, thẻ mờ đi, không bấm và không kéo được.
  */
 export function RecordCard({
   record,
   busy,
   onAction,
+  onDragStart,
+  onDragEnd,
 }: {
   record: MedicalRecordListItem;
   busy: boolean;
   onAction: (action: RecordCardAction, record: MedicalRecordListItem) => void;
+  onDragStart: (record: MedicalRecordListItem) => void;
+  onDragEnd: () => void;
 }) {
   const id = record.medical_record_id;
   const allowed = record.allowed_actions;
@@ -94,9 +99,17 @@ export function RecordCard({
       className={classes}
       aria-label={`Bệnh án #${id}`}
       aria-busy={busy}
+      draggable={!busy && canDrag(record.status, allowed)}
       onClick={() => {
         if (!busy) onAction('open', record);
       }}
+      onDragStart={(event) => {
+        // Firefox chỉ bắt đầu kéo khi có dữ liệu; cột đích đọc thẻ từ state của bảng, không từ dataTransfer.
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(id));
+        onDragStart(record);
+      }}
+      onDragEnd={onDragEnd}
     >
       <RecordCardSummary record={record} />
       {/* Bấm nút hay menu (kể cả menu render ở body) không mở màn chi tiết. */}
