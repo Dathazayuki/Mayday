@@ -16,11 +16,9 @@ export interface AdminUserListQuery {
   role_id?: number;
 }
 
-/** Chi tiết nhân viên: ProfileBase cùng nơi công tác (spec giai đoạn 2, mục 3.3). */
+/** Chi tiết nhân viên: ProfileBase cùng chi nhánh (`nhanvien.ma_chi_nhanh`); null khi chưa phân công (MT-106). */
 export interface StaffDetailData extends ProfileBase {
   branch_id: number | null;
-  department_id: number | null;
-  room_id: number | null;
 }
 
 /** GET/PUT /api/v1/admin/users/:id — bệnh nhân hoặc nhân viên. */
@@ -57,16 +55,12 @@ export interface UpdateUserRequest {
   is_active?: 0 | 1;
 }
 
-/** PUT /api/v1/admin/users/:id/assign (admin06). */
+/** PUT /api/v1/admin/users/:id/assign (admin06): chỉ còn chi nhánh (spec A, mục 5.4). */
 export interface AssignUserRequest {
   branch_id: number;
-  department_id: number;
-  room_id?: number | null;
 }
 
 export interface AssignUserResponseData {
   user_id: number;
   branch_id: number;
-  department_id: number;
-  room_id: number | null;
 }

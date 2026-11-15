@@ -1,8 +1,10 @@
-/** Giá trị gender theo Sheet (signup, profile). Nhãn hiển thị tiếng Việt. */
+/**
+ * Giá trị gender theo Sheet (signup, profile). CSDL thật chỉ có Nam/Nu (`ck_nguoi_gioi_tinh`, SQL:62)
+ * nên bỏ "other": gửi other → 2003 (MT-59, vẫn lệch Sheet).
+ */
 export const GENDER_OPTIONS = [
   { value: 'male', label: 'Nam' },
   { value: 'female', label: 'Nữ' },
-  { value: 'other', label: 'Khác' },
 ] as const;
 export type Gender = (typeof GENDER_OPTIONS)[number]['value'];
 export const GENDER_VALUES: readonly Gender[] = GENDER_OPTIONS.map((o) => o.value);

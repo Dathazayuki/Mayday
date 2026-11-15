@@ -50,7 +50,7 @@ export interface ChangePasswordRequest {
   confirm_password: string;
 }
 
-/** POST /api/v1/auth/admin/create-staff — tab "1.6 create_staff". */
+/** POST /api/v1/auth/admin/create-staff — tab "1.6 create_staff". Nơi công tác chỉ còn chi nhánh (spec A, mục 5.3). */
 export interface CreateStaffRequest {
   full_name: string;
   phone: string;
@@ -58,16 +58,12 @@ export interface CreateStaffRequest {
   gender?: Gender;
   role_id: number;
   branch_id: number;
-  department_id: number;
-  room_id?: number | null;
 }
 
-/** data của create-staff (1001). Thêm room_id theo MT-37. */
+/** data của create-staff (1001), mọi trường kiểu int (MT-06). */
 export interface CreateStaffResponseData {
   user_id: number;
   full_name: string;
   role_id: number;
   branch_id: number;
-  department_id: number;
-  room_id: number | null;
 }

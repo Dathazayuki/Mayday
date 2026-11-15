@@ -7,8 +7,9 @@ import {
 } from './options.js';
 
 describe('GENDER_VALUES', () => {
-  it('đúng thứ tự male, female, other', () => {
-    expect(GENDER_VALUES).toEqual(['male', 'female', 'other']);
+  it('chỉ male, female: CSDL chỉ có Nam/Nu (MT-59)', () => {
+    expect(GENDER_VALUES).toEqual(['male', 'female']);
+    expect(GENDER_OPTIONS.map((option) => option.label)).toEqual(['Nam', 'Nữ']);
   });
 
   it('mọi option có label khác rỗng', () => {

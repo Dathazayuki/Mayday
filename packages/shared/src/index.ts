@@ -5,6 +5,8 @@ export * from './phone.js';
 export * from './error-message.js';
 export * from './contracts/auth.js';
 export * from './options.js';
+export * from './roles.js';
+export * from './field-limits.js';
 export * from './validators.js';
 export * from './contracts/profile.js';
 export * from './contracts/admin-users.js';

@@ -9,7 +9,10 @@ export interface ProfileBase {
   gender: Gender | null;
 }
 
-/** Trường chỉ bệnh nhân có (tab "GET /api/profile" ghi "dưới đây là của bệnh nhân"). */
+/**
+ * Trường chỉ bệnh nhân có (tab "GET /api/profile" ghi "dưới đây là của bệnh nhân").
+ * Không có `work_place`: CSDL thật không có cột (spec A, quyết định 12).
+ */
 export interface PatientProfileFields {
   year_of_birth: number | null;
   career: Career | null;
@@ -17,7 +20,6 @@ export interface PatientProfileFields {
   hamlet_address: string | null;
   commune_address: string | null;
   city_address: string | null;
-  work_place: string | null;
   health_insurance_number: string | null;
   /** YYYY-MM-DD */
   health_insurance_validate: string | null;
@@ -43,7 +45,6 @@ export const PATIENT_EDITABLE_FIELDS = [
   'hamlet_address',
   'commune_address',
   'city_address',
-  'work_place',
   'health_insurance_number',
   'health_insurance_validate',
   'next_of_kin_name',

@@ -1,15 +1,17 @@
-/** GET /api/v1/roles phần tử, và data của POST /api/v1/roles. Thêm parent_role_id theo MT-37. */
+/** GET /api/v1/roles phần tử, và data của POST /api/v1/roles. Không còn cây vai trò (spec A, quyết định 7). */
 export interface RoleData {
   id: number;
   name: string;
+  /** `vaitro.ten_hien_thi` (MT-105). */
+  display_name: string;
   description: string | null;
-  parent_role_id: number | null;
 }
 
 export interface CreateRoleRequest {
   name: string;
+  /** Vắng thì lấy bằng `name` (MT-105). */
+  display_name?: string;
   description?: string;
-  parent_role_id?: number | null;
 }
 
 /** data của POST /api/v1/permissions (1001). */

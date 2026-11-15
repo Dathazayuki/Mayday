@@ -1,14 +1,12 @@
-/** Chi tiết chi nhánh: data của POST (1001), GET /:id, PUT /:id. */
+/** Chi tiết chi nhánh: data của POST (1001), GET /:id, PUT /:id. Không có thời gian: CSDL không có cột (MT-108). */
 export interface BranchData {
   id: number;
   name: string;
-  address: string | null;
+  address: string;
   phone: string | null;
-  created_at: string;
-  updated_at: string;
 }
 
-/** GET /api/v1/branches phần tử: id kiểu string theo tab Sheet (MT-06), không có is_active (MT-33). */
+/** GET /api/v1/branches phần tử: id kiểu string theo tab Sheet (MT-06), không có is_active (MT-109). */
 export interface BranchListItem {
   id: string;
   name: string;
@@ -24,81 +22,29 @@ export interface CreateBranchRequest {
 
 export type UpdateBranchRequest = Partial<CreateBranchRequest>;
 
-/** Chi tiết khoa: GET /:id, PUT /:id. */
-export interface DepartmentData {
-  id: number;
-  name: string;
-  description: string | null;
-  branch_id: number;
-  created_at: string;
-  updated_at: string;
-}
-
-/** data của POST /api/v1/departments (1001): object (MT-34), ID kiểu string theo tab. */
-export interface DepartmentCreatedData {
-  id: string;
-  name: string;
-  branch_id: string;
-  description: string | null;
-  created_at: string;
-}
-
-/** GET /api/v1/departments phần tử. */
-export interface DepartmentListItem {
-  id: string;
-  name: string;
-  branch_id: string;
-  description: string | null;
-}
-
-export interface CreateDepartmentRequest {
-  name: string;
-  description?: string;
-  branch_id: number;
-}
-
-export interface UpdateDepartmentRequest {
-  name?: string;
-  description?: string | null;
-  branch_id?: number;
-}
-
-/** Chi tiết phòng: GET /:id, PUT /:id. department_id null khi khoa đã bị xoá (SET NULL). */
+/** Chi tiết phòng khám: GET /:id, PUT /:id. Phòng thuộc thẳng chi nhánh (spec A, quyết định 11). */
 export interface RoomData {
   id: number;
   name: string;
-  description: string | null;
-  department_id: number | null;
-  created_at: string;
-  updated_at: string;
+  branch_id: number;
 }
 
-/** data của POST /api/v1/rooms (1001): object (MT-34), ID kiểu string theo tab. */
-export interface RoomCreatedData {
-  id: string;
-  name: string;
-  department_id: string;
-  description: string | null;
-  created_at: string;
-}
-
-/** GET /api/v1/rooms phần tử. */
+/** GET /api/v1/rooms phần tử; ID kiểu string theo tab Sheet. */
 export interface RoomListItem {
   id: string;
   name: string;
-  department_id: string | null;
-  description: string | null;
-  created_at: string;
+  branch_id: string;
 }
+
+/** data của POST /api/v1/rooms (1001): cùng dạng phần tử danh sách (MT-34, MT-108). */
+export type RoomCreatedData = RoomListItem;
 
 export interface CreateRoomRequest {
   name: string;
-  description?: string;
-  department_id: number;
+  branch_id: number;
 }
 
 export interface UpdateRoomRequest {
   name?: string;
-  description?: string | null;
-  department_id?: number;
+  branch_id?: number;
 }
