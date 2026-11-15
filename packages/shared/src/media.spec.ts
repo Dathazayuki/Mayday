@@ -136,7 +136,14 @@ describe('resolveMediaUrl', () => {
 describe('MEDIA_PATHS', () => {
   it('ghép đường dẫn theo id', () => {
     expect(MEDIA_PATHS.byUser(5)).toBe('/image-attachments/user/5');
-    expect(MEDIA_PATHS.answerImagesOf('3')).toBe('/answer-images/3');
+    // Ảnh câu trả lời đã gỡ (spec B, D-B27): chỉ còn đường dẫn của kho ảnh.
+    expect(Object.keys(MEDIA_PATHS)).toEqual([
+      'upload',
+      'uploadMultiple',
+      'byUser',
+      'view',
+      'remove',
+    ]);
   });
 });
 

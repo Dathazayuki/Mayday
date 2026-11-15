@@ -1,20 +1,14 @@
 import type {
-  AcceptMedicalRecordData,
-  AnswerData,
-  AnswersCountData,
-  AnswerInput,
-  CloseMedicalRecordRequest,
   MedicalRecordData,
   MedicalRecordHistoryItem,
   MedicalRecordListItem,
   MedicalRecordListQuery,
-  MedicalRecordStatusData,
   MedicalRecordSummary,
 } from '@drmayday/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api';
-import { useInvalidatingMutation } from '../components/crud/use-invalidating-mutation';
 
+/** Tiền tố của mọi query bệnh án: thao tác ghi (B4) làm mới cả nhóm. */
 const RECORDS_KEY = ['medical-records'] as const;
 
 /** Danh sách mọi bệnh án (lọc theo trạng thái/bệnh nhân), phân trang phía server. */
@@ -51,38 +45,3 @@ export function usePatientHistory(patientId: number | undefined) {
     enabled: patientId !== undefined,
   });
 }
-
-export function useMedicalRecordAnswers(id: number) {
-  return useQuery({
-    queryKey: [...RECORDS_KEY, 'answers', id],
-    queryFn: () => apiClient.get<AnswerData[]>(`/medical_records/${id}/answers`),
-  });
-}
-
-/** Mọi thay đổi trạng thái hoặc câu trả lời làm mới danh sách, chi tiết, tóm tắt, lịch sử và câu trả lời. */
-export const useAcceptMedicalRecord = () =>
-  useInvalidatingMutation([RECORDS_KEY], (id: number) =>
-    apiClient.post<AcceptMedicalRecordData>(`/medical_records/${id}/accept`),
-  );
-
-export const useSaveAnswers = () =>
-  useInvalidatingMutation(
-    [RECORDS_KEY],
-    ({ id, answers }: { id: number; answers: AnswerInput[] }) =>
-      apiClient.put<AnswersCountData>(`/medical_records/${id}/answers`, { answers }),
-  );
-
-/** Chốt bệnh án (PUT /:id) với dặn dò cho bệnh nhân. */
-export const useCloseMedicalRecord = () =>
-  useInvalidatingMutation(
-    [RECORDS_KEY],
-    ({ id, ...body }: { id: number } & CloseMedicalRecordRequest) =>
-      apiClient.put<MedicalRecordData>(`/medical_records/${id}`, body),
-  );
-
-export const useCancelMedicalRecord = () =>
-  useInvalidatingMutation([RECORDS_KEY], (id: number) =>
-    apiClient.patch<MedicalRecordStatusData>(`/medical_records/${id}/status`, {
-      status: 'cancelled',
-    }),
-  );

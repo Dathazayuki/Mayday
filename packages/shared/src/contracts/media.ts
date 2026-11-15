@@ -25,10 +25,6 @@ export const MEDIA_PATHS = {
   byUser: (userId: string | number) => `/image-attachments/user/${enc(userId)}`,
   view: (id: string | number) => `/image-attachments/view/${enc(id)}`,
   remove: (id: string | number) => `/image-attachments/${enc(id)}`,
-  answerImages: '/answer-images',
-  answerImagesBulk: '/answer-images/bulk',
-  answerImagesOf: (answerId: string | number) => `/answer-images/${enc(answerId)}`,
-  removeAnswerImage: (id: string | number) => `/answer-images/${enc(id)}`,
 } as const;
 
 /** Trường form-data của POST /api/v1/image-attachments/upload, ngoài tệp `file` (Sheet img01). */
@@ -77,43 +73,4 @@ export interface UploadMultipleFields {
 export interface UploadedAttachmentItem {
   id: string;
   file_url: string;
-}
-
-/** POST /api/v1/answer-images. */
-export interface CreateAnswerImageRequest {
-  answer_id: string;
-  attachment_id: string;
-  option_value?: string;
-}
-
-export interface AnswerImageData {
-  id: string;
-  answer_id: string;
-  attachment_id: string;
-  option_value: string | null;
-  created_at: string;
-}
-
-/** GET /api/v1/answer-images/:answer_id phần tử — `attachment` lồng theo MT-36. */
-export interface AnswerImageItem {
-  id: string;
-  option_value: string | null;
-  attachment: {
-    attachment_id: string;
-    file_url: string;
-    file_name: string;
-  };
-}
-
-/** POST /api/v1/answer-images/bulk. */
-export interface BulkAnswerImagesRequest {
-  answer_id: string;
-  attachments: { attachment_id: string }[];
-}
-
-/** data của bulk (1001): `attachment_id` là số đúng như tab Sheet (MT-06); `total` (string) ngoài data. */
-export interface BulkAnswerImageItem {
-  id: string;
-  answer_id: string;
-  attachment_id: number;
 }

@@ -55,7 +55,6 @@ function RecordsList() {
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Bệnh án</Text>
-      <PrimaryButton title="Tạo bệnh án mới" onPress={() => router.push('/records/new')} />
       {error && <Banner tone="error" message={error} />}
       {!records ? (
         error ? (
@@ -97,7 +96,10 @@ function RecordsList() {
   );
 }
 
-/** Tab đã nằm sau cổng đăng nhập của TabsLayout; AuthGate giữ cho màn này an toàn khi dùng riêng. */
+/**
+ * Tab đã nằm sau cổng đăng nhập của TabsLayout; AuthGate giữ cho màn này an toàn khi dùng riêng. Nút
+ * "Tạo bệnh án mới" tạm ẩn tới B6 (bệnh nhân tự khai, spec B mục 13).
+ */
 export default function RecordsScreen() {
   return (
     <AuthGate require="signed-in">

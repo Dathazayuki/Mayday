@@ -11,7 +11,7 @@ export interface ApiResponse<T = unknown> {
   code: string;
   message: string;
   data?: T;
-  /** Tổng số bản ghi, nằm ngoài data: number (GET /admin/users) hoặc string (upload-multiple, answer-images/bulk — MT-06). */
+  /** Tổng số bản ghi, nằm ngoài data: number (GET /admin/users) hoặc string (upload-multiple — MT-06). */
   total?: number | string;
 }
 

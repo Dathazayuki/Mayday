@@ -4,6 +4,7 @@ import {
   formatLesionDateTime,
   isRecordActiveForLesions,
   type LesionEpisodeData,
+  type MedicalRecordHistoryItem,
   buildContextInput,
   buildContextPatch,
   emptyContextValues,
@@ -27,10 +28,10 @@ import { OptionPicker } from '@/components/option-picker';
 import { PrimaryButton } from '@/components/primary-button';
 import { createEpisode, fetchEpisode, updateEpisode } from '@/lib/lesions-api';
 import { formatDisplayDateTime } from '@/lib/local-date';
-import { fetchHistory, fetchMedicalRecord, fetchTemplate } from '@/lib/medical-records-api';
+import { fetchHistory } from '@/lib/medical-records-api';
 import { useLoader } from '@/lib/use-loader';
 
-/** Bệnh án đang hoạt động để chọn, kèm nhãn có ngày tạo và tên mẫu phiếu. */
+/** Bệnh án đang hoạt động để chọn, kèm nhãn có mã và ngày. */
 interface RecordChoice {
   id: string;
   label: string;
@@ -145,18 +146,11 @@ function EpisodeForm({ setup }: { setup: EpisodeFormSetup }) {
   );
 }
 
-/** "Mẫu phiếu #12 · 15/11/2026 08:30"; lỗi tải tên mẫu thì chỉ còn số và ngày. */
-async function describeRecord(record: { medical_record_id: number; created_at: string }) {
-  let templateName = 'Bệnh án';
-  try {
-    const detail = await fetchMedicalRecord(String(record.medical_record_id));
-    if (detail.template_id) templateName = (await fetchTemplate(detail.template_id)).name;
-  } catch {
-    // Chỉ là nhãn hiển thị: giữ tên mặc định.
-  }
+/** "Bệnh án #12 · 15/11/2026 08:30": nhãn của một bệnh án đang hoạt động. */
+function describeRecord(record: MedicalRecordHistoryItem): RecordChoice {
   return {
     id: String(record.medical_record_id),
-    label: `${templateName} #${record.medical_record_id} · ${formatDisplayDateTime(record.created_at)}`,
+    label: `Bệnh án #${record.medical_record_id} · ${formatDisplayDateTime(record.created_at)}`,
   };
 }
 
@@ -167,7 +161,7 @@ function EpisodeFormLoader({ id }: { id: string | undefined }) {
     if (!userId) throw new Error('Không xác định được tài khoản');
     const history = await fetchHistory(Number(userId));
     const active = history.filter((record) => isRecordActiveForLesions(record.status));
-    return { records: await Promise.all(active.map(describeRecord)), episode: null };
+    return { records: active.map(describeRecord), episode: null };
   }, [id, userId]);
   const { data, error, reload } = useLoader(fetcher);
 

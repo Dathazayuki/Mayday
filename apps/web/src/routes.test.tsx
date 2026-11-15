@@ -219,7 +219,7 @@ describe('Định tuyến và đăng nhập', () => {
     expect(await screen.findByRole('button', { name: 'Thêm bệnh nhân' })).toBeInTheDocument();
   });
 
-  it('vào /medical-records/:id hiện màn khám của bệnh án', async () => {
+  it('vào /medical-records/:id hiện màn chi tiết bệnh án', async () => {
     seedSession();
     vi.stubGlobal(
       'fetch',
@@ -244,7 +244,7 @@ describe('Định tuyến và đăng nhập', () => {
     );
     renderAt('/medical-records/5');
     expect(await screen.findByText('Bệnh án #5')).toBeInTheDocument();
-    expect(await screen.findByText('Bệnh án chưa gắn mẫu phiếu')).toBeInTheDocument();
+    expect(await screen.findByText('Thông tin bệnh án')).toBeInTheDocument();
   });
 
   it('vào /admin/facilities hiện trang quản lý cơ sở vật chất', async () => {
