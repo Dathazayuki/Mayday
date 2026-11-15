@@ -6,7 +6,7 @@ import { AccountFields } from '../../../components/account/AccountFields';
 import { PlacementFields } from './PlacementFields';
 import type { StaffFormValues, useCreateStaffModal } from './user-modals';
 
-/** Modal "Thêm nhân viên" (POST /auth/admin/create-staff): vai trò nhân viên kèm nơi công tác. */
+/** Modal "Thêm nhân viên" (POST /auth/admin/create-staff): vai trò nhân viên kèm chi nhánh. */
 export function CreateStaffModal({
   modal,
   roles,
@@ -34,8 +34,6 @@ export function CreateStaffModal({
           gender: values.gender,
           role_id: values.role_id,
           branch_id: values.branch_id!,
-          department_id: values.department_id!,
-          room_id: values.room_id,
         })
       }
     >

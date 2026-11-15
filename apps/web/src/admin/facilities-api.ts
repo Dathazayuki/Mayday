@@ -2,16 +2,11 @@ import type {
   BranchData,
   BranchListItem,
   CreateBranchRequest,
-  CreateDepartmentRequest,
   CreateRoomRequest,
-  DepartmentCreatedData,
-  DepartmentData,
-  DepartmentListItem,
   RoomCreatedData,
   RoomData,
   RoomListItem,
   UpdateBranchRequest,
-  UpdateDepartmentRequest,
   UpdateRoomRequest,
 } from '@drmayday/shared';
 import { useQuery } from '@tanstack/react-query';
@@ -32,17 +27,11 @@ export function useBranches() {
   });
 }
 
-export function useDepartments(branchId?: number) {
+/** Phòng khám thuộc thẳng chi nhánh (spec A, quyết định 11); `branchId` vắng = mọi chi nhánh. */
+export function useRooms(branchId?: number) {
   return useQuery({
-    queryKey: [...FACILITIES_KEY, 'departments', { branchId }],
-    queryFn: () => apiClient.get<DepartmentListItem[]>('/departments', { branch_id: branchId }),
-  });
-}
-
-export function useRooms(departmentId?: number) {
-  return useQuery({
-    queryKey: [...FACILITIES_KEY, 'rooms', { departmentId }],
-    queryFn: () => apiClient.get<RoomListItem[]>('/rooms', { department_id: departmentId }),
+    queryKey: [...FACILITIES_KEY, 'rooms', { branchId }],
+    queryFn: () => apiClient.get<RoomListItem[]>('/rooms', { branch_id: branchId }),
   });
 }
 
@@ -59,21 +48,6 @@ export const useUpdateBranch = () =>
 export const useDeleteBranch = () =>
   useInvalidatingMutation([FACILITIES_KEY], (id: string) =>
     apiClient.delete<object>(`/branches/${id}`),
-  );
-
-export const useCreateDepartment = () =>
-  useInvalidatingMutation([FACILITIES_KEY], (body: CreateDepartmentRequest) =>
-    apiClient.post<DepartmentCreatedData>('/departments', body),
-  );
-export const useUpdateDepartment = () =>
-  useInvalidatingMutation(
-    [FACILITIES_KEY],
-    ({ id, changes }: { id: string; changes: UpdateDepartmentRequest }) =>
-      apiClient.put<DepartmentData>(`/departments/${id}`, changes),
-  );
-export const useDeleteDepartment = () =>
-  useInvalidatingMutation([FACILITIES_KEY], (id: string) =>
-    apiClient.delete<object>(`/departments/${id}`),
   );
 
 export const useCreateRoom = () =>

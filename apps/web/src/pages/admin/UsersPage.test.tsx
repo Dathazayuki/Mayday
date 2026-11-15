@@ -14,24 +14,15 @@ import { UsersPage } from './UsersPage';
 const BASE = 'http://localhost:3000/api/v1';
 
 const ROLES = [
-  { id: 1, name: 'admin', description: null, parent_role_id: null },
-  { id: 2, name: 'doctor', description: null, parent_role_id: 1 },
-  { id: 3, name: 'nurse', description: null, parent_role_id: 2 },
-  { id: 4, name: 'patient', description: null, parent_role_id: null },
+  { id: 1, name: 'admin', display_name: 'Quản trị viên', description: null },
+  { id: 2, name: 'bac_si', display_name: 'Bác sĩ', description: null },
+  { id: 3, name: 'dieu_duong', display_name: 'Điều dưỡng', description: null },
+  { id: 4, name: 'benh_nhan', display_name: 'Bệnh nhân', description: null },
 ];
 const BRANCHES = [
   { id: '1', name: 'Bệnh viện A', address: 'Hà Nội', phone: null },
   { id: '2', name: 'Bệnh viện B', address: 'Huế', phone: null },
 ];
-const DEPARTMENTS = [
-  { id: '10', name: 'Khoa Nội', branch_id: '1', description: null },
-  { id: '11', name: 'Khoa Ngoại', branch_id: '2', description: null },
-];
-const ROOMS = [
-  { id: '20', name: 'Phòng 101', department_id: '10', description: null, created_at: '' },
-  { id: '21', name: 'Phòng 202', department_id: '11', description: null, created_at: '' },
-];
-
 /** Người đăng nhập (seedSession) là user_id 1. */
 const USERS = [
   { user_id: 1, full_name: 'Quản trị viên', phone: '0900000001', role_id: 1, is_active: 1 },
@@ -45,8 +36,6 @@ const STAFF_DETAIL = {
   role_id: 2,
   gender: 'female',
   branch_id: 1,
-  department_id: 10,
-  room_id: null,
 };
 const PATIENT_DETAIL = {
   user_id: 3,
@@ -60,7 +49,6 @@ const PATIENT_DETAIL = {
   hamlet_address: null,
   commune_address: null,
   city_address: null,
-  work_place: null,
   health_insurance_number: 'DN123',
   health_insurance_validate: null,
   next_of_kin_name: null,
@@ -90,16 +78,6 @@ function setup(overrides: Record<string, Handler> = {}) {
     if (handler) return Promise.resolve(handler(call));
     if (route === 'GET /roles') return Promise.resolve(okResponse(ROLES));
     if (route === 'GET /branches') return Promise.resolve(okResponse(BRANCHES));
-    if (route === 'GET /departments') {
-      const id = params.get('branch_id');
-      return Promise.resolve(
-        okResponse(id ? DEPARTMENTS.filter((d) => d.branch_id === id) : DEPARTMENTS),
-      );
-    }
-    if (route === 'GET /rooms') {
-      const id = params.get('department_id');
-      return Promise.resolve(okResponse(id ? ROOMS.filter((r) => r.department_id === id) : ROOMS));
-    }
     if (route === 'GET /admin/users') {
       const roleId = params.get('role_id');
       const items = roleId ? USERS.filter((u) => u.role_id === Number(roleId)) : USERS;
@@ -142,7 +120,7 @@ describe('UsersPage', () => {
   it('gọi danh sách với page/limit mặc định và hiện tên vai trò, trạng thái', async () => {
     const calls = setup();
     const row = await rowOf('Bác sĩ Lan');
-    expect(await within(row).findByText('doctor')).toBeInTheDocument();
+    expect(await within(row).findByText('bac_si')).toBeInTheDocument();
     expect(within(await rowOf('Bệnh nhân Nam')).getByText('Đã khoá')).toBeInTheDocument();
     expect(calls.some((c) => c.url === `${BASE}/admin/users?page=1&limit=20`)).toBe(true);
   });
@@ -163,7 +141,7 @@ describe('UsersPage', () => {
     await rowOf('Bác sĩ Lan');
     await user.click(screen.getByRole('button', { name: 'Page 2' }));
     await user.click(screen.getByLabelText('Lọc theo vai trò'));
-    await user.click(await screen.findByTitle('doctor'));
+    await user.click(await screen.findByTitle('bac_si'));
     await waitFor(() =>
       expect(calls.some((c) => c.url === `${BASE}/admin/users?page=1&limit=20&role_id=2`)).toBe(
         true,
@@ -182,7 +160,6 @@ describe('UsersPage', () => {
     await user.click(within(await rowOf('Bác sĩ Lan')).getByRole('button', { name: 'Xem' }));
     const drawer = await screen.findByRole('dialog');
     expect(await within(drawer).findByText('Bệnh viện A')).toBeInTheDocument();
-    expect(within(drawer).getByText('Khoa Nội')).toBeInTheDocument();
     expect(calls.some((c) => c.url === `${BASE}/admin/users/2`)).toBe(true);
   });
 
@@ -208,7 +185,7 @@ describe('UsersPage', () => {
     await user.type(within(dialog).getByLabelText('Họ và tên'), 'Bệnh nhân Mới');
     await user.type(within(dialog).getByLabelText('Số điện thoại'), '0912345679');
     await user.type(within(dialog).getByLabelText('Mật khẩu'), 'secret1');
-    await pick(user, 'Vai trò', 'patient');
+    await pick(user, 'Vai trò', 'benh_nhan');
     await user.click(screen.getByRole('button', { name: /Lưu/ }));
 
     await waitFor(() => expect(bodyOf(calls, 'POST', '/admin/users')).toBeDefined());
@@ -231,17 +208,17 @@ describe('UsersPage', () => {
     await user.type(within(dialog).getByLabelText('Họ và tên'), 'X');
     await user.type(within(dialog).getByLabelText('Số điện thoại'), '123');
     await user.type(within(dialog).getByLabelText('Mật khẩu'), '123');
-    await pick(user, 'Vai trò', 'nurse');
+    await pick(user, 'Vai trò', 'dieu_duong');
     await user.click(screen.getByRole('button', { name: /Lưu/ }));
     expect(await screen.findByText(/Số điện thoại không đúng định dạng/)).toBeInTheDocument();
     expect(screen.getByText(/Mật khẩu tối thiểu 6 ký tự/)).toBeInTheDocument();
     expect(calls.some((c) => c.method === 'POST')).toBe(false);
   });
 
-  it('Thêm nhân viên: chi nhánh -> khoa -> phòng lọc theo nhau, gửi create-staff', async () => {
+  it('Thêm nhân viên: chọn vai trò nhân viên và chi nhánh, gửi create-staff', async () => {
     const calls = setup({
       'POST /auth/admin/create-staff': () =>
-        okResponse({ user_id: 9, full_name: 'Y tá Mới', role_id: 3 }),
+        okResponse({ user_id: 9, full_name: 'Y tá Mới', role_id: 3, branch_id: 2 }),
     });
     const user = userEvent.setup();
     await rowOf('Bác sĩ Lan');
@@ -250,35 +227,14 @@ describe('UsersPage', () => {
     await user.type(within(dialog).getByLabelText('Họ và tên'), 'Y tá Mới');
     await user.type(within(dialog).getByLabelText('Số điện thoại'), '0912345679');
     await user.type(within(dialog).getByLabelText('Mật khẩu'), 'secret1');
-
     // Vai trò bệnh nhân không được phép tạo qua create-staff.
     await user.click(within(dialog).getByLabelText('Vai trò'));
-    expect(await screen.findAllByTitle('nurse')).not.toHaveLength(0);
-    expect(screen.queryAllByTitle('patient')).toHaveLength(0);
-    await user.click((await screen.findAllByTitle('nurse')).at(-1)!);
-
-    // Chưa chọn chi nhánh thì chưa chọn được khoa.
-    expect(within(dialog).getByLabelText('Khoa')).toBeDisabled();
+    expect(await screen.findAllByTitle('dieu_duong')).not.toHaveLength(0);
+    expect(screen.queryAllByTitle('benh_nhan')).toHaveLength(0);
+    await user.click((await screen.findAllByTitle('dieu_duong')).at(-1)!);
+    expect(within(dialog).queryByLabelText('Khoa')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Phòng')).not.toBeInTheDocument();
     await pick(user, 'Chi nhánh', 'Bệnh viện B');
-    await waitFor(() =>
-      expect(calls.some((c) => c.url === `${BASE}/departments?branch_id=2`)).toBe(true),
-    );
-    await user.click(within(dialog).getByLabelText('Khoa'));
-    expect(await screen.findAllByTitle('Khoa Ngoại')).not.toHaveLength(0);
-    expect(screen.queryAllByTitle('Khoa Nội')).toHaveLength(0);
-    await user.click((await screen.findAllByTitle('Khoa Ngoại')).at(-1)!);
-    await pick(user, 'Phòng', 'Phòng 202');
-    expect(dialog.querySelector('.ant-select-content[title="Phòng 202"]')).not.toBeNull();
-
-    // Đổi chi nhánh thì khoa và phòng đã chọn bị xoá.
-    await pick(user, 'Chi nhánh', 'Bệnh viện A');
-    await waitFor(() =>
-      expect(dialog.querySelector('.ant-select-content[title="Khoa Ngoại"]')).toBeNull(),
-    );
-    expect(dialog.querySelector('.ant-select-content[title="Phòng 202"]')).toBeNull();
-
-    await pick(user, 'Khoa', 'Khoa Nội');
-    await pick(user, 'Phòng', 'Phòng 101');
     await user.click(screen.getByRole('button', { name: /Lưu/ }));
 
     await waitFor(() => expect(bodyOf(calls, 'POST', '/auth/admin/create-staff')).toBeDefined());
@@ -287,21 +243,18 @@ describe('UsersPage', () => {
       phone: '0912345679',
       password: 'secret1',
       role_id: 3,
-      branch_id: 1,
-      department_id: 10,
-      room_id: 20,
+      branch_id: 2,
     });
     expect(await screen.findByText('Đã thêm nhân viên')).toBeInTheDocument();
   });
 
-  it('Thêm nhân viên: thiếu chi nhánh/khoa thì không gọi API', async () => {
+  it('Thêm nhân viên: thiếu chi nhánh thì không gọi API', async () => {
     const calls = setup();
     const user = userEvent.setup();
     await rowOf('Bác sĩ Lan');
     await user.click(screen.getByRole('button', { name: 'Thêm nhân viên' }));
     await user.click(await screen.findByRole('button', { name: /Lưu/ }));
     expect(await screen.findByText('Vui lòng chọn chi nhánh')).toBeInTheDocument();
-    expect(screen.getByText('Vui lòng chọn khoa')).toBeInTheDocument();
     expect(calls.some((c) => c.method === 'POST')).toBe(false);
   });
 
@@ -318,9 +271,9 @@ describe('UsersPage', () => {
     await user.clear(name);
     await user.type(name, 'Bác sĩ Lan 2');
     await user.click(within(dialog).getByLabelText('Vai trò'));
-    expect((await screen.findAllByTitle('nurse')).length).toBeGreaterThan(0);
-    expect(screen.queryAllByTitle('patient')).toHaveLength(0);
-    await user.click((await screen.findAllByTitle('nurse')).at(-1)!);
+    expect((await screen.findAllByTitle('dieu_duong')).length).toBeGreaterThan(0);
+    expect(screen.queryAllByTitle('benh_nhan')).toHaveLength(0);
+    await user.click((await screen.findAllByTitle('dieu_duong')).at(-1)!);
     await user.click(screen.getByRole('button', { name: /Lưu/ }));
 
     await waitFor(() => expect(bodyOf(calls, 'PUT', '/admin/users/2')).toBeDefined());
@@ -339,9 +292,9 @@ describe('UsersPage', () => {
     await user.click(within(await rowOf('Bệnh nhân Nam')).getByRole('button', { name: 'Sửa' }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByLabelText('Vai trò'));
-    expect(screen.queryAllByTitle('doctor')).toHaveLength(0);
+    expect(screen.queryAllByTitle('bac_si')).toHaveLength(0);
     expect(screen.queryAllByTitle('admin')).toHaveLength(0);
-    expect(screen.queryAllByTitle('patient').length).toBeGreaterThan(0);
+    expect(screen.queryAllByTitle('benh_nhan').length).toBeGreaterThan(0);
   });
 
   it('Phân công nhân viên gửi PUT assign; bệnh nhân không có nút Phân công', async () => {
@@ -352,19 +305,15 @@ describe('UsersPage', () => {
     ).toBeNull();
     await user.click(within(await rowOf('Bác sĩ Lan')).getByRole('button', { name: 'Phân công' }));
     const dialog = await screen.findByRole('dialog');
-    // Nơi công tác hiện tại nạp từ GET /admin/users/:id.
+    // Chi nhánh hiện tại nạp từ GET /admin/users/:id.
     await waitFor(() =>
-      expect(dialog.querySelector('.ant-select-content[title="Khoa Nội"]')).not.toBeNull(),
+      expect(dialog.querySelector('.ant-select-content[title="Bệnh viện A"]')).not.toBeNull(),
     );
-    await pick(user, 'Phòng', 'Phòng 101');
+    await pick(user, 'Chi nhánh', 'Bệnh viện B');
     await user.click(screen.getByRole('button', { name: /Lưu/ }));
 
     await waitFor(() => expect(bodyOf(calls, 'PUT', '/admin/users/2/assign')).toBeDefined());
-    expect(bodyOf(calls, 'PUT', '/admin/users/2/assign')).toEqual({
-      branch_id: 1,
-      department_id: 10,
-      room_id: 20,
-    });
+    expect(bodyOf(calls, 'PUT', '/admin/users/2/assign')).toEqual({ branch_id: 2 });
     expect(await screen.findByText('Đã cập nhật phân công nhân viên')).toBeInTheDocument();
   });
 

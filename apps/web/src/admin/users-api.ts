@@ -1,15 +1,16 @@
-import type {
-  AdminUserDetailData,
-  AdminUserListItem,
-  AdminUserListQuery,
-  AssignUserRequest,
-  AssignUserResponseData,
-  CreateStaffRequest,
-  CreateStaffResponseData,
-  CreateUserRequest,
-  CreateUserResponseData,
-  RoleData,
-  UpdateUserRequest,
+import {
+  PATIENT_ROLE_NAME,
+  type AdminUserDetailData,
+  type AdminUserListItem,
+  type AdminUserListQuery,
+  type AssignUserRequest,
+  type AssignUserResponseData,
+  type CreateStaffRequest,
+  type CreateStaffResponseData,
+  type CreateUserRequest,
+  type CreateUserResponseData,
+  type RoleData,
+  type UpdateUserRequest,
 } from '@drmayday/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api';
@@ -17,9 +18,7 @@ import { useInvalidatingMutation } from '../components/crud/use-invalidating-mut
 
 const USERS_KEY = ['admin-users'] as const;
 
-/** Vai trò của bệnh nhân (spec 3.3): nhóm "bệnh nhân" là các vai trò mang tên này, còn lại là nhân viên. */
-export const PATIENT_ROLE_NAME = 'patient';
-
+/** Nhóm "bệnh nhân" là vai trò benh_nhan của CSDL (D13); còn lại là nhân viên. */
 export const isPatientRole = (role: RoleData) => role.name === PATIENT_ROLE_NAME;
 
 /** Danh sách phân trang phía server; giữ trang cũ trên màn hình trong lúc tải trang mới. */

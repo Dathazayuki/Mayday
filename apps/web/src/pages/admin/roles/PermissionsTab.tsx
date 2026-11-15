@@ -1,4 +1,4 @@
-import type { PermissionData } from '@drmayday/shared';
+import { FIELD_LIMITS, type PermissionData } from '@drmayday/shared';
 import { Button, Form, Input } from 'antd';
 import { EntityFormModal } from '../../../components/crud/EntityFormModal';
 import { EntityTable } from '../../../components/crud/EntityTable';
@@ -78,7 +78,7 @@ export function PermissionsTab() {
           name="name"
           rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập tên quyền' }]}
         >
-          <Input />
+          <Input maxLength={FIELD_LIMITS.permission_name} />
         </Form.Item>
         <Form.Item label="Mô tả" name="description">
           <Input.TextArea rows={3} />

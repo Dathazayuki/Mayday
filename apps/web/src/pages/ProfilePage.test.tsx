@@ -22,7 +22,6 @@ const PATIENT_PROFILE = {
   hamlet_address: null,
   commune_address: 'Xã A',
   city_address: 'Hà Nội',
-  work_place: null,
   health_insurance_number: 'DN4010123456789',
   health_insurance_validate: '2027-12-31',
   next_of_kin_name: 'Trần Thị B',

@@ -10,7 +10,7 @@ import {
 import { Descriptions, Drawer, Skeleton } from 'antd';
 import type { ReactNode } from 'react';
 import { formatDateTime } from '../../../lib/format-date';
-import { useBranches, useDepartments, useRooms } from '../../../admin/facilities-api';
+import { useBranches } from '../../../admin/facilities-api';
 import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
 import { useAdminUser } from '../../../admin/users-api';
 import { PATIENT_FIELD_LABELS } from '../../../profile/profile-form';
@@ -23,7 +23,6 @@ const PATIENT_TEXT_FIELDS: Exclude<PatientEditableField, 'year_of_birth' | 'care
   'hamlet_address',
   'commune_address',
   'city_address',
-  'work_place',
   'health_insurance_number',
   'health_insurance_validate',
   'next_of_kin_name',
@@ -37,8 +36,6 @@ function nameOf(items: { id: string; name: string }[] | undefined, id: number | 
 
 function DetailBody({ detail, roles }: { detail: AdminUserDetailData; roles: RoleData[] }) {
   const branches = useBranches();
-  const departments = useDepartments();
-  const rooms = useRooms();
 
   const items: { label: string; value: ReactNode }[] = [
     { label: 'Họ và tên', value: detail.full_name },
@@ -66,14 +63,7 @@ function DetailBody({ detail, roles }: { detail: AdminUserDetailData; roles: Rol
       },
     );
   } else if (isStaffDetail(detail)) {
-    items.push(
-      { label: 'Chi nhánh', value: nameOf(branches.data, detail.branch_id) },
-      { label: 'Khoa', value: nameOf(departments.data, detail.department_id) },
-      {
-        label: 'Phòng',
-        value: detail.room_id === null ? EMPTY : nameOf(rooms.data, detail.room_id),
-      },
-    );
+    items.push({ label: 'Chi nhánh', value: nameOf(branches.data, detail.branch_id) });
   }
   return (
     <Descriptions
@@ -85,7 +75,7 @@ function DetailBody({ detail, roles }: { detail: AdminUserDetailData; roles: Rol
   );
 }
 
-/** Drawer chi tiết (GET /admin/users/:id): bệnh nhân hiện hồ sơ, nhân viên hiện nơi công tác theo tên. */
+/** Drawer chi tiết (GET /admin/users/:id): bệnh nhân hiện hồ sơ, nhân viên hiện chi nhánh theo tên (chưa phân công: 'Chưa phân công'). */
 export function UserDetailDrawer({
   userId,
   roles,

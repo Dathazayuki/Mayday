@@ -5,9 +5,9 @@ import { errorResponse, okResponse, renderApp, seedSession } from '../../test/he
 import { RolesPage } from './RolesPage';
 
 const ROLES = [
-  { id: 1, name: 'admin', description: 'Quản trị', parent_role_id: null },
-  { id: 2, name: 'doctor', description: null, parent_role_id: 1 },
-  { id: 3, name: 'nurse', description: null, parent_role_id: 2 },
+  { id: 1, name: 'admin', display_name: 'Quản trị viên', description: 'Toàn quyền' },
+  { id: 2, name: 'bac_si', display_name: 'Bác sĩ', description: null },
+  { id: 3, name: 'dieu_duong', display_name: 'Điều dưỡng', description: null },
 ];
 const STAMP = '2026-01-01T00:00:00.000Z';
 const PERMISSIONS = [
@@ -57,34 +57,34 @@ function setup(overrides: Record<string, (call: Call) => Response | Promise<Resp
 }
 
 describe('RolesPage', () => {
-  it('có 3 tab và dựng cây vai trò theo parent_role_id', async () => {
+  it('có 3 tab; tab Vai trò là bảng phẳng có tên hiển thị (không còn cây vai trò)', async () => {
     setup();
     expect(screen.getByRole('tab', { name: 'Vai trò' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Quyền hạn' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Phân quyền' })).toBeInTheDocument();
-    const indentOf = async (name: string) =>
-      (await screen.findByText(name))
-        .closest('.ant-tree-treenode')!
-        .querySelectorAll('.ant-tree-indent-unit').length;
-    expect(await indentOf('admin')).toBe(0);
-    expect(await indentOf('doctor')).toBe(1);
-    expect(await indentOf('nurse')).toBe(2);
+    const row = (await screen.findByText('bac_si')).closest('tr')!;
+    expect(within(row).getByText('Bác sĩ')).toBeInTheDocument();
+    expect(document.querySelector('.ant-tree')).toBeNull();
   });
 
-  it('tạo vai trò gửi parent_role_id kiểu số', async () => {
+  it('tạo vai trò gửi name và display_name (MT-105), không còn vai trò cha', async () => {
     const calls = setup();
     const user = userEvent.setup();
-    await screen.findByText('admin');
+    await screen.findByText('bac_si');
     await user.click(screen.getByRole('button', { name: /Thêm vai trò/ }));
-    await user.type(await screen.findByLabelText('Tên vai trò'), ' lab ');
-    await user.click(within(await screen.findByRole('dialog')).getByLabelText('Vai trò cha'));
-    const options = await screen.findAllByTitle('doctor');
-    await user.click(options[options.length - 1]!);
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByLabelText('Vai trò cha')).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Tên vai trò')).toHaveAttribute('maxlength', '50');
+    await user.type(within(dialog).getByLabelText('Tên vai trò'), ' ky_thuat_vien ');
+    await user.type(within(dialog).getByLabelText('Tên hiển thị'), 'Kỹ thuật viên');
     await user.click(screen.getByRole('button', { name: /Lưu/ }));
     await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
     const post = calls.find((c) => c.method === 'POST')!;
     expect(post.url).toBe(`${BASE}/roles`);
-    expect(JSON.parse(post.body!)).toEqual({ name: 'lab', parent_role_id: 2 });
+    expect(JSON.parse(post.body!)).toEqual({
+      name: 'ky_thuat_vien',
+      display_name: 'Kỹ thuật viên',
+    });
     expect(await screen.findByText('Đã thêm vai trò')).toBeInTheDocument();
   });
 
@@ -133,7 +133,7 @@ describe('RolesPage', () => {
     const save = screen.getByRole('button', { name: /Lưu phân quyền/ });
     expect(save).toBeDisabled();
     await user.click(screen.getByLabelText('Chọn vai trò'));
-    const options = await screen.findAllByTitle('doctor');
+    const options = await screen.findAllByTitle('bac_si');
     await user.click(options[options.length - 1]!);
 
     const manageUsers = await screen.findByRole('checkbox', { name: 'manage_users' });
@@ -160,7 +160,7 @@ describe('RolesPage', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('tab', { name: 'Phân quyền' }));
     await user.click(screen.getByLabelText('Chọn vai trò'));
-    const options = await screen.findAllByTitle('doctor');
+    const options = await screen.findAllByTitle('bac_si');
     await user.click(options[options.length - 1]!);
     const manageUsers = await screen.findByRole('checkbox', { name: 'manage_users' });
     await waitFor(() => expect(manageUsers).toBeChecked());
@@ -184,7 +184,7 @@ describe('RolesPage', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('tab', { name: 'Phân quyền' }));
     await user.click(screen.getByLabelText('Chọn vai trò'));
-    const options = await screen.findAllByTitle('doctor');
+    const options = await screen.findAllByTitle('bac_si');
     await user.click(options[options.length - 1]!);
     await waitFor(() =>
       expect(calls.some((c) => c.url === `${BASE}/role_permissions/role/2`)).toBe(true),
@@ -202,7 +202,7 @@ describe('RolesPage', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('tab', { name: 'Phân quyền' }));
     await user.click(screen.getByLabelText('Chọn vai trò'));
-    const options = await screen.findAllByTitle('doctor');
+    const options = await screen.findAllByTitle('bac_si');
     await user.click(options[options.length - 1]!);
     const manageUsers = await screen.findByRole('checkbox', { name: 'manage_users' });
     await waitFor(() => expect(manageUsers).toBeChecked());

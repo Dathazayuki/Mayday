@@ -1,4 +1,4 @@
-import { isValidVietnamPhone, type BranchListItem } from '@drmayday/shared';
+import { FIELD_LIMITS, isValidVietnamPhone, type BranchListItem } from '@drmayday/shared';
 import { Button, Form, Input } from 'antd';
 import { EntityFormModal } from '../../../components/crud/EntityFormModal';
 import { EntityTable } from '../../../components/crud/EntityTable';
@@ -78,7 +78,7 @@ export function BranchesTab() {
           name="name"
           rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập tên chi nhánh' }]}
         >
-          <Input />
+          <Input maxLength={FIELD_LIMITS.branch_name} />
         </Form.Item>
         <Form.Item
           label="Địa chỉ"

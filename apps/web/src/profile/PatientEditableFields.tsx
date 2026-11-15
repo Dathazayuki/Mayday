@@ -19,7 +19,6 @@ const PATIENT_TEXT_FIELDS: {
   { name: 'hamlet_address', label: PATIENT_FIELD_LABELS.hamlet_address },
   { name: 'commune_address', label: PATIENT_FIELD_LABELS.commune_address },
   { name: 'city_address', label: PATIENT_FIELD_LABELS.city_address },
-  { name: 'work_place', label: PATIENT_FIELD_LABELS.work_place },
   { name: 'health_insurance_number', label: PATIENT_FIELD_LABELS.health_insurance_number },
   {
     name: 'health_insurance_validate',

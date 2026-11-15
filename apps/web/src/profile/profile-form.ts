@@ -14,7 +14,6 @@ export const PATIENT_FIELD_LABELS: Record<PatientEditableField, string> = {
   hamlet_address: 'Thôn/Xóm',
   commune_address: 'Xã/Phường',
   city_address: 'Tỉnh/Thành phố',
-  work_place: 'Nơi làm việc',
   health_insurance_number: 'Số thẻ BHYT',
   health_insurance_validate: 'Hạn thẻ BHYT',
   next_of_kin_name: 'Người thân',

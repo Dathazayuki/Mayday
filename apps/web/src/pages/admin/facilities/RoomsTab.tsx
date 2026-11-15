@@ -1,4 +1,4 @@
-import type { RoomListItem } from '@drmayday/shared';
+import { FIELD_LIMITS, type RoomListItem } from '@drmayday/shared';
 import { Button, Form, Input, Select } from 'antd';
 import { useState } from 'react';
 import { EntityFormModal } from '../../../components/crud/EntityFormModal';
@@ -8,7 +8,6 @@ import {
   useBranches,
   useCreateRoom,
   useDeleteRoom,
-  useDepartments,
   useRooms,
   useUpdateRoom,
 } from '../../../admin/facilities-api';
@@ -19,47 +18,32 @@ import { useDeleteAction } from '../../../components/crud/use-run-action';
 
 interface RoomFormValues {
   name: string;
-  description?: string;
-  department_id: number;
+  branch_id: number;
 }
 
+/** Phòng khám thuộc thẳng chi nhánh (spec A, mục 7.2): lọc và chọn theo chi nhánh; không có mô tả, ngày tạo. */
 export function RoomsTab() {
-  const [selectedDepartment, setSelectedDepartment] = useState<number | undefined>();
-  const departments = useDepartments();
+  const [selectedBranch, setSelectedBranch] = useState<number | undefined>();
   const branches = useBranches();
-  // "Khoa – Chi nhánh": phân biệt các khoa trùng tên ở chi nhánh khác nhau.
-  const departmentLabel = (d: { name: string; branch_id: string }) => {
-    const branch = branches.data?.find((b) => b.id === d.branch_id)?.name;
-    return branch ? `${d.name} – ${branch}` : d.name;
-  };
-  const departmentOptions = (departments.data ?? []).map((d) => ({
-    value: toNumericId(d.id),
-    label: departmentLabel(d),
+  const branchOptions = (branches.data ?? []).map((b) => ({
+    value: toNumericId(b.id),
+    label: b.name,
   }));
-  // Khoa đang lọc bị xoá (không còn trong danh sách) thì bỏ lọc, tránh gọi API với id cũ.
-  const departmentFilter = departmentOptions.some((o) => o.value === selectedDepartment)
-    ? selectedDepartment
+  // Chi nhánh đang lọc bị xoá (không còn trong danh sách) thì bỏ lọc, tránh gọi API với id cũ.
+  const branchFilter = branchOptions.some((o) => o.value === selectedBranch)
+    ? selectedBranch
     : undefined;
 
-  const { data, error, isPending } = useRooms(departmentFilter);
+  const { data, error, isPending } = useRooms(branchFilter);
   const create = useCreateRoom();
   const update = useUpdateRoom();
   const remove = useDeleteRoom();
   const deleteRow = useDeleteAction('phòng');
   const modal = useEntityModal<RoomFormValues, RoomListItem>((room) => ({
     name: room?.name ?? '',
-    description: room?.description ?? '',
-    department_id:
-      room === null
-        ? departmentFilter
-        : room.department_id === null
-          ? undefined
-          : toNumericId(room.department_id),
+    branch_id: room ? toNumericId(room.branch_id) : branchFilter,
   }));
-  const departmentName = (id: string | null) => {
-    const department = departments.data?.find((d) => d.id === id);
-    return department ? departmentLabel(department) : '';
-  };
+  const branchName = (id: string) => branches.data?.find((b) => b.id === id)?.name ?? id;
 
   return (
     <>
@@ -67,12 +51,12 @@ export function RoomsTab() {
       <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
         <Select
           allowClear
-          placeholder="Tất cả khoa"
-          aria-label="Lọc theo khoa"
-          style={{ minWidth: 280 }}
-          options={departmentOptions}
-          value={departmentFilter}
-          onChange={(value: number | undefined) => setSelectedDepartment(value)}
+          placeholder="Tất cả chi nhánh"
+          aria-label="Lọc theo chi nhánh"
+          style={{ minWidth: 240 }}
+          options={branchOptions}
+          value={branchFilter}
+          onChange={(value: number | undefined) => setSelectedBranch(value)}
         />
         <Button type="primary" onClick={modal.openCreate}>
           Thêm phòng
@@ -83,12 +67,7 @@ export function RoomsTab() {
         loading={isPending}
         columns={[
           { title: 'Tên phòng', dataIndex: 'name' },
-          {
-            title: 'Khoa',
-            dataIndex: 'department_id',
-            render: (id: string | null) => departmentName(id),
-          },
-          { title: 'Mô tả', dataIndex: 'description' },
+          { title: 'Chi nhánh', dataIndex: 'branch_id', render: (id: string) => branchName(id) },
           {
             title: 'Thao tác',
             render: (_, row) => (
@@ -106,20 +85,12 @@ export function RoomsTab() {
         entityName="phòng"
         saving={create.isPending || update.isPending}
         onCreate={(values) =>
-          create.mutateAsync({
-            name: values.name.trim(),
-            description: values.description?.trim() || undefined,
-            department_id: values.department_id,
-          })
+          create.mutateAsync({ name: values.name.trim(), branch_id: values.branch_id })
         }
         onUpdate={(room, values) =>
           update.mutateAsync({
             id: room.id,
-            changes: {
-              name: values.name.trim(),
-              description: values.description?.trim() || null,
-              department_id: values.department_id,
-            },
+            changes: { name: values.name.trim(), branch_id: values.branch_id },
           })
         }
       >
@@ -128,17 +99,14 @@ export function RoomsTab() {
           name="name"
           rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập tên phòng' }]}
         >
-          <Input />
+          <Input maxLength={FIELD_LIMITS.room_name} />
         </Form.Item>
         <Form.Item
-          label="Khoa"
-          name="department_id"
-          rules={[{ required: true, message: 'Vui lòng chọn khoa' }]}
+          label="Chi nhánh"
+          name="branch_id"
+          rules={[{ required: true, message: 'Vui lòng chọn chi nhánh' }]}
         >
-          <Select options={departmentOptions} />
-        </Form.Item>
-        <Form.Item label="Mô tả" name="description">
-          <Input.TextArea rows={3} />
+          <Select options={branchOptions} />
         </Form.Item>
       </EntityFormModal>
     </>

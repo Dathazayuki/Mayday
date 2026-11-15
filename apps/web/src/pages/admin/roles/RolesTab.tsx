@@ -1,23 +1,26 @@
-import type { RoleData } from '@drmayday/shared';
-import { Button, Form, Input, Select, Tree } from 'antd';
-import { useMemo } from 'react';
+import { FIELD_LIMITS, type RoleData } from '@drmayday/shared';
+import { Button, Form, Input } from 'antd';
 import { EntityFormModal } from '../../../components/crud/EntityFormModal';
+import { EntityTable } from '../../../components/crud/EntityTable';
 import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
 import { useCreateRole, useRoles } from '../../../admin/rbac-api';
 import { useEntityModal } from '../../../components/crud/use-entity-modal';
-import { buildRoleTree } from './role-tree';
 
 interface RoleFormValues {
   name: string;
+  display_name?: string;
   description?: string;
-  parent_role_id?: number;
 }
 
+/** Bảng vai trò phẳng (spec A, quyết định 7): 4 vai trò của CSDL và vai trò tạo thêm; tạo có tên hiển thị (MT-105). */
 export function RolesTab() {
   const { data, error, isPending } = useRoles();
   const create = useCreateRole();
-  const modal = useEntityModal<RoleFormValues, RoleData>(() => ({ name: '', description: '' }));
-  const tree = useMemo(() => buildRoleTree(data ?? []), [data]);
+  const modal = useEntityModal<RoleFormValues, RoleData>(() => ({
+    name: '',
+    display_name: '',
+    description: '',
+  }));
 
   return (
     <>
@@ -25,8 +28,15 @@ export function RolesTab() {
       <Button type="primary" onClick={modal.openCreate} style={{ marginBottom: 16 }}>
         Thêm vai trò
       </Button>
-      {/* Chỉ dựng cây khi đã có dữ liệu để defaultExpandAll mở sẵn mọi nhánh. */}
-      {!isPending && <Tree treeData={tree} defaultExpandAll selectable={false} />}
+      <EntityTable<RoleData>
+        data={data}
+        loading={isPending}
+        columns={[
+          { title: 'Tên vai trò', dataIndex: 'name' },
+          { title: 'Tên hiển thị', dataIndex: 'display_name' },
+          { title: 'Mô tả', dataIndex: 'description' },
+        ]}
+      />
       <EntityFormModal<RoleFormValues, RoleData>
         createOnly
         modal={modal}
@@ -36,8 +46,8 @@ export function RolesTab() {
         onCreate={(values) =>
           create.mutateAsync({
             name: values.name.trim(),
+            display_name: values.display_name?.trim() || undefined,
             description: values.description?.trim() || undefined,
-            parent_role_id: values.parent_role_id,
           })
         }
       >
@@ -46,14 +56,14 @@ export function RolesTab() {
           name="name"
           rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập tên vai trò' }]}
         >
-          <Input maxLength={255} />
+          <Input maxLength={FIELD_LIMITS.role_name} />
         </Form.Item>
-        <Form.Item label="Vai trò cha" name="parent_role_id">
-          <Select
-            allowClear
-            placeholder="Không có (vai trò gốc)"
-            options={(data ?? []).map((role) => ({ value: role.id, label: role.name }))}
-          />
+        <Form.Item
+          label="Tên hiển thị"
+          name="display_name"
+          extra="Để trống thì lấy bằng tên vai trò"
+        >
+          <Input maxLength={FIELD_LIMITS.role_display_name} />
         </Form.Item>
         <Form.Item label="Mô tả" name="description">
           <Input.TextArea rows={3} />
