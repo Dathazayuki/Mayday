@@ -190,6 +190,10 @@
 .dm-panel--flush .ant-table-pagination.ant-pagination {
   margin: 16px;
 }
+/* Màn hẹp: bảng rộng hơn panel thì cuộn ngang trong panel, không đẩy cả trang cuộn theo. */
+.dm-panel .ant-table-content {
+  overflow-x: auto;
+}
 .dm-panel__toolbar {
   display: flex;
   flex-wrap: wrap;

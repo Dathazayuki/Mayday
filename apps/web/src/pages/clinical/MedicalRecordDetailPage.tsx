@@ -155,7 +155,7 @@ function ExamPanel({
   return (
     <Panel title={template.name}>
       {!finished && (
-        <Space>
+        <Space style={{ marginBottom: 16 }}>
           {record.status === 'pending' && (
             <Button
               type="primary"

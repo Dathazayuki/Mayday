@@ -48,7 +48,7 @@ export function Uas7Panel({ patientId }: { patientId: number }) {
         <QueryErrorAlert key={message} error={error} />
       ))}
       {week.data && (
-        <Descriptions column={1} size="small">
+        <Descriptions column={1} size="small" style={{ marginBottom: 16 }}>
           <Descriptions.Item label="Tổng tuần">
             <span className="num">
               {week.data.week_score}/{UAS7_WEEK_MAX}
