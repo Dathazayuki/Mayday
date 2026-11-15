@@ -1,9 +1,10 @@
 import { describeError, isValidVietnamPhone, type LoginRequest } from '@drmayday/shared';
-import { Alert, Button, Card, Form, Input, Typography } from 'antd';
+import { Alert, Button, Form, Input } from 'antd';
 import { useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import type { LoginLocationState } from '../auth/login-state';
 import { useAuth } from '../auth/useAuth';
+import { Panel } from '../layout/Panel';
 
 export function LoginPage() {
   const { login, isAuthenticated, clearSession } = useAuth();
@@ -40,22 +41,12 @@ export function LoginPage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        background: '#f0f5ff',
-        padding: 16,
-      }}
-    >
-      <Card style={{ width: '100%', maxWidth: 400 }}>
-        <Typography.Title level={3} style={{ textAlign: 'center' }}>
-          DrMayDay
-        </Typography.Title>
-        <Typography.Paragraph type="secondary" style={{ textAlign: 'center' }}>
-          Hệ thống quản lý khám bệnh &amp; theo dõi mề đay
-        </Typography.Paragraph>
+    <div className="dm-login">
+      <Panel className="dm-login__card">
+        <div className="dm-login__brand dm-sidebar__brand">
+          Dr<span>MayDay</span>
+        </div>
+        <p className="dm-login__sub">Hệ thống quản lý khám bệnh &amp; theo dõi mề đay</p>
         {notice && !error && (
           <Alert
             type="success"
@@ -65,7 +56,12 @@ export function LoginPage() {
           />
         )}
         {error && <Alert type="error" showIcon title={error} style={{ marginBottom: 16 }} />}
-        <Form<LoginRequest> layout="vertical" onFinish={handleFinish} requiredMark={false}>
+        <Form<LoginRequest>
+          layout="vertical"
+          onFinish={handleFinish}
+          requiredMark={false}
+          size="large"
+        >
           <Form.Item
             label="Số điện thoại"
             name="phone"
@@ -94,7 +90,7 @@ export function LoginPage() {
             Đăng nhập
           </Button>
         </Form>
-      </Card>
+      </Panel>
     </div>
   );
 }

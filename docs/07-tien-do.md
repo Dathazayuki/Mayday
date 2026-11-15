@@ -103,6 +103,14 @@ Spec: [2026-11-15-giai-doan-7-8-don-thuoc-xet-nghiem-thong-bao-design.md](superp
 
 - [ ] Chờ thông tin từ nhóm AI (MT-24)
 
+## Giao diện web kiểu Cendo (đợt 1)
+
+Spec: [2026-11-15-giao-dien-cendo-design.md](superpowers/specs/2026-11-15-giao-dien-cendo-design.md) · Kế hoạch: [2026-11-15-giao-dien-cendo.md](superpowers/plans/2026-11-15-giao-dien-cendo.md)
+
+- [x] Theme (tokens màu, biến `--dm-*`, theme antd), khung app (sidebar, header) và áp dụng cho mọi màn web; test chặn mã màu cứng ngoài `theme/tokens.ts`
+- [ ] Đợt 2: tab trạng thái có số đếm và chế độ xem cột kiểu Trello (làm sau khi chuyển sang CSDL thật)
+- [ ] Mobile dùng chung bộ màu
+
 ## Việc tiếp theo
 
 1. **API còn thiếu, theo thứ tự phụ thuộc:** G4-2 (bệnh nhân, bệnh án; thêm kiểm tra 4105 khi xoá mẫu phiếu đang được dùng) → G6-2 (UAS7) và G7-2 (đơn thuốc, xét nghiệm, thông báo) → G5-2/G5-3 (kho ảnh, tổn thương da). Các API sau phụ thuộc bệnh án của G4-2.
