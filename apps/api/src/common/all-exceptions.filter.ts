@@ -7,7 +7,12 @@ import {
 } from '@nestjs/common';
 import { RESPONSE_CODES, type ResponseCode as Code } from '@drmayday/shared';
 import type { Response } from 'express';
-import { isDatabaseConnectionError } from '../prisma/prisma-errors.js';
+import {
+  describeDatabaseError,
+  isCheckViolation,
+  isDatabaseConnectionError,
+  isValueTooLong,
+} from '../prisma/prisma-errors.js';
 import { AppException } from './app.exception.js';
 
 /** Body JSON hỏng: body-parser gắn type 'entity.parse.failed' (có thể nằm trong cause). */
@@ -52,9 +57,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
       // Lỗi 4xx khác của Nest (gồm route không tồn tại – MT-58): mã 2003, giữ nguyên HTTP status thật.
       if (status >= 400 && status < 500) return { code: '2003', httpStatus: status };
     }
+    if (isDatabaseConnectionError(exception)) {
+      this.logger.error(`Không kết nối được CSDL: ${describeDatabaseError(exception)}`);
+      return { code: '9902' };
+    }
+    // Lưới an toàn (D9): DTO phải chặn trước; vi phạm CHECK hoặc vượt độ dài cột lọt xuống CSDL → 2003.
+    if (isCheckViolation(exception) || isValueTooLong(exception)) {
+      this.logger.warn(
+        `Dữ liệu vi phạm ràng buộc CSDL lọt qua DTO: ${describeDatabaseError(exception)}`,
+      );
+      return { code: '2003', httpStatus: 400 };
+    }
+    // Lỗi CSDL chỉ ghi code/kind/SQLSTATE/ràng buộc/message, không ghi cause.detail (dữ liệu cá nhân).
     this.logger.error(
-      exception instanceof Error ? (exception.stack ?? exception.message) : String(exception),
+      describeDatabaseError(exception) ??
+        (exception instanceof Error ? (exception.stack ?? exception.message) : String(exception)),
     );
-    return { code: isDatabaseConnectionError(exception) ? '9902' : '9901' };
+    return { code: '9901' };
   }
 }

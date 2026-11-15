@@ -1,6 +1,11 @@
 import { AppException } from './app.exception.js';
 
-/** Body của PUT phải có ít nhất một trường; không có trường nào → 2001. `null` vẫn tính là có (xoá giá trị). */
+/** Có ít nhất một trường khác undefined; `null` vẫn tính là có (xoá giá trị). */
+export function hasChanges(changes: object): boolean {
+  return Object.values(changes).some((value) => value !== undefined);
+}
+
+/** Body của PUT phải có ít nhất một trường; không có trường nào → 2001. */
 export function requireChanges(changes: object): void {
-  if (Object.values(changes).every((value) => value === undefined)) throw new AppException('2001');
+  if (!hasChanges(changes)) throw new AppException('2001');
 }

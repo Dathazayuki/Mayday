@@ -1,14 +1,17 @@
 import { Injectable, Logger, type OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaMariaDb } from '@prisma/adapter-mariadb';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { AppException } from '../common/app.exception.js';
 import type { Env } from '../config/env.js';
 import { PrismaClient } from '../generated/prisma/client.js';
 
+/** Mặc định của `pg` là chờ kết nối vô hạn: host không phản hồi thì request treo thay vì trả 9902. */
+const CONNECTION_TIMEOUT_MS = 5000;
+
 export type DatabaseStatus = 'up' | 'down' | 'not_configured';
 
 /**
- * Kết nối CSDL qua Prisma 7 + driver adapter MariaDB/MySQL.
+ * Kết nối CSDL qua Prisma 7 + driver adapter PostgreSQL (@prisma/adapter-pg).
  * Khi chưa có DATABASE_URL, API vẫn chạy (client = null), /health báo not_configured.
  */
 @Injectable()
@@ -26,7 +29,12 @@ export class PrismaService implements OnModuleDestroy {
       return;
     }
     try {
-      this.client = new PrismaClient({ adapter: new PrismaMariaDb(url) });
+      this.client = new PrismaClient({
+        adapter: new PrismaPg({
+          connectionString: url,
+          connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
+        }),
+      });
     } catch (error) {
       this.logger.warn(
         `DATABASE_URL không hợp lệ: ${error instanceof Error ? error.message : String(error)}`,

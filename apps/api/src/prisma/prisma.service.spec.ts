@@ -36,7 +36,7 @@ describe('PrismaService', () => {
 
   it('db trả PrismaClient khi đã cấu hình (chưa cần kết nối)', async () => {
     const service = new PrismaService(
-      configWith({ DATABASE_URL: 'mysql://user:pass@127.0.0.1:1/drmayday' }),
+      configWith({ DATABASE_URL: 'postgresql://user:pass@127.0.0.1:1/drmayday' }),
     );
     expect(service.configured).toBe(true);
     // So sánh bằng === vì vitest không in được Proxy của PrismaClient khi báo lỗi.
@@ -48,14 +48,23 @@ describe('PrismaService', () => {
   it('down khi không kết nối được CSDL', { timeout: 30000 }, async () => {
     const service = new PrismaService(
       configWith({
-        DATABASE_URL:
-          'mysql://user:pass@127.0.0.1:1/drmayday?connectTimeout=1000&acquireTimeout=2000',
+        DATABASE_URL: 'postgresql://user:pass@127.0.0.1:1/drmayday',
       }),
     );
     await expect(service.status()).resolves.toBe('down');
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('Không kết nối được CSDL'));
     await service.onModuleDestroy();
   });
+
+  it('đặt connectionTimeoutMillis để host không phản hồi không làm request treo (spec A, mục 3.4)', async () => {
+    const service = new PrismaService(
+      configWith({ DATABASE_URL: 'postgresql://user:pass@10.255.255.1:5432/drmayday' }),
+    );
+    const started = Date.now();
+    await expect(service.status()).resolves.toBe('down');
+    expect(Date.now() - started).toBeLessThan(15_000);
+    await service.onModuleDestroy();
+  }, 30_000);
 
   it('không làm sập ứng dụng khi DATABASE_URL sai định dạng → down', async () => {
     const service = new PrismaService(configWith({ DATABASE_URL: 'day-khong-phai-url' }));

@@ -2,8 +2,10 @@ import { applyDecorators } from '@nestjs/common';
 import { LIMIT_DEFAULT, LIMIT_MAX, PAGE_DEFAULT } from '@drmayday/shared';
 import { Transform } from 'class-transformer';
 import { IsInt, Max, Min } from 'class-validator';
-import { MAX_ID } from './id.js';
 import { isBlank } from './text.js';
+
+/** Trang lớn nhất: Sheet ghi kiểu int (32 bit) cho page; giữ như trước khi id chuyển sang BIGINT. */
+export const PAGE_MAX = 2_147_483_647;
 
 /**
  * Phân trang (spec giai đoạn 2, mục 3.1): query `page`/`limit` dùng chung cho các API danh sách có
@@ -33,8 +35,8 @@ const PositiveIntQuery = (fallback: number, max: number) =>
 
 /** Query `page`/`limit`; DTO của từng danh sách kế thừa lớp này rồi thêm bộ lọc. */
 export class PaginationQuery {
-  /** Sheet ghi kiểu int: trang lớn nhất là INT tối đa, như id. */
-  @PositiveIntQuery(PAGE_DEFAULT, MAX_ID)
+  /** Sheet ghi kiểu int: trang lớn nhất là PAGE_MAX. */
+  @PositiveIntQuery(PAGE_DEFAULT, PAGE_MAX)
   page: number = PAGE_DEFAULT;
 
   @PositiveIntQuery(LIMIT_DEFAULT, LIMIT_MAX)

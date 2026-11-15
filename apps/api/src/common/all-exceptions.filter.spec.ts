@@ -7,23 +7,16 @@ import {
   UnauthorizedException,
   type ArgumentsHost,
 } from '@nestjs/common';
-import { PrismaMariaDb } from '@prisma/adapter-mariadb';
-import { Prisma, PrismaClient } from '../generated/prisma/client.js';
+import {
+  checkViolation,
+  commitError,
+  connectionError,
+  knownError,
+  uniqueViolation,
+  valueTooLong,
+} from '../prisma/prisma-error.fixture.js';
 import { AllExceptionsFilter } from './all-exceptions.filter.js';
 import { AppException, conflict, notFound } from './app.exception.js';
-
-const clientVersion = Prisma.prismaVersion.client;
-
-function knownRequestError(code: string, meta?: Record<string, unknown>, message = 'lỗi Prisma') {
-  return new Prisma.PrismaClientKnownRequestError(message, { code, clientVersion, meta });
-}
-
-/** Dạng lỗi thật Prisma 7 + adapter mariadb ném ra khi MySQL tắt (P2039/P2010 bọc lỗi driver). */
-function driverAdapterError(prismaCode: string, driverCode: number) {
-  return knownRequestError(prismaCode, {
-    driverAdapterError: { name: 'DriverAdapterError', cause: { kind: 'mysql', code: driverCode } },
-  });
-}
 
 function hostWithResponse() {
   const response = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
@@ -33,27 +26,38 @@ function hostWithResponse() {
   return { host, response };
 }
 
+const DB_DOWN = ['9902', 'Database connection error'] as const;
+const INTERNAL = ['9901', 'Internal server error'] as const;
+const INVALID = ['2003', 'Invalid parameter value'] as const;
+
 describe('AllExceptionsFilter', () => {
   const filter = new AllExceptionsFilter();
+  let logError: ReturnType<typeof vi.spyOn>;
+  let logWarn: ReturnType<typeof vi.spyOn>;
 
-  // Filter ghi log stack cho lỗi 99xx; tắt log để output test gọn.
   beforeEach(() => {
-    vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    logError = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    logWarn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it.each([
-    ['AppException 4001', new AppException('4001'), 404, '4001', 'Medical record not found'],
-    ['notFound(): 2003 + 404', notFound(), 404, '2003', 'Invalid parameter value'],
-    ['conflict(): 2003 + 409', conflict(), 409, '2003', 'Invalid parameter value'],
-    ['route không tồn tại', new NotFoundException(), 404, '2003', 'Invalid parameter value'],
-    ['400 khác của Nest', new BadRequestException(), 400, '2003', 'Invalid parameter value'],
-    ['401 của Nest', new UnauthorizedException(), 401, '3003', 'User not authenticated'],
-    ['403 của Nest', new ForbiddenException(), 403, '3101', 'Permission denied'],
-    ['413 của Nest', new PayloadTooLargeException(), 413, '6003', 'Image file size exceeds limit'],
+  it.each<[string, unknown, number, readonly [string, string]]>([
+    ['AppException 4001', new AppException('4001'), 404, ['4001', 'Medical record not found']],
+    ['notFound(): 2003 + 404', notFound(), 404, INVALID],
+    ['conflict(): 2003 + 409', conflict(), 409, INVALID],
+    ['route không tồn tại', new NotFoundException(), 404, INVALID],
+    ['400 khác của Nest', new BadRequestException(), 400, INVALID],
+    ['401 của Nest', new UnauthorizedException(), 401, ['3003', 'User not authenticated']],
+    ['403 của Nest', new ForbiddenException(), 403, ['3101', 'Permission denied']],
+    [
+      '413 của Nest',
+      new PayloadTooLargeException(),
+      413,
+      ['6003', 'Image file size exceeds limit'],
+    ],
     [
       'body JSON hỏng',
       Object.assign(new SyntaxError('Unexpected end'), {
@@ -61,78 +65,62 @@ describe('AllExceptionsFilter', () => {
         status: 400,
       }),
       400,
-      '2007',
-      'Request body invalid',
+      ['2007', 'Request body invalid'],
     ],
-    ['lỗi bất ngờ', new Error('boom'), 500, '9901', 'Internal server error'],
+    ['lỗi bất ngờ', new Error('boom'), 500, INTERNAL],
+    ['P1001 kèm DatabaseNotReachable', connectionError(), 500, DB_DOWN],
+    ['$queryRaw P2010 kèm DatabaseNotReachable', connectionError('P2010'), 500, DB_DOWN],
     [
-      'Prisma khởi tạo lỗi',
-      new Prisma.PrismaClientInitializationError('boom', clientVersion),
+      'kết nối bị ngắt 57P01',
+      knownError('P2039', { kind: 'postgres', originalCode: '57P01' }),
       500,
-      '9902',
-      'Database connection error',
+      DB_DOWN,
     ],
-    ['Prisma P1001', knownRequestError('P1001'), 500, '9902', 'Database connection error'],
-    ['Prisma P1017', knownRequestError('P1017'), 500, '9902', 'Database connection error'],
+    ['CHECK qua model (P2039, D9)', checkViolation('ck_nguoi_ho_ten'), 400, INVALID],
+    ['CHECK qua SQL thô (P2010, D9)', checkViolation('ck_nguoi_sdt', 'P2010'), 400, INVALID],
+    ['vượt độ dài cột (D9)', valueTooLong(), 400, INVALID],
     [
-      'adapter: hết thời gian lấy kết nối (45028)',
-      driverAdapterError('P2039', 45028),
+      'hết giờ câu lệnh 57014',
+      knownError('P2010', { kind: 'postgres', originalCode: '57014' }),
       500,
-      '9902',
-      'Database connection error',
+      INTERNAL,
     ],
+    ['trùng khoá chưa được repository xử lý', uniqueViolation('uq_vai_tro_ten'), 500, INTERNAL],
     [
-      'adapter: socket bị đóng (45009)',
-      driverAdapterError('P2010', 45009),
+      'FK lúc COMMIT chưa được repository xử lý',
+      commitError({ originalCode: '23503', kind: 'ForeignKeyConstraintViolation' }),
       500,
-      '9902',
-      'Database connection error',
+      INTERNAL,
     ],
-    [
-      'adapter: lỗi SQL thường (1064)',
-      driverAdapterError('P2010', 1064),
-      500,
-      '9901',
-      'Internal server error',
-    ],
-    [
-      'P2028 khác (transaction hết hạn)',
-      knownRequestError('P2028', {}, 'Transaction API error: Transaction already closed'),
-      500,
-      '9901',
-      'Internal server error',
-    ],
-    ['Prisma P2002 (trùng khoá)', knownRequestError('P2002'), 500, '9901', 'Internal server error'],
-  ])('%s', (_name, exception, status, code, message) => {
+  ])('%s', (_name, exception, status, [code, message]) => {
     const { host, response } = hostWithResponse();
     filter.catch(exception, host);
     expect(response.status).toHaveBeenCalledWith(status);
     expect(response.json).toHaveBeenCalledWith({ code, message });
   });
 
-  // Lỗi P2028 thật của Prisma: giữ cho việc so khớp thông điệp trong filter đúng khi nâng Prisma.
-  it(
-    'P2028 thật khi không mở được transaction (CSDL không tới được) → 9902',
-    { timeout: 15000 },
-    async () => {
-      // acquireTimeout > maxWait để Prisma bỏ cuộc trước driver → "Unable to start a transaction…".
-      const prisma = new PrismaClient({
-        adapter: new PrismaMariaDb('mysql://user:pass@127.0.0.1:1/drmayday?acquireTimeout=1000'),
-      });
-      const error = await prisma
-        .$transaction(async () => undefined, { maxWait: 100 })
-        .catch((e: unknown) => e);
-      await prisma.$disconnect();
-      expect(error).toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
-      expect(error).toMatchObject({ code: 'P2028' });
-      const { host, response } = hostWithResponse();
-      filter.catch(error, host);
-      expect(response.json).toHaveBeenCalledWith({
-        code: '9902',
-        message: 'Database connection error',
-      });
-    },
-  );
+  it('CHECK lọt qua DTO: log warn có tên ràng buộc, không có detail (dữ liệu cá nhân)', () => {
+    const { host } = hostWithResponse();
+    filter.catch(checkViolation('ck_nguoi_sdt'), host);
+    const logged = logWarn.mock.calls.map(([message]: unknown[]) => String(message)).join('\n');
+    expect(logged).toContain('ck_nguoi_sdt');
+    expect(logged).not.toContain('Failing row');
+    expect(logError).not.toHaveBeenCalled();
+  });
+
+  it('lỗi CSDL khác: log error không có detail', () => {
+    const { host } = hostWithResponse();
+    const error = knownError('P2010', {
+      kind: 'postgres',
+      originalCode: '57014',
+      message: 'canceling statement due to statement timeout',
+      detail: 'Key (lower(ten_dang_nhap))=(0912345678)',
+    });
+    filter.catch(error, host);
+    const logged = logError.mock.calls.map(([message]: unknown[]) => String(message)).join('\n');
+    expect(logged).toContain('sqlstate=57014');
+    expect(logged).not.toContain('0912345678');
+  });
 
   it('trả kèm data của AppException', () => {
     const { host, response } = hostWithResponse();

@@ -1,8 +1,7 @@
 import { LIMIT_DEFAULT, LIMIT_MAX, PAGE_DEFAULT } from '@drmayday/shared';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { MAX_ID } from './id.js';
-import { pageWindow, PaginationQuery } from './paginated.js';
+import { PAGE_MAX, pageWindow, PaginationQuery } from './paginated.js';
 import { validationErrorsToException } from './validation.js';
 
 /** Mã phản hồi mà ValidationPipe toàn cục trả cho query này (null = hợp lệ) và query sau khi đổi kiểu. */
@@ -30,7 +29,7 @@ describe('PaginationQuery', () => {
   it.each<[string, Record<string, string>]>([
     ['page 0', { page: '0' }],
     ['page âm', { page: '-1' }],
-    ['page vượt INT tối đa', { page: String(MAX_ID + 1) }],
+    ['page vượt PAGE_MAX', { page: String(PAGE_MAX + 1) }],
     ['limit 0', { limit: '0' }],
     ['limit âm', { limit: '-5' }],
     ['limit vượt LIMIT_MAX', { limit: String(LIMIT_MAX + 1) }],

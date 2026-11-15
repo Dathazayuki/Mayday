@@ -1,22 +1,66 @@
 import { Prisma } from '../generated/prisma/client.js';
 
 /**
- * Lỗi trùng khoá unique (P2002) trên index `index`. Qua driver adapter, Prisma 7 không có
- * meta.target; tên index nằm ở meta.driverAdapterError.cause.constraint.index (đã kiểm chứng
- * với MySQL 8.4 + @prisma/adapter-mariadb 7.10).
+ * Nhận diện lỗi Prisma 7 + @prisma/adapter-pg (spec A, mục 4.6; spike mục 3). Không dựa vào
+ * `error.code`: cùng một loại lỗi trả P2002/P2039/P2010 tuỳ đường gọi. Thông tin nằm ở `cause` của
+ * driver adapter: `kind` do adapter chuẩn hoá, `originalCode` là SQLSTATE, `constraint.index` là tên
+ * ràng buộc.
  */
-export function isUniqueViolation(error: unknown, index: string): boolean {
-  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
-    return false;
-  }
-  const driverError = error.meta?.driverAdapterError as
-    { cause?: { constraint?: { index?: unknown } } } | undefined;
-  return driverError?.cause?.constraint?.index === index;
+export interface DriverCause {
+  kind?: string;
+  /** SQLSTATE, vd. 23505, 23514, 57P01. */
+  originalCode?: string;
+  code?: string;
+  message?: string;
+  originalMessage?: string;
+  constraint?: { index?: string };
+  /** Dòng dữ liệu hoặc giá trị khoá: dữ liệu cá nhân, không bao giờ ghi log. */
+  detail?: string;
 }
 
-/** Lỗi khoá ngoại (P2003): xoá bản ghi còn được tham chiếu, hoặc ghi giá trị khoá không tồn tại. */
-export function isForeignKeyViolation(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003';
+export function driverCause(error: unknown): DriverCause | undefined {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    const meta = error.meta as { driverAdapterError?: { cause?: DriverCause } } | undefined;
+    return meta?.driverAdapterError?.cause;
+  }
+  // Lỗi lúc COMMIT của transaction tương tác (FK hoãn kiểm tra) thoát ra dạng DriverAdapterError thô.
+  if (error instanceof Error && error.name === 'DriverAdapterError') {
+    return (error as Error & { cause?: DriverCause }).cause;
+  }
+  return undefined;
+}
+
+function sqlState(cause: DriverCause | undefined): string | undefined {
+  return cause?.originalCode ?? cause?.code;
+}
+
+export function isUniqueViolation(error: unknown, constraint: string): boolean {
+  const cause = driverCause(error);
+  return cause?.kind === 'UniqueConstraintViolation' && cause.constraint?.index === constraint;
+}
+
+/** Khoá ngoại bị vi phạm (xoá bản ghi còn được tham chiếu, hoặc ghi khoá không tồn tại). */
+export function isForeignKeyViolation(error: unknown, constraint?: string): boolean {
+  const cause = driverCause(error);
+  if (cause?.kind !== 'ForeignKeyConstraintViolation') return false;
+  return constraint === undefined || cause.constraint?.index === constraint;
+}
+
+export function isCheckViolation(error: unknown): boolean {
+  return sqlState(driverCause(error)) === '23514';
+}
+
+/** Tên ràng buộc CHECK bị vi phạm: chỉ có trong thông điệp (spike 3b). */
+export function checkConstraintName(error: unknown): string | undefined {
+  const cause = driverCause(error);
+  if (sqlState(cause) !== '23514') return undefined;
+  const text = cause?.message ?? cause?.originalMessage ?? '';
+  return /violates check constraint "([^"]+)"/.exec(text)?.[1];
+}
+
+export function isValueTooLong(error: unknown): boolean {
+  const cause = driverCause(error);
+  return cause?.kind === 'LengthMismatch' || sqlState(cause) === '22001';
 }
 
 /** update/delete theo khoá mà bản ghi không tồn tại (P2025). */
@@ -24,42 +68,47 @@ export function isRecordNotFound(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025';
 }
 
-/** Mã Prisma của lỗi kết nối: không tới được server, hết thời gian, kết nối bị đóng. */
-const PRISMA_CONNECTION_CODES = new Set(['P1001', 'P1002', 'P1008', 'P1017']);
-
-/**
- * Mã lỗi kết nối của driver mariadb (mariadb/lib/misc/errors.js). Adapter không phân loại các mã này,
- * Prisma bọc chúng trong P2039/P2010 với meta.driverAdapterError.cause.code
- * (MySQL tắt → 45028 "pool failed to retrieve a connection", kể cả ECONNREFUSED).
- */
-const DRIVER_CONNECTION_CODES = new Set([
-  45009, // ER_SOCKET_UNEXPECTED_CLOSE
-  45012, // ER_CONNECTION_TIMEOUT
-  45028, // ER_GET_CONNECTION_TIMEOUT
+/** P1001 (cả với transaction), P1000 sai mật khẩu, P1003 CSDL không tồn tại… (spike 3h). */
+const CONNECTION_CODES = new Set(['P1000', 'P1001', 'P1002', 'P1003', 'P1008', 'P1017']);
+/** Đã quan sát thật, kể cả với $queryRaw (P2010). Kind khác chỉ thêm khi có test tái hiện được. */
+const CONNECTION_KINDS = new Set([
+  'DatabaseNotReachable',
+  'AuthenticationFailed',
+  'DatabaseDoesNotExist',
 ]);
+/** 08xxx: lỗi kết nối; 57P01–57P03: server tắt hoặc khởi động lại. 57014 (hết giờ câu lệnh) không thuộc. */
+const CONNECTION_SQLSTATE = /^(08|57P0[123])/;
+
+/** Lỗi do không kết nối được CSDL → 9902. */
+export function isDatabaseConnectionError(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientInitializationError) return true;
+  if (error instanceof Prisma.PrismaClientKnownRequestError && CONNECTION_CODES.has(error.code)) {
+    return true;
+  }
+  const cause = driverCause(error);
+  if (cause?.kind !== undefined && CONNECTION_KINDS.has(cause.kind)) return true;
+  return CONNECTION_SQLSTATE.test(sqlState(cause) ?? '');
+}
 
 /**
- * Transaction tương tác không lấy được kết nối trong maxWait (MySQL tắt) → P2028 với thông điệp này.
- * Prisma không cho dấu hiệu cấu trúc nào khác (meta rỗng, lớp lỗi con không được export) nên phải so
- * khớp thông điệp. Đã kiểm chứng với Prisma 7.10.1; test "P2028 thật" trong all-exceptions.filter.spec.ts
- * tạo lỗi thật của Prisma và sẽ báo đỏ nếu bản Prisma mới đổi thông điệp.
+ * Mô tả lỗi CSDL để ghi log: code, kind, SQLSTATE, tên ràng buộc, message. Không bao giờ có
+ * `cause.detail` (spike 3b). Không phải lỗi CSDL → undefined.
  */
-const P2028_TRANSACTION_START_TIMEOUT_MESSAGE = 'Unable to start a transaction in the given time';
-
-/** Lỗi Prisma do không kết nối được CSDL → 9902. */
-export function isDatabaseConnectionError(exception: unknown): boolean {
-  if (exception instanceof Prisma.PrismaClientInitializationError) return true;
-  if (!(exception instanceof Prisma.PrismaClientKnownRequestError)) return false;
-  if (PRISMA_CONNECTION_CODES.has(exception.code)) return true;
-  if (exception.code === 'P2028') {
-    return exception.message.includes(P2028_TRANSACTION_START_TIMEOUT_MESSAGE);
-  }
-  const driverError = exception.meta?.driverAdapterError as
-    { cause?: { kind?: unknown; code?: unknown } } | undefined;
-  const cause = driverError?.cause;
-  return (
-    cause?.kind === 'mysql' &&
-    typeof cause.code === 'number' &&
-    DRIVER_CONNECTION_CODES.has(cause.code)
-  );
+export function describeDatabaseError(error: unknown): string | undefined {
+  const cause = driverCause(error);
+  const code = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : undefined;
+  const isInit = error instanceof Prisma.PrismaClientInitializationError;
+  if (cause === undefined && code === undefined && !isInit) return undefined;
+  const state = sqlState(cause);
+  const constraint = cause?.constraint?.index ?? checkConstraintName(error);
+  const message = cause?.message ?? cause?.originalMessage ?? (error as Error).message;
+  return [
+    code && `code=${code}`,
+    cause?.kind && `kind=${cause.kind}`,
+    state && `sqlstate=${state}`,
+    constraint && `constraint=${constraint}`,
+    `message=${message}`,
+  ]
+    .filter(Boolean)
+    .join(' ');
 }

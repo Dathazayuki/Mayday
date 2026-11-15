@@ -1,5 +1,6 @@
 import { plainToInstance, type ClassConstructor } from 'class-transformer';
 import { validate } from 'class-validator';
+import { MAX_ID } from '../../common/id.js';
 import { validationErrorsToException } from '../../common/validation.js';
 import { PlacementDto } from '../../facilities/dto/placement.dto.js';
 import { CreateUserDto, ListUsersQuery, UpdateUserDto } from './admin-user.dto.js';
@@ -93,7 +94,7 @@ describe('PlacementDto (PUT admin/users/:id/assign)', () => {
     ['thiếu department_id', { department_id: undefined }, '2001'],
     ["department_id = 'a'", { department_id: 'a' }, '2002'],
     ['room_id là chuỗi số', { room_id: '3' }, '2002'],
-    ['branch_id vượt INT tối đa', { branch_id: 2147483648 }, '2003'],
+    ['branch_id vượt INT tối đa', { branch_id: MAX_ID + 1 }, '2003'],
   ])('%s → %s', async (_name, override, code) => {
     expect(await codeFor(PlacementDto, { ...valid, ...override })).toBe(code);
   });

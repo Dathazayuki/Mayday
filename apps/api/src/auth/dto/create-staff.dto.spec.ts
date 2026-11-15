@@ -1,5 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { MAX_ID } from '../../common/id.js';
 import { validationErrorsToException } from '../../common/validation.js';
 import { CreateStaffDto } from './create-staff.dto.js';
 
@@ -41,7 +42,7 @@ describe('CreateStaffDto', () => {
 });
 
 describe('CreateStaffDto: id vượt INT tối đa', () => {
-  it('branch_id = 2147483648 → 2003', async () => {
-    expect(await codeFor({ ...valid, branch_id: 2147483648 })).toBe('2003');
+  it('branch_id = MAX_ID + 1 → 2003', async () => {
+    expect(await codeFor({ ...valid, branch_id: MAX_ID + 1 })).toBe('2003');
   });
 });

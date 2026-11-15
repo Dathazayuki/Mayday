@@ -6,7 +6,7 @@ config({ path: ['.env', '../../.env'], quiet: true });
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
-  // CSDL dev dùng `db push`, không commit migration (CSDL thật thuộc nhóm DB, MT-57).
+  // schema.prisma sinh bằng `db:pull` từ lược đồ thật của nhóm DB; không chạy db push/migrate (spec A, mục 3.4).
   migrations: { path: 'prisma/migrations', seed: 'tsx prisma/seed.ts' },
   datasource: { url: process.env.DATABASE_URL ?? '' },
 });

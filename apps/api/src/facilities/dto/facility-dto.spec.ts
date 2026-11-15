@@ -1,5 +1,6 @@
 import { plainToInstance, type ClassConstructor } from 'class-transformer';
 import { validate } from 'class-validator';
+import { MAX_ID } from '../../common/id.js';
 import { validationErrorsToException } from '../../common/validation.js';
 import { CreateBranchDto, UpdateBranchDto } from './branch.dto.js';
 import {
@@ -64,7 +65,7 @@ describe('CreateDepartmentDto', () => {
     ['thiếu name', { name: undefined }, '2001'],
     ['thiếu branch_id', { branch_id: undefined }, '2001'],
     ["branch_id = 'a'", { branch_id: 'a' }, '2002'],
-    ['branch_id vượt INT tối đa', { branch_id: 2147483648 }, '2003'],
+    ['branch_id vượt INT tối đa', { branch_id: MAX_ID + 1 }, '2003'],
     ['description không phải chuỗi', { description: 5 }, '2002'],
   ])('%s → %s', async (_name, override, code) => {
     expect(await codeFor(CreateDepartmentDto, { ...valid, ...override })).toBe(code);
@@ -96,7 +97,7 @@ describe('ListDepartmentsQuery / ListRoomsQuery', () => {
   });
 
   it('vượt INT tối đa → 2003', async () => {
-    expect(await codeFor(ListDepartmentsQuery, { branch_id: '2147483648' })).toBe('2003');
+    expect(await codeFor(ListDepartmentsQuery, { branch_id: String(MAX_ID + 1) })).toBe('2003');
   });
 });
 

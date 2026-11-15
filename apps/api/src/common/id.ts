@@ -3,11 +3,11 @@ import { Transform } from 'class-transformer';
 import { IsInt, IsOptional, Max, type ValidationOptions } from 'class-validator';
 import { isBlank } from './text.js';
 
-/** Giá trị lớn nhất của cột `INT` trong MySQL. */
-export const MAX_INT = 2_147_483_647;
-
-/** Id lớn nhất: khoá chính là cột `INT`. */
-export const MAX_ID = MAX_INT;
+/**
+ * Id lớn nhất: khoá chính trong CSDL là BIGINT nhưng API giữ id kiểu number (spec A, mục 4.3, MT-06),
+ * nên chặn ở 2^53 − 1. Số JSON lớn hơn 2^53 bị làm tròn lên trên MAX_ID nên vẫn bị `@Max` chặn.
+ */
+export const MAX_ID = Number.MAX_SAFE_INTEGER;
 
 /** Chuỗi chỉ gồm chữ số thập phân: không dấu, không dạng 1.5, 1e2 hay 0x10. */
 const DIGITS_PATTERN = /^\d+$/;
