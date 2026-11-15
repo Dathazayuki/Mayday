@@ -1,8 +1,8 @@
 import {
   PATIENT_EDITABLE_FIELDS,
-  isPatientProfile,
   type PatientEditableField,
-  type ProfileData,
+  type PatientProfileFields,
+  type ProfileBase,
   type UpdateProfileRequest,
 } from '@drmayday/shared';
 
@@ -23,11 +23,18 @@ export const PATIENT_FIELD_LABELS: Record<PatientEditableField, string> = {
 /** Giá trị form có cùng dạng với body PUT; trường trống có thể là undefined hoặc chuỗi rỗng. */
 export type ProfileFormValues = UpdateProfileRequest;
 
-/** Giá trị ban đầu của form: chỉ gồm các trường người dùng được sửa (bệnh nhân có thêm nhóm riêng). */
-export function toFormValues(profile: ProfileData): ProfileFormValues {
+/** Hồ sơ dựng được form sửa: họ tên, giới tính và (bệnh nhân) các trường sửa được. */
+type EditableProfile = Pick<ProfileBase, 'full_name' | 'gender'> &
+  Partial<Pick<PatientProfileFields, PatientEditableField>>;
+
+/**
+ * Giá trị ban đầu của form: chỉ gồm các trường người dùng được sửa (bệnh nhân có thêm nhóm riêng).
+ * Nhận cả ProfileData (trang hồ sơ) lẫn PatientData (trang chi tiết bệnh nhân, role_id có thể null).
+ */
+export function toFormValues(profile: EditableProfile): ProfileFormValues {
   const values: ProfileFormValues = { full_name: profile.full_name, gender: profile.gender };
-  if (isPatientProfile(profile)) {
-    for (const field of PATIENT_EDITABLE_FIELDS) Object.assign(values, { [field]: profile[field] });
+  for (const field of PATIENT_EDITABLE_FIELDS) {
+    if (field in profile) Object.assign(values, { [field]: profile[field] });
   }
   return values;
 }

@@ -1,34 +1,16 @@
 import {
-  CAREER_OPTIONS,
-  GENDER_OPTIONS,
   isPatientProfile,
   isStaffDetail,
   type AdminUserDetailData,
-  type PatientEditableField,
   type RoleData,
 } from '@drmayday/shared';
 import { Descriptions, Drawer, Skeleton } from 'antd';
 import type { ReactNode } from 'react';
-import { formatDateTime } from '../../../lib/format-date';
 import { useBranches } from '../../../admin/facilities-api';
 import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
 import { roleLabel } from '../../../admin/rbac-api';
 import { useAdminUser } from '../../../admin/users-api';
-import { PATIENT_FIELD_LABELS } from '../../../profile/profile-form';
-
-const EMPTY = '—';
-
-/** Trường bệnh nhân hiển thị nguyên văn (năm sinh là số, nghề nghiệp tra nhãn nên tách riêng). */
-const PATIENT_TEXT_FIELDS: Exclude<PatientEditableField, 'year_of_birth' | 'career'>[] = [
-  'ethnic',
-  'hamlet_address',
-  'commune_address',
-  'city_address',
-  'health_insurance_number',
-  'health_insurance_validate',
-  'next_of_kin_name',
-  'next_of_kin_phone',
-];
+import { genderLabel, patientFieldItems } from '../../../profile/patient-field-items';
 
 function nameOf(items: { id: string; name: string }[] | undefined, id: number | null): string {
   if (id === null) return 'Chưa phân công';
@@ -48,27 +30,10 @@ function DetailBody({ detail, roles }: { detail: AdminUserDetailData; roles: Rol
     { label: 'Họ và tên', value: detail.full_name },
     { label: 'Số điện thoại', value: detail.phone },
     { label: 'Vai trò', value: roleName(roles, detail.role_id) },
-    {
-      label: 'Giới tính',
-      value: GENDER_OPTIONS.find((g) => g.value === detail.gender)?.label ?? EMPTY,
-    },
+    { label: 'Giới tính', value: genderLabel(detail.gender) },
   ];
   if (isPatientProfile(detail)) {
-    items.push(
-      { label: PATIENT_FIELD_LABELS.year_of_birth, value: detail.year_of_birth ?? EMPTY },
-      {
-        label: PATIENT_FIELD_LABELS.career,
-        value: CAREER_OPTIONS.find((c) => c.value === detail.career)?.label ?? EMPTY,
-      },
-      ...PATIENT_TEXT_FIELDS.map((field) => ({
-        label: PATIENT_FIELD_LABELS[field],
-        value: detail[field] ?? EMPTY,
-      })),
-      {
-        label: 'Lần khám đầu tiên',
-        value: detail.first_visit ? formatDateTime(detail.first_visit) : 'Chưa có',
-      },
-    );
+    items.push(...patientFieldItems(detail));
   } else if (isStaffDetail(detail)) {
     items.push({ label: 'Chi nhánh', value: nameOf(branches.data, detail.branch_id) });
   }
