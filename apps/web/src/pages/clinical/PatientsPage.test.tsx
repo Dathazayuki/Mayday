@@ -1,6 +1,7 @@
 import { App } from 'antd';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { Route, Routes, useParams } from 'react-router';
 import {
   errorResponse,
   jsonResponse,
@@ -19,6 +20,7 @@ const PATIENTS = [
     phone: '0911111111',
     gender: 'female',
     year_of_birth: 1990,
+    has_account: true,
   },
   {
     user_id: 8,
@@ -26,11 +28,17 @@ const PATIENTS = [
     phone: '0922222222',
     gender: 'male',
     year_of_birth: null,
+    has_account: false,
   },
 ];
 
 type Call = { method: string; url: string; body?: string };
 type Handler = (call: Call) => Response;
+
+/** Đích của điều hướng sang trang chi tiết bệnh nhân. */
+function PatientDetailProbe() {
+  return <div>Chi tiết bệnh nhân {useParams().id}</div>;
+}
 
 function setup(overrides: Record<string, Handler> = {}) {
   const calls: Call[] = [];
@@ -53,14 +61,29 @@ function setup(overrides: Record<string, Handler> = {}) {
   seedSession();
   renderApp(
     <App>
-      <PatientsPage />
+      <Routes>
+        <Route path="/patients" element={<PatientsPage />} />
+        <Route path="/patients/:id" element={<PatientDetailProbe />} />
+      </Routes>
     </App>,
+    '/patients',
   );
   return calls;
 }
 
 const searchCalls = (calls: Call[]) =>
   calls.filter((c) => c.method === 'GET' && c.url.includes('/doctor/patients/search'));
+const rowOf = async (name: string) => (await screen.findByText(name)).closest('tr')!;
+
+/** Mở modal "Thêm bệnh nhân" và điền họ tên, số điện thoại. */
+async function openCreateAndFill(user: ReturnType<typeof userEvent.setup>) {
+  await screen.findByText('Lê Thị Mai');
+  await user.click(screen.getByRole('button', { name: 'Thêm bệnh nhân' }));
+  const dialog = await screen.findByRole('dialog');
+  await user.type(within(dialog).getByLabelText('Họ và tên'), '  Phạm Văn Cường ');
+  await user.type(within(dialog).getByLabelText('Số điện thoại'), '0933333333');
+  return dialog;
+}
 
 describe('PatientsPage', () => {
   it('gọi tìm kiếm với page/limit mặc định và hiện danh sách', async () => {
@@ -68,6 +91,20 @@ describe('PatientsPage', () => {
     expect(await screen.findByText('Lê Thị Mai')).toBeInTheDocument();
     expect(screen.getByText('Trần Văn Bình')).toBeInTheDocument();
     expect(searchCalls(calls)[0]!.url).toBe(`${BASE}/doctor/patients/search?page=1&limit=20`);
+  });
+
+  it('cột Tài khoản: Có / Không theo has_account (spec B, mục 8.2)', async () => {
+    setup();
+    expect(await screen.findByRole('columnheader', { name: 'Tài khoản' })).toBeInTheDocument();
+    expect(within(await rowOf('Lê Thị Mai')).getByText('Có')).toBeInTheDocument();
+    expect(within(await rowOf('Trần Văn Bình')).getByText('Không')).toBeInTheDocument();
+  });
+
+  it('bấm dòng → mở trang chi tiết /patients/:id', async () => {
+    setup();
+    const user = userEvent.setup();
+    await user.click(within(await rowOf('Trần Văn Bình')).getByText('Trần Văn Bình'));
+    expect(await screen.findByText('Chi tiết bệnh nhân 8')).toBeInTheDocument();
   });
 
   it('lọc theo từ khoá, giới tính và khoảng năm sinh khi bấm Tìm kiếm', async () => {
@@ -97,28 +134,28 @@ describe('PatientsPage', () => {
     await waitFor(() => expect(searchCalls(calls).at(-1)!.url).toContain('page=2&limit=20'));
   });
 
-  it('lỗi tải danh sách hiện bằng describeError', async () => {
-    setup({ 'GET /doctor/patients/search': () => errorResponse(403, '3102') });
-    expect(await screen.findByText('Chỉ dành cho Admin')).toBeInTheDocument();
+  it('lỗi tải danh sách (thiếu quyền view_patients, 3101) hiện bằng describeError', async () => {
+    setup({ 'GET /doctor/patients/search': () => errorResponse(403, '3101') });
+    expect(await screen.findByText('Không có quyền thực hiện thao tác')).toBeInTheDocument();
   });
 
-  it('tạo bệnh nhân gửi POST /doctor/patients/create với trường hồ sơ đã nhập', async () => {
+  it('tạo bệnh nhân: chú thích tên đăng nhập, không có công tắc tài khoản, luôn gửi mật khẩu (MT-119), xong mở trang chi tiết', async () => {
     const calls = setup({
       'POST /doctor/patients/create': () =>
         jsonResponse(201, { code: '1001', message: 'Created', data: { user_id: 9 } }),
     });
     const user = userEvent.setup();
-    await screen.findByText('Lê Thị Mai');
-    await user.click(screen.getByRole('button', { name: 'Thêm bệnh nhân' }));
-    const dialog = await screen.findByRole('dialog');
-
-    await user.type(within(dialog).getByLabelText('Họ và tên'), '  Phạm Văn Cường ');
-    await user.type(within(dialog).getByLabelText('Số điện thoại'), '0933333333');
+    const dialog = await openCreateAndFill(user);
+    expect(
+      within(dialog).getByText('Số điện thoại là tên đăng nhập của bệnh nhân'),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByRole('switch')).not.toBeInTheDocument();
     await user.type(within(dialog).getByLabelText('Mật khẩu'), 'matkhau123');
     await user.type(within(dialog).getByLabelText('Năm sinh'), '1985');
     await user.type(within(dialog).getByLabelText('Dân tộc'), 'Kinh');
     await user.click(within(dialog).getByRole('button', { name: /Lưu/ }));
 
+    expect(await screen.findByText('Chi tiết bệnh nhân 9')).toBeInTheDocument();
     expect(await screen.findByText('Đã thêm bệnh nhân')).toBeInTheDocument();
     const post = calls.find((c) => c.method === 'POST')!;
     expect(post.url).toBe(`${BASE}/doctor/patients/create`);
@@ -129,18 +166,21 @@ describe('PatientsPage', () => {
       year_of_birth: 1985,
       ethnic: 'Kinh',
     });
-    // Tạo xong thì làm mới danh sách.
-    await waitFor(() => expect(searchCalls(calls).length).toBeGreaterThan(1));
+  });
+
+  it('mật khẩu bắt buộc: bỏ trống thì báo lỗi ngay, không gọi API', async () => {
+    const calls = setup();
+    const user = userEvent.setup();
+    const dialog = await openCreateAndFill(user);
+    await user.click(within(dialog).getByRole('button', { name: /Lưu/ }));
+    expect(await within(dialog).findByText('Vui lòng nhập mật khẩu')).toBeInTheDocument();
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
   });
 
   it('trùng số điện thoại (3006) hiện lỗi từ describeError và giữ form', async () => {
     setup({ 'POST /doctor/patients/create': () => errorResponse(409, '3006') });
     const user = userEvent.setup();
-    await screen.findByText('Lê Thị Mai');
-    await user.click(screen.getByRole('button', { name: 'Thêm bệnh nhân' }));
-    const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText('Họ và tên'), 'Phạm Văn Cường');
-    await user.type(within(dialog).getByLabelText('Số điện thoại'), '0933333333');
+    const dialog = await openCreateAndFill(user);
     await user.type(within(dialog).getByLabelText('Mật khẩu'), 'matkhau123');
     await user.click(within(dialog).getByRole('button', { name: /Lưu/ }));
 

@@ -15,8 +15,17 @@ export interface AccountValues {
   gender?: Gender;
 }
 
-/** `withCredentials`: form tạo mới (có số điện thoại và mật khẩu); form sửa chỉ có họ tên và giới tính. */
-export function AccountFields({ withCredentials }: { withCredentials: boolean }) {
+/**
+ * `withCredentials`: form tạo mới (có số điện thoại và mật khẩu); form sửa chỉ có họ tên và giới tính.
+ * `phoneHint`: chú thích dưới ô số điện thoại của form tạo mới.
+ */
+export function AccountFields({
+  withCredentials,
+  phoneHint,
+}: {
+  withCredentials: boolean;
+  phoneHint?: string;
+}) {
   return (
     <>
       <Form.Item
@@ -37,6 +46,7 @@ export function AccountFields({ withCredentials }: { withCredentials: boolean })
           <Form.Item
             label="Số điện thoại"
             name="phone"
+            extra={phoneHint}
             rules={[
               { required: true, message: 'Vui lòng nhập số điện thoại' },
               {

@@ -8,6 +8,7 @@ import {
 } from '@drmayday/shared';
 import { Button, Form, Input, InputNumber, Select } from 'antd';
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 import { usePatientSearch } from '../../clinical/patients-api';
 import { EntityTable } from '../../components/crud/EntityTable';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
@@ -15,6 +16,7 @@ import { usePageClamp } from '../../components/crud/use-page-clamp';
 import { useEntityModal } from '../../components/crud/use-entity-modal';
 import { Page } from '../../layout/Page';
 import { Panel, PanelToolbar } from '../../layout/Panel';
+import { AccountBadge } from './patients/AccountBadge';
 import { CreatePatientModal } from './patients/CreatePatientModal';
 import type { CreatePatientFormValues } from './patients/create-patient-request';
 
@@ -22,7 +24,9 @@ type Filters = Pick<PatientSearchQuery, 'keyword' | 'gender' | 'min_year' | 'max
 
 const GENDER_LABELS = Object.fromEntries(GENDER_OPTIONS.map((o) => [o.value, o.label]));
 
+/** Tìm bệnh nhân (docpat01) và thêm bệnh nhân (docpat02); bấm dòng mở trang chi tiết (spec B, mục 8.2). */
 export function PatientsPage() {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState<Filters>({});
   const [page, setPage] = useState(PAGE_DEFAULT);
   const [limit, setLimit] = useState(LIMIT_DEFAULT);
@@ -84,6 +88,7 @@ export function PatientsPage() {
           rowKey="user_id"
           data={data?.items}
           loading={isPending || isPlaceholderData}
+          onRowClick={(row) => navigate(`/patients/${row.user_id}`)}
           pagination={{
             current: page,
             pageSize: limit,
@@ -106,6 +111,11 @@ export function PatientsPage() {
               title: 'Năm sinh',
               dataIndex: 'year_of_birth',
               render: (year: number | null) => year !== null && <span className="num">{year}</span>,
+            },
+            {
+              title: 'Tài khoản',
+              dataIndex: 'has_account',
+              render: (hasAccount: boolean) => <AccountBadge hasAccount={hasAccount} />,
             },
           ]}
         />
