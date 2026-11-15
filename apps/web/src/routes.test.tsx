@@ -200,14 +200,14 @@ describe('Định tuyến và đăng nhập', () => {
     await waitFor(() => expect(screen.queryByText('Khám và điều trị')).not.toBeInTheDocument());
   });
 
-  it('vào /medical-records hiện danh sách bệnh án thay vì trang "Sắp ra mắt"', async () => {
+  it('vào /medical-records mở trang bệnh án ở chế độ cột (spec B, mục 8.5)', async () => {
     seedSession();
     vi.stubGlobal(
       'fetch',
       vi.fn(() => Promise.resolve(okResponse([]))),
     );
     renderAt('/medical-records');
-    expect(await screen.findByText('Tất cả trạng thái')).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Cột Chờ tiếp nhận' })).toBeInTheDocument();
   });
 
   it('vào /patients hiện trang tìm bệnh nhân', async () => {

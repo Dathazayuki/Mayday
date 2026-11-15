@@ -380,3 +380,10 @@
 .dm-card[draggable='true'] {
   cursor: grab;
 }
+
+.dm-switch-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}

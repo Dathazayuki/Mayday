@@ -1,113 +1,97 @@
-import {
-  LIMIT_DEFAULT,
-  MEDICAL_RECORD_STATUS_LABELS,
-  MEDICAL_RECORD_STATUSES,
-  PAGE_DEFAULT,
-  RECORD_TYPE_LABELS,
-  type MedicalRecordListItem,
-  type MedicalRecordStatus,
-  type RecordType,
-} from '@drmayday/shared';
-import { Select, Space } from 'antd';
+import { RECORD_TYPES, type RecordType } from '@drmayday/shared';
+import { Button, Checkbox, Segmented, Select, Switch } from 'antd';
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
-import { useMedicalRecords } from '../../clinical/medical-records-api';
-import { MedicalRecordStatusTag } from '../../clinical/status';
-import { formatDateTime } from '../../lib/format-date';
+import { useAuth } from '../../auth/useAuth';
+import { RECORD_TYPE_SHORT_LABELS } from '../../clinical/record-type';
+import { recordsFilter, useRecordsView, type RecordsMode } from '../../clinical/records-view';
 import { Page } from '../../layout/Page';
 import { Panel, PanelToolbar } from '../../layout/Panel';
-import { EntityTable } from '../../components/crud/EntityTable';
-import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
-import { usePageClamp } from '../../components/crud/use-page-clamp';
+import { CreateRecordModal } from './records/CreateRecordModal';
+import { RecordBoard } from './records/RecordBoard';
+import { RecordTable } from './records/RecordTable';
 
-const STATUS_OPTIONS = MEDICAL_RECORD_STATUSES.map((value) => ({
-  value,
-  label: MEDICAL_RECORD_STATUS_LABELS[value],
-}));
+/** Giá trị "Tất cả" của bộ lọc loại (không lọc). */
+const ALL_TYPES = 'all';
 
-/** Danh sách mọi bệnh án (contract mới của spec B); trang bảng/cột, tab số đếm làm ở B4. */
+const TYPE_OPTIONS = [
+  { value: ALL_TYPES, label: 'Tất cả' },
+  ...RECORD_TYPES.map((type) => ({ value: type, label: RECORD_TYPE_SHORT_LABELS[type] })),
+];
+
+const MODE_OPTIONS: { value: RecordsMode; label: string }[] = [
+  { value: 'board', label: 'Cột' },
+  { value: 'table', label: 'Bảng' },
+];
+
+/**
+ * Trang bệnh án (spec B, mục 8.5): hai chế độ cột (mặc định, D-B25) và bảng, chế độ và bộ lọc nằm trên URL;
+ * thanh lọc chung (loại, "Tôi phụ trách"); "Hiện bệnh án đã huỷ" chỉ ở chế độ cột; "Tạo bệnh án" mở hộp tạo
+ * có ô tìm bệnh nhân.
+ */
 export function MedicalRecordsPage() {
-  const navigate = useNavigate();
-  const [status, setStatus] = useState<MedicalRecordStatus | undefined>();
-  const [page, setPage] = useState(PAGE_DEFAULT);
-  const [limit, setLimit] = useState(LIMIT_DEFAULT);
-
-  const { data, error, isPending, isPlaceholderData } = useMedicalRecords({ status, page, limit });
-
-  usePageClamp({ data, isPlaceholderData, page, limit, setPage });
+  const { user } = useAuth();
+  const [view, updateView] = useRecordsView();
+  const [showCancelled, setShowCancelled] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const filter = recordsFilter(view, user ? Number(user.user_id) : undefined);
 
   return (
-    <Page title="Bệnh án">
-      <QueryErrorAlert error={error} />
+    <Page
+      title="Bệnh án"
+      actions={
+        <>
+          <Segmented<RecordsMode>
+            aria-label="Chế độ xem"
+            options={MODE_OPTIONS}
+            value={view.mode}
+            onChange={(mode) => updateView({ mode })}
+          />
+          <Button type="primary" onClick={() => setCreating(true)}>
+            Tạo bệnh án
+          </Button>
+        </>
+      }
+    >
       <Panel flush>
         <PanelToolbar>
-          <Select<MedicalRecordStatus>
-            allowClear
-            placeholder="Tất cả trạng thái"
-            aria-label="Lọc theo trạng thái"
-            style={{ minWidth: 200 }}
-            options={STATUS_OPTIONS}
-            value={status}
-            onChange={(value) => {
-              setStatus(value);
-              setPage(PAGE_DEFAULT);
-            }}
+          <Select<RecordType | typeof ALL_TYPES>
+            aria-label="Lọc theo loại bệnh án"
+            style={{ minWidth: 140 }}
+            options={TYPE_OPTIONS}
+            value={view.type ?? ALL_TYPES}
+            onChange={(type) => updateView({ type: type === ALL_TYPES ? undefined : type })}
           />
+          <Checkbox
+            checked={view.mine}
+            onChange={(event) => updateView({ mine: event.target.checked })}
+          >
+            Tôi phụ trách
+          </Checkbox>
+          {view.mode === 'board' && (
+            <label className="dm-switch-label">
+              <Switch
+                size="small"
+                aria-label="Hiện bệnh án đã huỷ"
+                checked={showCancelled}
+                onChange={setShowCancelled}
+              />
+              Hiện bệnh án đã huỷ
+            </label>
+          )}
         </PanelToolbar>
-        <EntityTable<MedicalRecordListItem>
-          rowKey="medical_record_id"
-          data={data?.items}
-          loading={isPending || isPlaceholderData}
-          onRowClick={(row) => navigate(`/medical-records/${row.medical_record_id}`)}
-          pagination={{
-            current: page,
-            pageSize: limit,
-            total: data?.total ?? 0,
-            showSizeChanger: true,
-            onChange: (nextPage, nextLimit) => {
-              setPage(nextPage);
-              setLimit(nextLimit);
-            },
-          }}
-          columns={[
-            {
-              title: 'Mã bệnh án',
-              dataIndex: 'medical_record_id',
-              render: (value: number) => <span className="num">{value}</span>,
-            },
-            {
-              title: 'Bệnh nhân',
-              key: 'patient',
-              render: (_: unknown, row: MedicalRecordListItem) => (
-                <Space orientation="vertical" size={0}>
-                  <span>{row.patient_name}</span>
-                  <span className="num">{row.patient_phone}</span>
-                </Space>
-              ),
-            },
-            {
-              title: 'Loại',
-              dataIndex: 'record_type',
-              render: (value: RecordType) => RECORD_TYPE_LABELS[value],
-            },
-            {
-              title: 'Trạng thái',
-              dataIndex: 'status',
-              render: (value: MedicalRecordStatus) => <MedicalRecordStatusTag status={value} />,
-            },
-            {
-              title: 'Bác sĩ phụ trách',
-              dataIndex: 'assigned_doctor_name',
-              render: (value: string | null) => value ?? '—',
-            },
-            {
-              title: 'Khám lần đầu',
-              dataIndex: 'first_visit_at',
-              render: (value: string | null) => (value ? formatDateTime(value) : '—'),
-            },
-          ]}
-        />
+        {view.mode === 'board' ? (
+          <RecordBoard filter={filter} showCancelled={showCancelled} />
+        ) : (
+          // Đổi bộ lọc thì dựng lại bảng để về trang 1.
+          <RecordTable
+            key={`${view.type ?? ALL_TYPES}-${view.mine}`}
+            filter={filter}
+            status={view.status}
+            onStatusChange={(status) => updateView({ status })}
+          />
+        )}
       </Panel>
+      <CreateRecordModal open={creating} onClose={() => setCreating(false)} />
     </Page>
   );
 }
