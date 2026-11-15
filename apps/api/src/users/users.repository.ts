@@ -4,6 +4,7 @@ import { AppException, conflict, invalidReference } from '../common/app.exceptio
 import type { PageWindow } from '../common/paginated.js';
 import { hasChanges } from '../common/require-changes.js';
 import type { Prisma, PrismaClient } from '../generated/prisma/client.js';
+import { LOGIN_UNIQUE } from '../prisma/constraint-names.js';
 import { toDbId } from '../prisma/db-id.js';
 import {
   isForeignKeyViolation,
@@ -29,8 +30,6 @@ import {
   type UserRecord,
 } from './user-mapping.js';
 
-/** Unique trên biểu thức lower(ten_dang_nhap) (SQL:1289). Dùng chung với patients.repository.ts. */
-export const LOGIN_UNIQUE = 'uq_tai_khoan_ten_dang_nhap';
 const ACCOUNT_ROLE_FK = 'fk_tai_khoan_vai_tro';
 const STAFF_BRANCH_FK = 'fk_nhan_vien_chi_nhanh';
 

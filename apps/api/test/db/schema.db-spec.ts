@@ -14,7 +14,10 @@ import { APP_PERMISSION_NAMES } from '../../src/permissions/app-permissions.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { createTestApp, findAccount, resetData } from './helpers.js';
 
-/** Tên ràng buộc mà code dựa vào (spec A, mục 4.6), kể cả tên PostgreSQL tự đặt cho phongkham. */
+/**
+ * Tên ràng buộc mà code dựa vào: spec A, mục 4.6 (kể cả tên PostgreSQL tự đặt cho phongkham) và spec B,
+ * mục 4.5 (hồ sơ, phiên khám, subtype bắt buộc, FK chặn xoá).
+ */
 const CONSTRAINTS = [
   'uq_vai_tro_ten',
   'uq_quyen_han_ten',
@@ -24,6 +27,19 @@ const CONSTRAINTS = [
   'phongkham_ma_chi_nhanh_fkey',
   'fk_vtqh_vai_tro',
   'fk_vtqh_quyen_han',
+  'fk_hosobenhan_benhnhan',
+  'fk_phienkham_bacsi',
+  'fk_phienkham_phong',
+  'uq_phienkham_lan_kham',
+  'fk_hoso_bat_buoc_cap',
+  'fk_hoso_bat_buoc_man',
+  'fk_benhanmaydaycap_hoso',
+  'fk_benhanmaydayman_hoso',
+  'fk_phien_bat_buoc_cap',
+  'fk_phien_bat_buoc_man',
+  'fk_phienkhamcap_phienkham',
+  'fk_phienkhamman_phienkham',
+  'fk_phienkham_hoso',
 ];
 
 const ADMIN_PHONE = '0900000098';

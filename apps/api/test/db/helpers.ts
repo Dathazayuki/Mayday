@@ -1,6 +1,6 @@
 import { Controller, Get, type INestApplication, type Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { SYSTEM_ROLE_NAMES } from '@drmayday/shared';
+import { SYSTEM_ROLE_NAMES, type MedicalRecordStatus, type RecordType } from '@drmayday/shared';
 import type { App } from 'supertest/types.js';
 import {
   seedDevAdmin,
@@ -123,25 +123,106 @@ export async function createChronicRecord(
   });
 }
 
-/** Phiên khám mạn (phienkham MAN + phienkhamman) của hồ sơ `recordId`, do nhân viên `doctorId` khám tại phòng `roomId`. */
+/** Bệnh nhân không có tài khoản (nguoi + benhnhan) để dựng dữ liệu trong test; trả ma_nguoi. */
+export async function createPatientRow(
+  prisma: PrismaClient,
+  phone: string,
+  fullName: string,
+): Promise<number> {
+  const person = await prisma.nguoi.create({
+    data: { ho_ten: fullName, so_dien_thoai: phone, benhnhan: { create: {} } },
+  });
+  return Number(person.ma_nguoi);
+}
+
+/** Nhân viên có dòng nhanvien ở chi nhánh `branchId`, không có tài khoản; trả ma_nguoi. */
+export async function createStaffRow(
+  prisma: PrismaClient,
+  phone: string,
+  fullName: string,
+  branchId: number,
+): Promise<number> {
+  const person = await prisma.nguoi.create({
+    data: {
+      ho_ten: fullName,
+      so_dien_thoai: phone,
+      nhanvien: { create: { ma_chi_nhanh: BigInt(branchId) } },
+    },
+  });
+  return Number(person.ma_nguoi);
+}
+
+/** Phiên khám tạo thẳng trong CSDL (API phiên khám có ở B3). Ngày dạng YYYY-MM-DD. */
+export interface TestVisit {
+  recordId: number;
+  type: RecordType;
+  doctorId: number;
+  number: number;
+  date: string;
+  roomId?: number | null;
+  nextAppointment?: string | null;
+  instructions?: string | null;
+}
+
+/**
+ * Phiên khám + subtype phiên trong một transaction: FK "bắt buộc có subtype" kiểm tra lúc COMMIT (spec A,
+ * mục 4.5). `doctorId` phải có dòng nhanvien. Trả ma_phien_kham.
+ */
+export async function createVisit(prisma: PrismaClient, visit: TestVisit): Promise<number> {
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.phienkham.create({
+      data: {
+        ma_ho_so: BigInt(visit.recordId),
+        loai_benh_an: visit.type,
+        ma_bac_si: BigInt(visit.doctorId),
+        ma_phong_kham:
+          visit.roomId === undefined || visit.roomId === null ? null : BigInt(visit.roomId),
+        ngay_kham: new Date(`${visit.date}T00:00:00.000Z`),
+        lan_kham_thu: visit.number,
+        ngay_hen_tai_kham: visit.nextAppointment
+          ? new Date(`${visit.nextAppointment}T00:00:00.000Z`)
+          : null,
+        dan_do: visit.instructions ?? null,
+      },
+    });
+    if (visit.type === 'CAP') {
+      await tx.phienkhamcap.create({ data: { ma_phien_kham: row.ma_phien_kham } });
+    } else {
+      await tx.phienkhamman.create({ data: { ma_phien_kham: row.ma_phien_kham } });
+    }
+    return Number(row.ma_phien_kham);
+  });
+}
+
+/** Phiên khám mạn lần 1 ngày 2026-11-15 của hồ sơ `recordId`, do nhân viên `doctorId` khám tại phòng `roomId`. */
 export async function createChronicVisit(
   prisma: PrismaClient,
   recordId: bigint,
   doctorId: number,
   roomId: number | null,
 ): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    const visit = await tx.phienkham.create({
-      data: {
-        ma_ho_so: recordId,
-        loai_benh_an: 'MAN',
-        ma_bac_si: BigInt(doctorId),
-        ma_phong_kham: roomId === null ? null : BigInt(roomId),
-        ngay_kham: new Date('2026-11-15T00:00:00.000Z'),
-        lan_kham_thu: 1,
-      },
-    });
-    await tx.phienkhamman.create({ data: { ma_phien_kham: visit.ma_phien_kham } });
+  await createVisit(prisma, {
+    recordId: Number(recordId),
+    type: 'MAN',
+    doctorId,
+    roomId,
+    number: 1,
+    date: '2026-11-15',
+  });
+}
+
+/**
+ * Đặt thẳng trạng thái hồ sơ, bỏ qua luồng chuyển trạng thái (B3), để thử luật theo trạng thái (spec B,
+ * mục 13, B2 việc 12).
+ */
+export async function setRecordStatus(
+  prisma: PrismaClient,
+  recordId: number,
+  status: MedicalRecordStatus,
+): Promise<void> {
+  await prisma.hosobenhan.update({
+    where: { ma_ho_so: BigInt(recordId) },
+    data: { trang_thai: status },
   });
 }
 

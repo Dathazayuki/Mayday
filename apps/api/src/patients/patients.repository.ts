@@ -3,6 +3,7 @@ import type { PageResult } from '@drmayday/shared';
 import { AppException } from '../common/app.exception.js';
 import type { PageWindow } from '../common/paginated.js';
 import { Prisma } from '../generated/prisma/client.js';
+import { LOGIN_UNIQUE } from '../prisma/constraint-names.js';
 import { toDbId } from '../prisma/db-id.js';
 import type { CountRow } from '../prisma/db-values.js';
 import { isRecordNotFound, isUniqueViolation } from '../prisma/prisma-errors.js';
@@ -13,7 +14,6 @@ import {
   type NewAccount,
   type ProfileWrite,
 } from '../users/user-mapping.js';
-import { LOGIN_UNIQUE } from '../users/users.repository.js';
 import {
   PATIENT_INCLUDE,
   newPatientToDb,
