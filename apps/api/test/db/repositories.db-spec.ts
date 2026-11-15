@@ -101,6 +101,24 @@ describe('Repository (PostgreSQL thật)', () => {
     });
   });
 
+  describe('UsersRepository.hasStaffRow (MT-106, spec B mục 6.4)', () => {
+    it('có dòng nhanvien → true; chưa phân công, bệnh nhân, người không tồn tại → false', async () => {
+      const staff = await users.create(
+        { ...account('0900000081'), roleId: seed.roles.bac_si },
+        { kind: 'staff', branchId: seed.branchId },
+      );
+      const unassigned = await users.create(
+        { ...account('0900000082'), roleId: seed.roles.bac_si },
+        { kind: 'none' },
+      );
+      const patient = await users.create(account('0900000083'), { kind: 'patient' });
+      await expect(users.hasStaffRow(staff.userId)).resolves.toBe(true);
+      await expect(users.hasStaffRow(unassigned.userId)).resolves.toBe(false);
+      await expect(users.hasStaffRow(patient.userId)).resolves.toBe(false);
+      await expect(users.hasStaffRow(999_999)).resolves.toBe(false);
+    });
+  });
+
   describe('PermissionsRepository.grant', () => {
     it('gán trùng đồng thời → bỏ qua, giữ thoi_diem_gan và ma_nguoi_gan cũ (ON CONFLICT DO NOTHING)', async () => {
       const permissions = app.get(PermissionsRepository);

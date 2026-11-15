@@ -216,6 +216,18 @@ export class UsersRepository {
   }
 
   /**
+   * Có dòng nhanvien (đã phân công, MT-106): điều kiện tiếp nhận và thêm phiên khám (spec B, mục 6.4).
+   * Người không tồn tại → false.
+   */
+  async hasStaffRow(userId: number): Promise<boolean> {
+    const row = await this.prisma.db.nhanvien.findUnique({
+      where: { ma_nhan_vien: toDbId(userId) },
+      select: { ma_nhan_vien: true },
+    });
+    return row !== null;
+  }
+
+  /**
    * Xoá taikhoan, benhnhan, nhanvien rồi nguoi trong một transaction (D6, MT-107). Còn bản ghi khác
    * tham chiếu (FK RESTRICT: hồ sơ, phiên khám, ma_nguoi_gan…) → rollback, 2003 (409). Không có tài
    * khoản → false.
