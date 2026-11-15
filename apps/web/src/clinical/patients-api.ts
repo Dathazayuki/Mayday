@@ -3,6 +3,7 @@ import type {
   PatientData,
   PatientSearchItem,
   PatientSearchQuery,
+  UpdatePatientRequest,
 } from '@drmayday/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api';
@@ -21,7 +22,23 @@ export function usePatientSearch(
   });
 }
 
+/** Chi tiết bệnh nhân (GET /doctor/patients/:id). */
+export function usePatient(patientId: number) {
+  return useQuery({
+    queryKey: [...PATIENTS_KEY, 'detail', patientId],
+    queryFn: () => apiClient.get<PatientData>(`/doctor/patients/${patientId}`),
+  });
+}
+
 export const useCreatePatient = () =>
   useInvalidatingMutation([PATIENTS_KEY], (body: CreatePatientRequest) =>
     apiClient.post<PatientData>('/doctor/patients/create', body),
+  );
+
+/** PUT /doctor/patients/:id; làm mới danh sách và chi tiết. */
+export const useUpdatePatient = () =>
+  useInvalidatingMutation(
+    [PATIENTS_KEY],
+    ({ id, changes }: { id: number; changes: UpdatePatientRequest }) =>
+      apiClient.put<PatientData>(`/doctor/patients/${id}`, changes),
   );

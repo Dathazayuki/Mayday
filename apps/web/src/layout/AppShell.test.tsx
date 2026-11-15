@@ -29,6 +29,7 @@ function renderShell(path: string) {
         <Route path="/" element={<Page title="Trang chủ thử" />} />
         <Route path="/medical-records" element={<Page title="Danh sách bệnh án" />} />
         <Route path="/medical-records/:id" element={<Page title="Bệnh án #5" />} />
+        <Route path="/patients/:id" element={<Page title="Bệnh nhân #5" />} />
       </Route>
     </Routes>,
     path,
@@ -54,6 +55,15 @@ describe('AppShell', () => {
     const nav = screen.getByRole('navigation', { name: 'Điều hướng chính' });
     expect(within(nav).getByRole('link', { name: /Bệnh án/ })).toHaveClass('active');
     expect(within(nav).getByRole('link', { name: /Tổng quan/ })).not.toHaveClass('active');
+  });
+
+  it('trang chi tiết bệnh nhân /patients/:id làm sáng mục Bệnh nhân (spec B, mục 8.1)', async () => {
+    seedSession();
+    stubApi({ admin: false });
+    renderShell('/patients/5');
+    const nav = screen.getByRole('navigation', { name: 'Điều hướng chính' });
+    expect(within(nav).getByRole('link', { name: /Bệnh nhân/ })).toHaveClass('active');
+    expect(within(nav).getByRole('link', { name: /Bệnh án/ })).not.toHaveClass('active');
   });
 
   it('admin thấy nhóm Quản trị hệ thống', async () => {

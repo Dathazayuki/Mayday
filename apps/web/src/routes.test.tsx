@@ -303,4 +303,42 @@ describe('Định tuyến và đăng nhập', () => {
       expect(await screen.findByText('Không tìm thấy trang')).toBeInTheDocument();
     },
   );
+
+  it('vào /patients/:id thì mở trang chi tiết bệnh nhân (route con, không có trong menu)', async () => {
+    seedSession();
+    const patient = {
+      user_id: 7,
+      full_name: 'LÊ THỊ MAI',
+      phone: '0911111111',
+      role_id: 4,
+      gender: null,
+      year_of_birth: null,
+      career: null,
+      ethnic: null,
+      hamlet_address: null,
+      commune_address: null,
+      city_address: null,
+      health_insurance_number: null,
+      health_insurance_validate: null,
+      next_of_kin_name: null,
+      next_of_kin_phone: null,
+      first_visit: null,
+      has_account: true,
+      created_at: '2026-11-15T01:02:03.000Z',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          url.endsWith('/doctor/patients/7')
+            ? okResponse(patient)
+            : url.includes('/notifications')
+              ? jsonResponse(200, { code: '1000', message: 'OK', data: [], total: 0 })
+              : okResponse([]),
+        ),
+      ),
+    );
+    renderAt('/patients/7');
+    expect(await screen.findByRole('heading', { name: 'LÊ THỊ MAI' })).toBeInTheDocument();
+  });
 });

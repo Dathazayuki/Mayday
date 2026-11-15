@@ -7,6 +7,7 @@ import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 import { LoginPage } from './pages/LoginPage';
 import { MedicalRecordDetailPage } from './pages/clinical/MedicalRecordDetailPage';
+import { PatientDetailPage } from './pages/clinical/PatientDetailPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ProfilePage } from './pages/ProfilePage';
 
@@ -31,7 +32,8 @@ export function AppRoutes() {
           {NAV_GROUPS.filter((group) => !group.adminOnly).flatMap((group) =>
             group.items.map(pageRoute),
           )}
-          {/* Màn khám của một bệnh án: không nằm trong menu, vào từ danh sách bệnh án. */}
+          {/* Trang con không nằm trong menu, vào từ danh sách; sidebar sáng mục cha (NavLink không có end). */}
+          <Route path="/patients/:id" element={<PatientDetailPage />} />
           <Route path="/medical-records/:id" element={<MedicalRecordDetailPage />} />
           <Route element={<RequireAdmin />}>
             {NAV_GROUPS.filter((group) => group.adminOnly).flatMap((group) =>
