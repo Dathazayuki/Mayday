@@ -8,18 +8,7 @@ import {
   type MedicalRecordData,
   type TemplateDetailData,
 } from '@drmayday/shared';
-import {
-  Alert,
-  Button,
-  Card,
-  Descriptions,
-  Form,
-  Input,
-  Modal,
-  Popconfirm,
-  Skeleton,
-  Space,
-} from 'antd';
+import { Alert, Button, Descriptions, Form, Input, Modal, Popconfirm, Skeleton, Space } from 'antd';
 import { useState } from 'react';
 import { useParams } from 'react-router';
 import {
@@ -38,6 +27,8 @@ import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { ItemList } from '../../components/ItemList';
 import { useRunAction } from '../../components/crud/use-run-action';
 import { DynamicForm } from '../../components/dynamic-form/DynamicForm';
+import { Page } from '../../layout/Page';
+import { Panel } from '../../layout/Panel';
 import { formatDateTime } from '../../lib/format-date';
 import { useTemplateDetail } from '../../templates/template-detail-api';
 import { LabPanel } from './LabPanel';
@@ -48,7 +39,7 @@ import { Uas7Panel } from './Uas7Panel';
 function SummaryCard({ record }: { record: MedicalRecordData }) {
   const { data, error } = useMedicalRecordSummary(record.medical_record_id);
   return (
-    <Card title={`Bệnh án #${record.medical_record_id}`} style={{ marginBottom: 16 }}>
+    <Panel title="Thông tin bệnh án" style={{ marginBottom: 16 }}>
       <QueryErrorAlert error={error} />
       <Descriptions column={1} size="small">
         <Descriptions.Item label="Bệnh nhân">{data?.patient_name}</Descriptions.Item>
@@ -60,14 +51,14 @@ function SummaryCard({ record }: { record: MedicalRecordData }) {
           <Descriptions.Item label="Dặn dò">{record.instructions}</Descriptions.Item>
         )}
       </Descriptions>
-    </Card>
+    </Panel>
   );
 }
 
 function HistoryCard({ patientId }: { patientId: number }) {
   const { data, error, isPending } = usePatientHistory(patientId);
   return (
-    <Card title="Lịch sử bệnh án của bệnh nhân" style={{ marginBottom: 16 }}>
+    <Panel title="Lịch sử bệnh án của bệnh nhân" style={{ marginBottom: 16 }}>
       <QueryErrorAlert error={error} />
       <ItemList
         loading={isPending}
@@ -77,7 +68,7 @@ function HistoryCard({ patientId }: { patientId: number }) {
         renderItem={(item) => (
           <Space orientation="vertical" size={0}>
             <Space>
-              <span>#{item.medical_record_id}</span>
+              <span className="num">#{item.medical_record_id}</span>
               <MedicalRecordStatusTag status={item.status} />
               <span>{formatDateTime(item.created_at)}</span>
             </Space>
@@ -85,7 +76,7 @@ function HistoryCard({ patientId }: { patientId: number }) {
           </Space>
         )}
       />
-    </Card>
+    </Panel>
   );
 }
 
@@ -162,7 +153,7 @@ function ExamPanel({
   }
 
   return (
-    <Card title={template.name}>
+    <Panel title={template.name}>
       {!finished && (
         <Space style={{ marginBottom: 16 }}>
           {record.status === 'pending' && (
@@ -223,7 +214,7 @@ function ExamPanel({
         onClose={() => setClosing(false)}
         onSubmit={(instructions) => void handleClose(instructions)}
       />
-    </Card>
+    </Panel>
   );
 }
 
@@ -259,7 +250,26 @@ export function MedicalRecordDetailPage() {
   const id = Number(useParams().id);
   const { data, error, isPending } = useMedicalRecord(id);
 
-  if (error) return <Alert type="error" showIcon title={describeError(error)} />;
-  if (isPending) return <Skeleton active />;
-  return <RecordBody record={data} />;
+  const title = `Bệnh án #${id}`;
+  const back = { to: '/medical-records', label: 'Bệnh án' };
+
+  if (error) {
+    return (
+      <Page title={title} back={back}>
+        <Alert type="error" showIcon title={describeError(error)} />
+      </Page>
+    );
+  }
+  if (isPending) {
+    return (
+      <Page title={title} back={back}>
+        <Skeleton active />
+      </Page>
+    );
+  }
+  return (
+    <Page title={title} back={back} subtitle={<MedicalRecordStatusTag status={data.status} />}>
+      <RecordBody record={data} />
+    </Page>
+  );
 }

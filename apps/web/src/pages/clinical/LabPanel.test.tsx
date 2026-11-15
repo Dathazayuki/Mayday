@@ -86,6 +86,19 @@ describe('LabPanel', () => {
     expect(screen.getByText(/IgE: Chưa có kết quả/)).toBeInTheDocument();
   });
 
+  it('trạng thái phiếu dùng StatusBadge đúng tông', async () => {
+    setup({
+      labs: [
+        { ...LABS[0], id: '1', status: 'pending' },
+        { ...LABS[0], id: '2', status: 'in_progress' },
+        { ...LABS[0], id: '3', status: 'completed' },
+      ],
+    });
+    expect(await screen.findByText('Đã có kết quả')).toHaveClass('dm-badge--green');
+    expect(screen.getByText('Chờ thực hiện')).toHaveClass('dm-badge--amber');
+    expect(screen.getByText('Đang thực hiện')).toHaveClass('dm-badge--primary');
+  });
+
   it('không có nút chỉ định khi bệnh án không in_progress', async () => {
     setup({ record: { ...RECORD, status: 'completed' } });
     expect(await screen.findByText('Chưa có chỉ định xét nghiệm')).toBeInTheDocument();

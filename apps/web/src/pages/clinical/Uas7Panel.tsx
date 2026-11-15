@@ -5,17 +5,30 @@ import {
   UAS7_WEEK_MAX,
   type Uas7ScoreData,
 } from '@drmayday/shared';
-import { Card, Descriptions, Table } from 'antd';
+import { Descriptions, Table } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { usePatientUas7History, useUas7Week } from '../../clinical/uas7-api';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
+import { Panel } from '../../layout/Panel';
 import { formatDate } from '../../lib/format-date';
 
 const COLUMNS: ColumnsType<Uas7ScoreData> = [
   { title: 'Ngày', dataIndex: 'score_date', render: (date: string) => formatDate(date) },
-  { title: UAS7_FIELD_LABELS.iss7, dataIndex: 'iss7' },
-  { title: UAS7_FIELD_LABELS.hss7, dataIndex: 'hss7' },
-  { title: 'Tổng ngày', dataIndex: 'daily_score' },
+  {
+    title: UAS7_FIELD_LABELS.iss7,
+    dataIndex: 'iss7',
+    render: (value: number) => <span className="num">{value}</span>,
+  },
+  {
+    title: UAS7_FIELD_LABELS.hss7,
+    dataIndex: 'hss7',
+    render: (value: number) => <span className="num">{value}</span>,
+  },
+  {
+    title: 'Tổng ngày',
+    dataIndex: 'daily_score',
+    render: (value: number) => <span className="num">{value}</span>,
+  },
   { title: 'Ghi chú', dataIndex: 'note', render: (note: string | null) => note ?? '' },
 ];
 
@@ -30,18 +43,22 @@ export function Uas7Panel({ patientId }: { patientId: number }) {
       .map((error) => [describeError(error), error]),
   );
   return (
-    <Card title="Điểm UAS7" style={{ marginBottom: 16 }}>
+    <Panel title="Điểm UAS7" style={{ marginBottom: 16 }}>
       {[...errors].map(([message, error]) => (
         <QueryErrorAlert key={message} error={error} />
       ))}
       {week.data && (
         <Descriptions column={1} size="small" style={{ marginBottom: 16 }}>
           <Descriptions.Item label="Tổng tuần">
-            {week.data.week_score}/{UAS7_WEEK_MAX}
+            <span className="num">
+              {week.data.week_score}/{UAS7_WEEK_MAX}
+            </span>
           </Descriptions.Item>
           <Descriptions.Item label="Mức độ">{week.data.severity_label}</Descriptions.Item>
           <Descriptions.Item label="Đã chấm">
-            {week.data.completed_days}/{UAS7_WEEK_DAYS} ngày
+            <span className="num">
+              {week.data.completed_days}/{UAS7_WEEK_DAYS} ngày
+            </span>
           </Descriptions.Item>
           <Descriptions.Item label="Kỳ tính">
             {formatDate(week.data.start_date)} → {formatDate(week.data.end_date)}
@@ -58,6 +75,6 @@ export function Uas7Panel({ patientId }: { patientId: number }) {
         dataSource={history.data ?? []}
         locale={{ emptyText: 'Bệnh nhân chưa chấm điểm UAS7' }}
       />
-    </Card>
+    </Panel>
   );
 }

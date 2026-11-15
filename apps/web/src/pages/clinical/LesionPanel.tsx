@@ -22,6 +22,7 @@ import {
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { ItemList } from '../../components/ItemList';
 import { AuthorizedImage } from '../../components/media/AuthorizedImage';
+import { Panel } from '../../layout/Panel';
 
 const HTTP_URL = /^https?:\/\//i;
 
@@ -44,7 +45,7 @@ function PhotoCard({ photo }: { photo: LesionPhotoListItem }) {
       />
       {photo.taken_at && <span>{formatDisplayLesionDateTime(photo.taken_at)}</span>}
       <span>{describeScores(photo)}</span>
-      {photo.hives_count !== null && <span>Số nốt sẩn: {photo.hives_count}</span>}
+      {photo.hives_count !== null && <span className="num">Số nốt sẩn: {photo.hives_count}</span>}
       {photo.local_auas !== null && <span>AUAS cục bộ: {photo.local_auas}</span>}
       {photo.annotated_url && HTTP_URL.test(photo.annotated_url) && (
         <a href={photo.annotated_url} target="_blank" rel="noopener noreferrer">
@@ -135,7 +136,7 @@ function EpisodeItem({ episode }: { episode: RecordLesionEpisodeItem }) {
 export function LesionPanel({ medicalRecordId }: { medicalRecordId: number }) {
   const { data, error, isPending } = useRecordLesionEpisodes(medicalRecordId);
   return (
-    <Card title="Tổn thương da" style={{ marginBottom: 16 }}>
+    <Panel title="Tổn thương da" style={{ marginBottom: 16 }}>
       <QueryErrorAlert error={error} />
       <ItemList
         loading={isPending}
@@ -144,6 +145,6 @@ export function LesionPanel({ medicalRecordId }: { medicalRecordId: number }) {
         emptyText="Bệnh nhân chưa ghi nhận đợt tổn thương nào"
         renderItem={(episode) => <EpisodeItem episode={episode} />}
       />
-    </Card>
+    </Panel>
   );
 }

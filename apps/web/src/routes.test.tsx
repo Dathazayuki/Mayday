@@ -227,7 +227,7 @@ describe('Định tuyến và đăng nhập', () => {
     );
     renderAt('/medical-records/5');
     expect(await screen.findByText('Bệnh án #5')).toBeInTheDocument();
-    expect(screen.getByText('Bệnh án chưa gắn mẫu phiếu')).toBeInTheDocument();
+    expect(await screen.findByText('Bệnh án chưa gắn mẫu phiếu')).toBeInTheDocument();
   });
 
   it('vào /admin/facilities hiện trang quản lý cơ sở vật chất', async () => {

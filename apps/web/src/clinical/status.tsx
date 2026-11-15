@@ -1,14 +1,20 @@
 import { MEDICAL_RECORD_STATUS_LABELS, type MedicalRecordStatus } from '@drmayday/shared';
-import { Tag } from 'antd';
+import { StatusBadge } from '../theme/StatusBadge';
 
-const STATUS_COLORS: Record<MedicalRecordStatus, string | undefined> = {
-  draft: undefined,
-  pending: 'orange',
-  in_progress: 'blue',
+type Tone = Parameters<typeof StatusBadge>[0]['tone'];
+
+const MEDICAL_RECORD_STATUS_TONES: Record<MedicalRecordStatus, Tone> = {
+  draft: 'neutral',
+  pending: 'amber',
+  in_progress: 'primary',
   completed: 'green',
   cancelled: 'red',
 };
 
 export function MedicalRecordStatusTag({ status }: { status: MedicalRecordStatus }) {
-  return <Tag color={STATUS_COLORS[status]}>{MEDICAL_RECORD_STATUS_LABELS[status]}</Tag>;
+  return (
+    <StatusBadge tone={MEDICAL_RECORD_STATUS_TONES[status]}>
+      {MEDICAL_RECORD_STATUS_LABELS[status]}
+    </StatusBadge>
+  );
 }

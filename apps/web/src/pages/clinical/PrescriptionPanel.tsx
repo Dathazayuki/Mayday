@@ -4,7 +4,7 @@ import {
   type MedicalRecordData,
   type PrescriptionData,
 } from '@drmayday/shared';
-import { Alert, Button, Card, Table, Typography } from 'antd';
+import { Alert, Button, Table, Typography } from 'antd';
 import { useState } from 'react';
 import { canExamine } from '../../clinical/record-state';
 import { useCreatePrescription, useIssuedPrescription } from '../../clinical/prescriptions-api';
@@ -13,6 +13,7 @@ import {
   type PrescriptionFormValues,
 } from '../../clinical/request-builders';
 import { useRunAction } from '../../components/crud/use-run-action';
+import { Panel } from '../../layout/Panel';
 import { formatDateTime } from '../../lib/format-date';
 import { ItemsFormModal, type ItemField } from './ItemsFormModal';
 
@@ -74,7 +75,7 @@ export function PrescriptionPanel({ record }: { record: MedicalRecordData }) {
   const canIssue = canExamine(record) && !issued && !lockedReason;
 
   return (
-    <Card
+    <Panel
       title="Đơn thuốc"
       style={{ marginBottom: 16 }}
       extra={
@@ -102,6 +103,6 @@ export function PrescriptionPanel({ record }: { record: MedicalRecordData }) {
         onClose={() => setOpen(false)}
         onSubmit={(values) => void handleSubmit(values)}
       />
-    </Card>
+    </Panel>
   );
 }

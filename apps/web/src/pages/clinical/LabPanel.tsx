@@ -1,9 +1,10 @@
 import {
   LAB_REQUEST_STATUS_LABELS,
+  type LabRequestStatus,
   type LabResultRequestData,
   type MedicalRecordData,
 } from '@drmayday/shared';
-import { Button, Card, Space, Typography } from 'antd';
+import { Button, Space, Typography } from 'antd';
 import { useState } from 'react';
 import { useCreateLabRequest, useLabResults } from '../../clinical/labs-api';
 import { buildLabRequest, type LabRequestFormValues } from '../../clinical/request-builders';
@@ -11,6 +12,8 @@ import { canExamine } from '../../clinical/record-state';
 import { ItemList } from '../../components/ItemList';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { useRunAction } from '../../components/crud/use-run-action';
+import { Panel } from '../../layout/Panel';
+import { StatusBadge } from '../../theme/StatusBadge';
 import { formatDateTime } from '../../lib/format-date';
 import { ItemsFormModal, type ItemField } from './ItemsFormModal';
 
@@ -19,12 +22,20 @@ const FIELDS: ItemField[] = [
   { name: 'description', label: 'Mô tả' },
 ];
 
+const LAB_STATUS_TONES: Record<LabRequestStatus, 'amber' | 'primary' | 'green'> = {
+  pending: 'amber',
+  in_progress: 'primary',
+  completed: 'green',
+};
+
 function LabRequestItem({ request }: { request: LabResultRequestData }) {
   return (
     <>
       <Space orientation="vertical" size={4} style={{ width: '100%' }}>
         <Space>
-          <strong>{LAB_REQUEST_STATUS_LABELS[request.status] ?? request.status}</strong>
+          <StatusBadge tone={LAB_STATUS_TONES[request.status] ?? 'neutral'}>
+            {LAB_REQUEST_STATUS_LABELS[request.status] ?? request.status}
+          </StatusBadge>
           <span>{formatDateTime(request.created_at)}</span>
           {request.note && <Typography.Text type="secondary">{request.note}</Typography.Text>}
         </Space>
@@ -58,7 +69,7 @@ export function LabPanel({ record }: { record: MedicalRecordData }) {
   }
 
   return (
-    <Card
+    <Panel
       title="Xét nghiệm"
       style={{ marginBottom: 16 }}
       extra={
@@ -86,6 +97,6 @@ export function LabPanel({ record }: { record: MedicalRecordData }) {
         onClose={() => setOpen(false)}
         onSubmit={(values) => void handleSubmit(values)}
       />
-    </Card>
+    </Panel>
   );
 }
