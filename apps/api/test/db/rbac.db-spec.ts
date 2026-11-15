@@ -147,7 +147,7 @@ describe('Vai trò, quyền, gán quyền và RBAC động (MySQL thật)', () =
     ])('POST %s → %s / %s', async (_name, status, code, body) => {
       const res = await call('post', '/permissions').send(body).expect(status);
       expect(res.body).toMatchObject({ code });
-      expect(await prisma.permissions.count()).toBe(5);
+      expect(await prisma.permissions.count()).toBe(6);
     });
 
     it('GET → 1000, theo id tăng dần, có created_at/updated_at ISO 8601', async () => {
@@ -322,8 +322,8 @@ describe('Vai trò, quyền, gán quyền và RBAC động (MySQL thật)', () =
     ])('%s %s → 400 / %s (field %s), không ghi gì', async (method, path, code, field) => {
       const res = await call(method, path).send({ name: 'x' }).expect(400);
       expect(res.body).toMatchObject({ code, data: { field } });
-      expect(await prisma.permissions.count()).toBe(5);
-      expect(await prisma.role_permissions.count()).toBe(13);
+      expect(await prisma.permissions.count()).toBe(6);
+      expect(await prisma.role_permissions.count()).toBe(14);
     });
   });
 

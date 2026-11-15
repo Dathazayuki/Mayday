@@ -1,12 +1,18 @@
 import type { INestApplicationContext, Type } from '@nestjs/common';
 import { DiscoveryService, MetadataScanner, ModulesContainer, Reflector } from '@nestjs/core';
 import { DECORATORS, type ApiOperationOptions } from '@nestjs/swagger';
+import { declaredPermissions } from './require-permission.decorator.js';
 import { routesOf, type RouteKey } from './route-key.js';
 
-/** Một dòng của `api_endpoints`: `name` = `<Controller>.<method>`, `description` = summary của @ApiOperation. */
+/**
+ * Một dòng của `api_endpoints`: `name` = `<Controller>.<method>`, `description` = summary của
+ * @ApiOperation; kèm `permissions` = quyền khai báo bằng @RequirePermission (để ghi vào
+ * `permissions_endpoints`).
+ */
 export interface EndpointDefinition extends RouteKey {
   name: string;
   description: string | null;
+  permissions: string[];
 }
 
 /**
@@ -31,10 +37,12 @@ export function listEndpoints(app: INestApplicationContext): EndpointDefinition[
           handler,
         );
         const name = `${controller.name}.${methodName}`;
+        const permissions = declaredPermissions(reflector, controller, handler);
         return routesOf(reflector, controller, handler).map((route) => ({
           ...route,
           name,
           description: operation?.summary ?? null,
+          permissions,
         }));
       });
     });

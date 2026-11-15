@@ -5,6 +5,7 @@ import { ApiOperation } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 import { Public } from '../auth/public.decorator.js';
 import { listEndpoints } from './endpoint-sync.js';
+import { RequirePermission } from './require-permission.decorator.js';
 
 @Injectable()
 class SampleService {}
@@ -17,6 +18,7 @@ class SampleController {
   @Get()
   list() {}
 
+  @RequirePermission('manage_samples')
   @Delete(':id/items/:item_id')
   removeItem() {}
 
@@ -30,6 +32,18 @@ class OpenController {
   ping() {}
 }
 
+/** Quyền khai báo ở controller gộp với quyền khai báo ở handler. */
+@RequirePermission('manage_reports')
+@Controller('reports')
+class ReportsController {
+  @Get()
+  list() {}
+
+  @RequirePermission('export_reports')
+  @Post('export')
+  export() {}
+}
+
 describe('listEndpoints (DiscoveryService)', () => {
   // Lệnh đồng bộ chạy bằng tsx (esbuild không sinh metadata cho DI) nên dựng app ở chế độ preview.
   it.each([
@@ -39,13 +53,13 @@ describe('listEndpoints (DiscoveryService)', () => {
     '%s: liệt kê mọi route (kể cả @Public, mỗi đường dẫn một dòng), bỏ method không phải route',
     async (_name, preview) => {
       const moduleRef = await Test.createTestingModule({
-        controllers: [SampleController, OpenController],
+        controllers: [SampleController, OpenController, ReportsController],
         providers: [SampleService],
       }).compile({ preview });
 
       const endpoints = listEndpoints(moduleRef);
 
-      expect(endpoints).toHaveLength(4);
+      expect(endpoints).toHaveLength(6);
       expect(endpoints).toEqual(
         expect.arrayContaining([
           {
@@ -53,16 +67,36 @@ describe('listEndpoints (DiscoveryService)', () => {
             method: 'GET',
             path: '/api/v1/samples',
             description: 'Danh sách mẫu',
+            permissions: [],
           },
           {
             name: 'SampleController.removeItem',
             method: 'DELETE',
             path: '/api/v1/samples/:id/items/:item_id',
             description: null,
+            permissions: ['manage_samples'],
           },
-          { name: 'OpenController.ping', method: 'POST', path: '/api/v1/ping', description: null },
-          { name: 'OpenController.ping', method: 'POST', path: '/api/v1/echo', description: null },
+          {
+            name: 'OpenController.ping',
+            method: 'POST',
+            path: '/api/v1/ping',
+            description: null,
+            permissions: [],
+          },
+          {
+            name: 'OpenController.ping',
+            method: 'POST',
+            path: '/api/v1/echo',
+            description: null,
+            permissions: [],
+          },
         ]),
+      );
+      const permissionsOf = (name: string) =>
+        endpoints.find((endpoint) => endpoint.name === name)?.permissions;
+      expect(permissionsOf('ReportsController.list')).toEqual(['manage_reports']);
+      expect(permissionsOf('ReportsController.export')).toEqual(
+        expect.arrayContaining(['manage_reports', 'export_reports']),
       );
       await moduleRef.close();
     },
@@ -96,6 +130,8 @@ describe('AppModule dựng bằng tsx ở chế độ preview (như db:seed, db:
         'GET /api/v1/admin/users',
         'GET /api/v1/roles',
         'POST /api/v1/role_permissions',
+        'GET /api/v1/templates/all',
+        'PUT /api/v1/templates/questions/:id',
       ]),
     );
   }, 60_000);

@@ -3,7 +3,8 @@ import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { seedBase } from '../../prisma/seed.js';
-import { syncEndpoints } from '../../scripts/sync-endpoints.js';
+import { syncDeclaredPermissions, syncEndpoints } from '../../scripts/sync-endpoints.js';
+import { PermissionCache } from '../../src/permissions/permission-cache.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { createTestApp, resetData } from './helpers.js';
@@ -70,10 +71,14 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
       prisma.users.count(),
       prisma.staffs.count(),
       prisma.permissions.count(),
-      // view_facilities cho 9 vai trò + 4 quyền manage_* cho admin.
+      // view_facilities cho 9 vai trò + 5 quyền manage_* cho admin.
       prisma.role_permissions.count(),
+      prisma.templates.count(),
+      prisma.template_sections.count(),
+      prisma.questions.count(),
+      prisma.question_options.count(),
     ]);
-    expect(counts).toEqual([9, 1, 1, 1, 1, 1, 5, 13]);
+    expect(counts).toEqual([9, 1, 1, 1, 1, 1, 6, 14, 1, 2, 3, 2]);
 
     const admin = await prisma.users.findUniqueOrThrow({
       where: { so_dien_thoai: opts.adminPhone },
@@ -125,6 +130,27 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
         expires_at: new Date(Date.now() + 3_600_000),
       },
     });
+    await prisma.templates.create({
+      data: {
+        code_template: 'TMPL_THEM',
+        name: 'Mẫu thêm',
+        template_sections: {
+          create: {
+            title: 'Phần thêm',
+            order: 1,
+            questions: {
+              create: {
+                question_id: 'Q_THEM',
+                question_text: 'Câu hỏi thêm',
+                type_question: 'radio',
+                order: 1,
+                question_options: { create: { option_text: 'Có', option_value: 'YES', order: 1 } },
+              },
+            },
+          },
+        },
+      },
+    });
     const extra = await prisma.permissions.create({ data: { name: 'quyen_them' } });
     await prisma.role_permissions.create({
       data: { role_id: roles.doctor, permission_id: extra.permission_id },
@@ -156,7 +182,12 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
     ]);
     expect(baseCounts).toEqual([9, 1, 1, 1]);
     expect(await prisma.permissions.count({ where: { name: 'quyen_them' } })).toBe(0);
-    expect(await prisma.permissions.count()).toBe(5);
+    expect(await prisma.permissions.count()).toBe(6);
+    // Mẫu phiếu: chỉ còn mẫu dev của seed.
+    expect((await prisma.templates.findMany()).map(({ code_template }) => code_template)).toEqual([
+      'TMPL_DEV_SAMPLE',
+    ]);
+    expect(await prisma.questions.count({ where: { question_id: 'Q_THEM' } })).toBe(0);
     // api_endpoints được giữ giữa các test (createTestApp đồng bộ một lần), chỉ mất gắn quyền thêm.
     expect(await prisma.api_endpoints.count()).toBe(endpointCount);
     expect(
@@ -242,12 +273,13 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
       );
     });
 
-    it('5 quyền mặc định gắn với route quản trị đang có', async () => {
+    it('6 quyền mặc định gắn với route quản trị đang có', async () => {
       const names = (await prisma.permissions.findMany()).map(({ name }) => name).sort();
       expect(names).toEqual([
         'manage_facilities',
         'manage_permissions',
         'manage_roles',
+        'manage_templates',
         'manage_users',
         'view_facilities',
       ]);
@@ -301,6 +333,53 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
       });
       expect(facilityReads).toHaveLength(6);
       expect(facilityReads.flatMap((row) => row.permissions_endpoints)).toEqual([]);
+      // manage_templates: gắn qua @RequirePermission (syncDeclaredPermissions), đủ 9 API ghi của mẫu
+      // phiếu; 2 API đọc không gắn quyền nào.
+      const templateWrites = [
+        'DELETE /api/v1/templates/:id',
+        'DELETE /api/v1/templates/questions/:id',
+        'DELETE /api/v1/templates/sections/:id',
+        'POST /api/v1/templates',
+        'POST /api/v1/templates/:template_id/sections',
+        'POST /api/v1/templates/sections/:section_id/questions',
+        'PUT /api/v1/templates/:id',
+        'PUT /api/v1/templates/questions/:id',
+        'PUT /api/v1/templates/sections/:id',
+      ];
+      expect(await routesOf('manage_templates')).toEqual(templateWrites);
+      expect(await routesOf('manage_templates')).toEqual(
+        await existingRoutes(/^(POST|PUT|DELETE) \/api\/v1\/templates/),
+      );
+    });
+
+    it('syncDeclaredPermissions: tạo quyền khai báo còn thiếu, giữ mô tả quyền đã có, chạy lại không nhân đôi', async () => {
+      const templates = await prisma.permissions.findUniqueOrThrow({
+        where: { name: 'manage_templates' },
+      });
+      expect(templates.description).toBe('Thiết kế mẫu phiếu khám');
+      await prisma.permissions.update({
+        where: { permission_id: templates.permission_id },
+        data: { description: 'Mô tả do admin sửa' },
+      });
+      const mappings = await prisma.permissions_endpoints.count();
+
+      await syncDeclaredPermissions(app, prisma);
+      expect(await prisma.permissions_endpoints.count()).toBe(mappings);
+      await expect(
+        prisma.permissions.findUniqueOrThrow({ where: { name: 'manage_templates' } }),
+      ).resolves.toMatchObject({
+        permission_id: templates.permission_id,
+        description: 'Mô tả do admin sửa',
+      });
+
+      // CSDL chưa có quyền (VD chạy db:sync-endpoints trước db:seed): tạo quyền, gắn lại đủ route.
+      await prisma.permissions.delete({ where: { permission_id: templates.permission_id } });
+      await syncDeclaredPermissions(app, prisma);
+      app.get(PermissionCache).invalidate();
+      await expect(
+        prisma.permissions.findUniqueOrThrow({ where: { name: 'manage_templates' } }),
+      ).resolves.toMatchObject({ description: null });
+      expect(await routesOf('manage_templates')).toHaveLength(9);
     });
 
     it('seed lại không ghi đè quyết định của admin: quyền đã thu hồi, mô tả đã sửa', async () => {
@@ -339,6 +418,7 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
         'manage_roles',
         'manage_permissions',
         'manage_facilities',
+        'manage_templates',
       ]) {
         expect(holders(permission)).toEqual(['admin']);
       }

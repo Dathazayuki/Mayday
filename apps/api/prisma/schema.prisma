@@ -206,3 +206,84 @@ model token_blacklist {
   updated_at       DateTime @default(now()) @updatedAt @db.DateTime(0)
   user             users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: Restrict)
 }
+
+// ---- Mẫu phiếu khám động (spec giai đoạn 3, mục 2) ----
+// MT-67: tài liệu CSDL ghi template_sections.template_id và parent_question_id kiểu int trong khi PK
+// đã đổi sang varchar; CSDL dev dùng varchar cho cả hai để FK và chỉ mục khớp nhau.
+
+enum template_sections_filled_by {
+  patient
+  doctor
+  patdoc
+}
+
+enum questions_type_question {
+  text
+  number
+  date
+  radio
+  checkbox
+  image_upload
+  group_questions
+  mix_text_image
+}
+
+model templates {
+  code_template     String              @id @db.VarChar(255)
+  name              String              @db.VarChar(255)
+  description       String?             @db.Text
+  version           String              @default("1.0") @db.VarChar(50)
+  is_active         Boolean             @default(true)
+  created_at        DateTime            @default(now()) @db.DateTime(0)
+  updated_at        DateTime            @default(now()) @updatedAt @db.DateTime(0)
+  template_sections template_sections[]
+}
+
+model template_sections {
+  section_id  Int                          @id @default(autoincrement())
+  template_id String                       @db.VarChar(255)
+  title       String                       @db.VarChar(255)
+  order       Int
+  is_required Boolean                      @default(false)
+  filled_by   template_sections_filled_by?
+  created_at  DateTime                     @default(now()) @db.DateTime(0)
+  updated_at  DateTime                     @default(now()) @updatedAt @db.DateTime(0)
+  template    templates                    @relation(fields: [template_id], references: [code_template], onDelete: Cascade, onUpdate: Restrict)
+  questions   questions[]
+}
+
+// parent_question_id chỉ có chỉ mục, không có FK (tài liệu CSDL): cây câu hỏi cha–con do API kiểm tra.
+model questions {
+  question_id        String                  @id @db.VarChar(50)
+  section_id         Int
+  question_text      String                  @db.Text
+  type_question      questions_type_question
+  placeholder        String?                 @db.VarChar(255)
+  order              Int
+  is_required        Boolean                 @default(false)
+  parent_question_id String?                 @db.VarChar(50)
+  show_if_answer     Json?
+  condition_rules    Json?
+  help_text          String?                 @db.Text
+  allow_image        Boolean                 @default(false)
+  created_at         DateTime                @default(now()) @db.DateTime(0)
+  updated_at         DateTime                @default(now()) @updatedAt @db.DateTime(0)
+  section            template_sections       @relation(fields: [section_id], references: [section_id], onDelete: Cascade, onUpdate: Restrict)
+  question_options   question_options[]
+
+  @@index([parent_question_id])
+}
+
+model question_options {
+  id                   Int       @id @default(autoincrement())
+  question_id          String    @db.VarChar(50)
+  option_text          String    @db.VarChar(255)
+  option_value         String    @db.VarChar(50)
+  order                Int
+  has_text_input       Boolean   @default(false)
+  trigger_image_upload Boolean   @default(false)
+  image_upload_label   String?   @db.VarChar(255)
+  created_at           DateTime  @default(now()) @db.DateTime(0)
+  updated_at           DateTime  @default(now()) @updatedAt @db.DateTime(0)
+  question             questions @relation(fields: [question_id], references: [question_id], onDelete: Cascade, onUpdate: Restrict)
+}

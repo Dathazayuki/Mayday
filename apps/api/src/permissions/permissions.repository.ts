@@ -16,10 +16,14 @@ export interface NewPermission {
 /** Quyền đã gán cho vai trò, kèm thông tin quyền. */
 export type GrantedPermission = role_permissions & { permission: permissions };
 
-/** Dữ liệu của PermissionsGuard: quyền gắn với từng endpoint và quyền của từng vai trò. */
+/**
+ * Dữ liệu của PermissionsGuard: quyền gắn với từng endpoint, quyền của từng vai trò và tên của mọi
+ * quyền (để tra quyền khai báo bằng @RequirePermission).
+ */
 export interface AccessRules {
   endpointPermissions: (RouteKey & { permissionId: number })[];
   rolePermissions: { roleId: number; permissionId: number }[];
+  permissions: { permissionId: number; name: string }[];
 }
 
 /** Bảng `permissions`, `role_permissions` và (chỉ đọc) `permissions_endpoints` ⋈ `api_endpoints`. */
@@ -96,16 +100,22 @@ export class PermissionsRepository {
     return count > 0;
   }
 
-  /** Chưa cấu hình CSDL thì chưa endpoint nào gắn quyền: mọi route đều qua lớp RBAC động. */
+  /**
+   * Chưa cấu hình CSDL thì chưa endpoint nào gắn quyền: chỉ còn quyền khai báo bằng @RequirePermission
+   * (PermissionsGuard vẫn áp dụng).
+   */
   async findAccessRules(): Promise<AccessRules> {
-    if (!this.prisma.configured) return { endpointPermissions: [], rolePermissions: [] };
-    const [endpointPermissions, rolePermissions] = await this.prisma.db.$transaction([
+    if (!this.prisma.configured) {
+      return { endpointPermissions: [], rolePermissions: [], permissions: [] };
+    }
+    const [endpointPermissions, rolePermissions, permissions] = await this.prisma.db.$transaction([
       this.prisma.db.permissions_endpoints.findMany({
         select: { permission_id: true, endpoint: { select: { method: true, path: true } } },
       }),
       this.prisma.db.role_permissions.findMany({
         select: { role_id: true, permission_id: true },
       }),
+      this.prisma.db.permissions.findMany({ select: { permission_id: true, name: true } }),
     ]);
     return {
       endpointPermissions: endpointPermissions.map(({ permission_id, endpoint }) => ({
@@ -115,6 +125,10 @@ export class PermissionsRepository {
       rolePermissions: rolePermissions.map(({ role_id, permission_id }) => ({
         roleId: role_id,
         permissionId: permission_id,
+      })),
+      permissions: permissions.map(({ permission_id, name }) => ({
+        permissionId: permission_id,
+        name,
       })),
     };
   }

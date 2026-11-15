@@ -16,7 +16,13 @@ const RULES: AccessRules = {
     { roleId: 6, permissionId: 2 },
     { roleId: 6, permissionId: 3 },
   ],
+  permissions: [
+    { permissionId: 1, name: 'view_samples' },
+    { permissionId: 3, name: 'manage_samples' },
+  ],
 };
+
+const NO_RULES: AccessRules = { endpointPermissions: [], rolePermissions: [], permissions: [] };
 
 function setup(rules: AccessRules = RULES) {
   const findAccessRules = vi
@@ -41,6 +47,13 @@ describe('PermissionCache', () => {
     expect((await cache.endpointPermissions([])).size).toBe(0);
   });
 
+  it('tra id quyền theo tên (quyền khai báo bằng @RequirePermission); tên chưa có thì bỏ qua', async () => {
+    const { cache } = setup();
+    expect([...(await cache.permissionIds(['manage_samples', 'view_samples']))]).toEqual([3, 1]);
+    expect([...(await cache.permissionIds(['manage_samples', 'chua_co']))]).toEqual([3]);
+    expect((await cache.permissionIds([])).size).toBe(0);
+  });
+
   it('khớp cả method: cùng đường dẫn, khác method là endpoint khác', async () => {
     const { cache } = setup();
     expect((await cache.endpointPermissions([{ ...LIST, method: 'POST' }])).size).toBe(0);
@@ -56,7 +69,7 @@ describe('PermissionCache', () => {
   it('invalidate → lần tra sau đọc lại CSDL', async () => {
     const { cache, findAccessRules } = setup();
     await cache.endpointPermissions([LIST]);
-    findAccessRules.mockResolvedValue({ endpointPermissions: [], rolePermissions: [] });
+    findAccessRules.mockResolvedValue(NO_RULES);
     cache.invalidate();
     expect((await cache.endpointPermissions([LIST])).size).toBe(0);
     expect(findAccessRules).toHaveBeenCalledTimes(2);
@@ -66,7 +79,7 @@ describe('PermissionCache', () => {
     const { cache, findAccessRules } = setup();
     const stale = cache.endpointPermissions([LIST]);
     cache.invalidate();
-    findAccessRules.mockResolvedValue({ endpointPermissions: [], rolePermissions: [] });
+    findAccessRules.mockResolvedValue(NO_RULES);
     await stale;
     expect((await cache.endpointPermissions([LIST])).size).toBe(0);
     expect(findAccessRules).toHaveBeenCalledTimes(2);
