@@ -247,3 +247,9 @@
   align-items: center;
   gap: 8px;
 }
+
+/* Trang bệnh án (spec B, mục 8.5–8.6): tab của chế độ bảng, bảng cột, thẻ. Chỉ dùng biến --dm-*. */
+.dm-records-tabs .ant-tabs-nav {
+  margin: 0;
+  padding: 0 16px;
+}
