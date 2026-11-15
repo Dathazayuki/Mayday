@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import type { SeedResult } from '../../prisma/seed.js';
+import { MAX_ID } from '../../src/common/id.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import { PermissionCache } from '../../src/permissions/permission-cache.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
@@ -188,7 +189,6 @@ describe('Vai trò, quyền, gán quyền và RBAC động (MySQL thật)', () =
       ['không gửi trường nào', 400, '2001', () => seed.permissions.manage_roles, {}],
       ['không tồn tại', 404, '2003', () => 999_999, { name: 'x' }],
       ['trùng tên', 409, '2003', () => seed.permissions.manage_roles, { name: 'manage_users' }],
-      ['id không phải số', 400, '2002', () => 'abc', { name: 'x' }],
     ])('PUT %s → %s / %s', async (_name, status, code, id, body) => {
       const res = await call('put', `/permissions/${id()}`).send(body).expect(status);
       expect(res.body).toMatchObject({ code });
@@ -290,12 +290,9 @@ describe('Vai trò, quyền, gán quyền và RBAC động (MySQL thật)', () =
       });
     });
 
-    it.each([
-      ['vai trò không tồn tại', 404, '2003', '999999'],
-      ['role_id không phải số', 400, '2002', 'abc'],
-    ])('GET %s → %s / %s', async (_name, status, code, roleId) => {
-      const res = await call('get', `/role_permissions/role/${roleId}`).expect(status);
-      expect(res.body).toMatchObject({ code });
+    it('GET vai trò không tồn tại → 404 / 2003', async () => {
+      const res = await call('get', '/role_permissions/role/999999').expect(404);
+      expect(res.body).toEqual({ code: '2003', message: 'Invalid parameter value' });
     });
 
     it('DELETE thu hồi → 1000 {}; chưa gán (thu hồi lần hai) → 404 / 2003', async () => {
@@ -307,28 +304,51 @@ describe('Vai trò, quyền, gán quyền và RBAC động (MySQL thật)', () =
       const again = await call('delete', path).expect(404);
       expect(again.body).toEqual({ code: '2003', message: 'Invalid parameter value' });
     });
+  });
 
-    it('DELETE tham số không phải số → 400 / 2002', async () => {
-      const res = await call('delete', `/role_permissions/${seed.roles.doctor}/abc`).expect(400);
-      expect(res.body).toMatchObject({ code: '2002', data: { field: 'permission_id' } });
+  describe('tham số id trên đường dẫn (parseIdPipe, luật id chung của common/id.ts)', () => {
+    it.each<[Method, string, string, string]>([
+      ['put', '/permissions/abc', '2002', 'id'],
+      ['put', '/permissions/1e2', '2002', 'id'],
+      ['delete', '/permissions/0', '2002', 'id'],
+      ['delete', '/permissions/-1', '2002', 'id'],
+      ['delete', `/permissions/${MAX_ID + 1}`, '2003', 'id'],
+      ['get', '/role_permissions/role/abc', '2002', 'role_id'],
+      ['get', '/role_permissions/role/1.5', '2002', 'role_id'],
+      ['get', `/role_permissions/role/${MAX_ID + 1}`, '2003', 'role_id'],
+      ['delete', '/role_permissions/abc/1', '2002', 'role_id'],
+      ['delete', '/role_permissions/1/0x10', '2002', 'permission_id'],
+      ['delete', `/role_permissions/1/${MAX_ID + 1}`, '2003', 'permission_id'],
+    ])('%s %s → 400 / %s (field %s), không ghi gì', async (method, path, code, field) => {
+      const res = await call(method, path).send({ name: 'x' }).expect(400);
+      expect(res.body).toMatchObject({ code, data: { field } });
+      expect(await prisma.permissions.count()).toBe(5);
+      expect(await prisma.role_permissions.count()).toBe(13);
     });
   });
 
   describe('RBAC động (PermissionsGuard)', () => {
     /**
-     * Route GET cơ sở vật chất chưa có ở nhánh này, nên dùng route có bảo vệ đang có mà bệnh nhân gọi
-     * được: POST /auth/logout. Không có API cho permissions_endpoints (spec mục 1) nên ghi thẳng CSDL
-     * rồi xoá cache như API làm.
+     * Gắn quyền với endpoint `METHOD path` (đường dẫn mẫu). Không có API cho permissions_endpoints
+     * (spec mục 1) nên ghi thẳng CSDL rồi xoá cache như API làm; trả id dòng gắn để gỡ lại.
      */
-    async function requireOnLogout(permissionId: number): Promise<void> {
+    async function requirePermission(
+      method: string,
+      path: string,
+      permissionId: number,
+    ): Promise<number> {
       const endpoint = await prisma.api_endpoints.findUniqueOrThrow({
-        where: { method_path: { method: 'POST', path: '/api/v1/auth/logout' } },
+        where: { method_path: { method, path } },
       });
-      await prisma.permissions_endpoints.create({
+      const { permissions_endpoints_id } = await prisma.permissions_endpoints.create({
         data: { permission_id: permissionId, endpoint_id: endpoint.api_endpoints_id },
       });
       app.get(PermissionCache).invalidate();
+      return permissions_endpoints_id;
     }
+    /** POST /auth/logout: route có bảo vệ mà vai trò nào cũng gọi được, seed không gắn quyền. */
+    const requireOnLogout = (permissionId: number) =>
+      requirePermission('POST', '/api/v1/auth/logout', permissionId);
     const logout = (token: string) => call('post', '/auth/logout', token);
     const revoke = (roleId: number, permissionId: number) =>
       call('delete', `/role_permissions/${roleId}/${permissionId}`).expect(200);
@@ -368,6 +388,28 @@ describe('Vai trò, quyền, gán quyền và RBAC động (MySQL thật)', () =
 
       await call('delete', `/permissions/${permission}`).expect(200);
       await logout(token).expect(200);
+    });
+
+    it('GET /branches (seed không gắn quyền, spec mục 3.2): gắn quyền bệnh nhân không có → 3101; gỡ gắn → 1000', async () => {
+      const token = await patientToken();
+      const listBranches = () => call('get', '/branches', token);
+      await listBranches().expect(200);
+
+      const mapping = await requirePermission(
+        'GET',
+        '/api/v1/branches',
+        seed.permissions.manage_facilities,
+      );
+      const denied = await listBranches().expect(403);
+      expect(denied.body).toEqual({ code: '3101', message: 'Permission denied' });
+      // So khớp theo đường dẫn mẫu: GET /branches/:id không gắn quyền nên vẫn gọi được; admin luôn qua.
+      await call('get', `/branches/${seed.branchId}`, token).expect(200);
+      await call('get', '/branches').expect(200);
+
+      await prisma.permissions_endpoints.delete({ where: { permissions_endpoints_id: mapping } });
+      app.get(PermissionCache).invalidate();
+      const allowed = await listBranches().expect(200);
+      expect(allowed.body).toMatchObject({ code: '1000', data: [expect.any(Object)] });
     });
   });
 });

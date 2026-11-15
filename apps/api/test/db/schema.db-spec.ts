@@ -261,17 +261,46 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
         'POST /api/v1/role_permissions',
         'PUT /api/v1/permissions/:id',
       ]);
-      // Route của module chưa có (người dùng, cơ sở vật chất) không có trong api_endpoints nên được
-      // bỏ qua; route nào đã có thì được gắn.
-      expect(await routesOf('manage_users')).toContain('POST /api/v1/auth/admin/create-staff');
+      // Mọi route khai báo trong seed đều có thật (route không có trong api_endpoints bị seed bỏ qua).
+      const adminUserRoutes = [
+        'DELETE /api/v1/admin/users/:id',
+        'GET /api/v1/admin/users',
+        'GET /api/v1/admin/users/:id',
+        'POST /api/v1/admin/users',
+        'POST /api/v1/auth/admin/create-staff',
+        'PUT /api/v1/admin/users/:id',
+        'PUT /api/v1/admin/users/:id/assign',
+      ];
+      expect(await routesOf('manage_users')).toEqual(adminUserRoutes);
       expect(await routesOf('manage_users')).toEqual(
         await existingRoutes(/^\w+ \/api\/v1\/(admin\/users|auth\/admin\/create-staff)/),
       );
-      // view_facilities không gắn route nào: mọi người đã đăng nhập đều xem được (spec mục 3.2).
-      expect(await routesOf('view_facilities')).toEqual([]);
+      expect(await routesOf('manage_facilities')).toEqual(
+        ['branches', 'departments', 'rooms']
+          .flatMap((resource) => [
+            `DELETE /api/v1/${resource}/:id`,
+            `POST /api/v1/${resource}`,
+            `PUT /api/v1/${resource}/:id`,
+          ])
+          .sort(),
+      );
       expect(await routesOf('manage_facilities')).toEqual(
         await existingRoutes(/^(POST|PUT|DELETE) \/api\/v1\/(branches|departments|rooms)(\/:id)?$/),
       );
+      // view_facilities không gắn route nào: mọi người đã đăng nhập đều xem được (spec mục 3.2). Các
+      // route GET cơ sở vật chất có thật nhưng không gắn quyền nào.
+      expect(await routesOf('view_facilities')).toEqual([]);
+      const facilityReads = await prisma.api_endpoints.findMany({
+        where: {
+          method: 'GET',
+          OR: ['branches', 'departments', 'rooms'].map((resource) => ({
+            path: { startsWith: `/api/v1/${resource}` },
+          })),
+        },
+        include: { permissions_endpoints: true },
+      });
+      expect(facilityReads).toHaveLength(6);
+      expect(facilityReads.flatMap((row) => row.permissions_endpoints)).toEqual([]);
     });
 
     it('seed lại không ghi đè quyết định của admin: quyền đã thu hồi, mô tả đã sửa', async () => {

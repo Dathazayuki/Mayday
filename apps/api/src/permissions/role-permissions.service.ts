@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { RolePermissionData } from '@drmayday/shared';
-import { AppException, notFound } from '../common/app.exception.js';
+import { invalidReference, notFound } from '../common/app.exception.js';
 import { RolesRepository } from '../roles/roles.repository.js';
 import type { SetRolePermissionsDto } from './dto/set-role-permissions.dto.js';
 import { PermissionCache } from './permission-cache.js';
@@ -28,12 +28,10 @@ export class RolePermissionsService {
 
   /** Vai trò hoặc một quyền nào đó không tồn tại → 2003. Quyền đã gán thì bỏ qua (test case slide 38). */
   async assign(dto: SetRolePermissionsDto): Promise<void> {
-    if (!(await this.roles.findById(dto.role_id))) {
-      throw new AppException('2003', { field: 'role_id' });
-    }
+    if (!(await this.roles.findById(dto.role_id))) throw invalidReference('role_id');
     const permissionIds = [...new Set(dto.permissions)];
     if ((await this.permissions.countExisting(permissionIds)) !== permissionIds.length) {
-      throw new AppException('2003', { field: 'permissions' });
+      throw invalidReference('permissions');
     }
     await this.permissions.grant(dto.role_id, permissionIds);
     this.cache.invalidate();

@@ -1,7 +1,7 @@
-import { Body, Controller, Delete, Get, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { RolePermissionData } from '@drmayday/shared';
-import { IntParam } from '../common/int-param.decorator.js';
+import { parseIdPipe } from '../common/parse-id.pipe.js';
 import { RequireRole } from '../roles/require-role.decorator.js';
 import { SetRolePermissionsDto } from './dto/set-role-permissions.dto.js';
 import { RolePermissionsService } from './role-permissions.service.js';
@@ -21,14 +21,16 @@ export class RolePermissionsController {
   }
 
   @Get('role/:role_id')
-  listByRole(@IntParam('role_id') roleId: number): Promise<RolePermissionData[]> {
+  listByRole(
+    @Param('role_id', parseIdPipe('role_id')) roleId: number,
+  ): Promise<RolePermissionData[]> {
     return this.rolePermissions.listByRole(roleId);
   }
 
   @Delete(':role_id/:permission_id')
   async revoke(
-    @IntParam('role_id') roleId: number,
-    @IntParam('permission_id') permissionId: number,
+    @Param('role_id', parseIdPipe('role_id')) roleId: number,
+    @Param('permission_id', parseIdPipe('permission_id')) permissionId: number,
   ): Promise<Record<string, never>> {
     await this.rolePermissions.revoke(roleId, permissionId);
     return {};

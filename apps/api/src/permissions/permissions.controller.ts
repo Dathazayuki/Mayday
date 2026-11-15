@@ -1,7 +1,7 @@
-import { Body, Controller, Delete, Get, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { PermissionData, PermissionSummary } from '@drmayday/shared';
-import { IntParam } from '../common/int-param.decorator.js';
+import { parseIdPipe } from '../common/parse-id.pipe.js';
 import { ResponseCode } from '../common/response-code.decorator.js';
 import { RequireRole } from '../roles/require-role.decorator.js';
 import { CreatePermissionDto } from './dto/create-permission.dto.js';
@@ -28,12 +28,15 @@ export class PermissionsController {
   }
 
   @Put(':id')
-  update(@IntParam('id') id: number, @Body() dto: UpdatePermissionDto): Promise<PermissionData> {
+  update(
+    @Param('id', parseIdPipe()) id: number,
+    @Body() dto: UpdatePermissionDto,
+  ): Promise<PermissionData> {
     return this.permissions.update(id, dto);
   }
 
   @Delete(':id')
-  async remove(@IntParam('id') id: number): Promise<Record<string, never>> {
+  async remove(@Param('id', parseIdPipe()) id: number): Promise<Record<string, never>> {
     await this.permissions.remove(id);
     return {};
   }

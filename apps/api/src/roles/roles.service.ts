@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { RoleData } from '@drmayday/shared';
-import { AppException } from '../common/app.exception.js';
+import { invalidReference } from '../common/app.exception.js';
 import type { roles } from '../generated/prisma/client.js';
 import { PermissionCache } from '../permissions/permission-cache.js';
 import type { CreateRoleDto } from './dto/create-role.dto.js';
@@ -27,7 +27,7 @@ export class RolesService {
   async create(dto: CreateRoleDto): Promise<RoleData> {
     const parentRoleId = dto.parent_role_id ?? null;
     if (parentRoleId !== null && !(await this.roles.findById(parentRoleId))) {
-      throw new AppException('2003', { field: 'parent_role_id' });
+      throw invalidReference('parent_role_id');
     }
     const role = await this.roles.create({
       name: dto.name,

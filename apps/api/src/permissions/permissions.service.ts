@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { PermissionData, PermissionSummary } from '@drmayday/shared';
-import { AppException, notFound } from '../common/app.exception.js';
+import { notFound } from '../common/app.exception.js';
+import { requireChanges } from '../common/require-changes.js';
 import type { permissions } from '../generated/prisma/client.js';
 import type { CreatePermissionDto } from './dto/create-permission.dto.js';
 import type { UpdatePermissionDto } from './dto/update-permission.dto.js';
@@ -47,7 +48,7 @@ export class PermissionsService {
 
   /** Không gửi trường nào → 2001; không tồn tại → 2003 (404); trùng tên → 2003 (409). */
   async update(permissionId: number, dto: UpdatePermissionDto): Promise<PermissionData> {
-    if (dto.name === undefined && dto.description === undefined) throw new AppException('2001');
+    requireChanges(dto);
     const permission = await this.permissions.update(permissionId, {
       name: dto.name,
       description: dto.description,

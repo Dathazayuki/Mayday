@@ -1,5 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { MAX_ID } from '../../common/id.js';
 import { validationErrorsToException } from '../../common/validation.js';
 import { CreateRoleDto } from './create-role.dto.js';
 
@@ -26,6 +27,7 @@ describe('CreateRoleDto', () => {
     ['description không phải chuỗi', { description: 1 }, '2002'],
     ['description dài quá 255 ký tự', { description: 'a'.repeat(256) }, '2003'],
     ['parent_role_id không phải số nguyên', { parent_role_id: '6' }, '2002'],
+    ['parent_role_id vượt INT tối đa', { parent_role_id: MAX_ID + 1 }, '2003'],
   ])('%s → %s', async (_name, override, code) => {
     expect(await codeFor({ ...valid, ...override })).toBe(code);
   });

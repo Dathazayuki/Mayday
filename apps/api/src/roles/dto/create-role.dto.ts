@@ -1,5 +1,6 @@
 import type { CreateRoleRequest } from '@drmayday/shared';
-import { IsDefined, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsDefined, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IdRule } from '../../common/id.js';
 
 /** POST /roles — Sheet tab "POST /api/roles" (role01). Vai trò cha tồn tại hay không do RolesService kiểm tra (2003). */
 export class CreateRoleDto implements CreateRoleRequest {
@@ -15,6 +16,6 @@ export class CreateRoleDto implements CreateRoleRequest {
   description?: string;
 
   @IsOptional()
-  @IsInt()
+  @IdRule()
   parent_role_id?: number | null;
 }

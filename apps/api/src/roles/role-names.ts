@@ -18,3 +18,6 @@ export type RoleName = (typeof ROLE_NAMES)[number];
 
 /** Vai trò của bệnh nhân (bảng subtype `patients`); mọi vai trò khác là nhân viên (`staffs`). */
 export const PATIENT_ROLE: RoleName = 'patient';
+
+/** Vai trò quản trị: luôn qua lớp RBAC động (PermissionsGuard). */
+export const ADMIN_ROLE: RoleName = 'admin';

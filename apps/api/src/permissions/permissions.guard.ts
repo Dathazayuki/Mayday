@@ -3,12 +3,10 @@ import { Reflector } from '@nestjs/core';
 import type { AuthenticatedRequest } from '../auth/jwt-auth.guard.js';
 import { IS_PUBLIC_KEY } from '../auth/public.decorator.js';
 import { AppException } from '../common/app.exception.js';
-import type { RoleName } from '../roles/role-names.js';
+import { ADMIN_ROLE } from '../roles/role-names.js';
 import { RolesRepository } from '../roles/roles.repository.js';
 import { PermissionCache } from './permission-cache.js';
 import { routesOf } from './route-key.js';
-
-const ADMIN_ROLE: RoleName = 'admin';
 
 /**
  * Guard toàn cục của RBAC động (spec giai đoạn 2, mục 4), chạy sau JwtAuthGuard và RolesGuard.

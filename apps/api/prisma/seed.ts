@@ -53,8 +53,8 @@ const FACILITY_RESOURCES = ['branches', 'departments', 'rooms'];
  * Quyền mặc định (spec giai đoạn 2, mục 4), giữ hành vi mặc định khớp Sheet: API quản trị chỉ cho
  * admin. `view_facilities` được seed và cấp cho mọi vai trò nhưng KHÔNG gắn với route GET cơ sở vật
  * chất: theo spec mục 3.2 mọi người đã đăng nhập đều xem được, vai trò tạo sau không được bị 3101.
- * Route của module chưa có (VD cơ sở vật chất) được bỏ qua; chạy lại seed sau khi module có route
- * thì tự gắn.
+ * Route chưa có trong `api_endpoints` thì bỏ qua (schema.db-spec kiểm mọi route khai báo ở đây đều có
+ * thật); chạy lại seed sau khi thêm route thì tự gắn.
  */
 const PERMISSION_SEEDS: Record<PermissionName, PermissionSeed> = {
   manage_users: {
