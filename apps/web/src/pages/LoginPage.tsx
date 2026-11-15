@@ -75,7 +75,9 @@ export function LoginPage() {
                 validator: (_, value: string | undefined) =>
                   !value || isValidVietnamPhone(value)
                     ? Promise.resolve()
-                    : Promise.reject(new Error('Số điện thoại không đúng định dạng (VD: 0912345678)')),
+                    : Promise.reject(
+                        new Error('Số điện thoại không đúng định dạng (VD: 0912345678)'),
+                      ),
               },
             ]}
           >

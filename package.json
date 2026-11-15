@@ -14,7 +14,8 @@
     "dev:web": "pnpm --filter @drmayday/web dev",
     "dev:mobile": "pnpm --filter @drmayday/mobile start",
     "dev:shared": "pnpm --filter @drmayday/shared exec tsc -p tsconfig.build.json --watch",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "prettier": "^3.4.2"

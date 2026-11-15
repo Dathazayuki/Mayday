@@ -6,14 +6,14 @@ Tài liệu chuẩn của dự án nằm ở [docs/README.md](docs/README.md). K
 
 ## Cấu trúc
 
-| Thư mục | Nội dung |
-|---|---|
-| `apps/api` | API NestJS 12 + Prisma 7, tiền tố `/api/v1`, Swagger ở `/api/v1/docs` |
-| `apps/web` | Web bác sĩ và quản trị: React 19, Vite, Ant Design |
-| `apps/mobile` | App bệnh nhân: Expo SDK 58, expo-router |
-| `packages/shared` | Mã phản hồi, API client, kiểm tra dữ liệu dùng chung |
-| `docs/` | Tài liệu chuẩn, spec và kế hoạch triển khai |
-| `tai-lieu-goc/` | Slide gốc |
+| Thư mục           | Nội dung                                                              |
+| ----------------- | --------------------------------------------------------------------- |
+| `apps/api`        | API NestJS 12 + Prisma 7, tiền tố `/api/v1`, Swagger ở `/api/v1/docs` |
+| `apps/web`        | Web bác sĩ và quản trị: React 19, Vite, Ant Design                    |
+| `apps/mobile`     | App bệnh nhân: Expo SDK 58, expo-router                               |
+| `packages/shared` | Mã phản hồi, API client, kiểm tra dữ liệu dùng chung                  |
+| `docs/`           | Tài liệu chuẩn, spec và kế hoạch triển khai                           |
+| `tai-lieu-goc/`   | Slide gốc                                                             |
 
 ## Yêu cầu
 

@@ -228,7 +228,9 @@ describe('ProfilePage', () => {
       .mockResolvedValueOnce(okResponse(PATIENT_PROFILE))
       // Lần refetch: server đã có thành phố mới do nơi khác sửa.
       .mockResolvedValueOnce(okResponse({ ...PATIENT_PROFILE, city_address: 'Huế' }))
-      .mockResolvedValueOnce(okResponse({ ...PATIENT_PROFILE, city_address: 'Huế', ethnic: 'Tày' }));
+      .mockResolvedValueOnce(
+        okResponse({ ...PATIENT_PROFILE, city_address: 'Huế', ethnic: 'Tày' }),
+      );
     vi.stubGlobal('fetch', fetchMock);
     seedSession();
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });

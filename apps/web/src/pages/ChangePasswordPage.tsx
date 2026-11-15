@@ -21,7 +21,10 @@ export function ChangePasswordPage() {
       return;
     }
     // Server đã thu hồi token. Chỉ điều hướng; LoginPage thấy thông báo này sẽ xoá phiên cục bộ.
-    navigate('/login', { replace: true, state: { notice: PASSWORD_CHANGED_NOTICE } satisfies LoginLocationState });
+    navigate('/login', {
+      replace: true,
+      state: { notice: PASSWORD_CHANGED_NOTICE } satisfies LoginLocationState,
+    });
   }
 
   return (

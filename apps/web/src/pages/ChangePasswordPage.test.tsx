@@ -15,13 +15,13 @@ function renderPage() {
   seedSession();
   renderApp(
     <>
-    <LocationStateProbe />
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route element={<RequireAuth />}>
-        <Route path="/change-password" element={<ChangePasswordPage />} />
-      </Route>
-    </Routes>
+      <LocationStateProbe />
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route element={<RequireAuth />}>
+          <Route path="/change-password" element={<ChangePasswordPage />} />
+        </Route>
+      </Routes>
     </>,
     '/change-password',
   );

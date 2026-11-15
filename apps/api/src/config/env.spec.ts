@@ -12,7 +12,9 @@ describe('validateEnv', () => {
   });
 
   it('đọc số từ chuỗi', () => {
-    expect(validateEnv({ ...base, PORT: '4000', JWT_EXPIRES_IN: '600', MINIO_PORT: '9000' })).toMatchObject({
+    expect(
+      validateEnv({ ...base, PORT: '4000', JWT_EXPIRES_IN: '600', MINIO_PORT: '9000' }),
+    ).toMatchObject({
       PORT: 4000,
       JWT_EXPIRES_IN: 600,
       MINIO_PORT: 9000,

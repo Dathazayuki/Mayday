@@ -78,7 +78,9 @@ describe('AuthProvider.logout khi API treo', () => {
       vi.fn(
         (_url: string, init: RequestInit) =>
           new Promise((_, reject) => {
-            init.signal?.addEventListener('abort', () => reject(new DOMException('', 'AbortError')));
+            init.signal?.addEventListener('abort', () =>
+              reject(new DOMException('', 'AbortError')),
+            );
           }),
       ),
     );
