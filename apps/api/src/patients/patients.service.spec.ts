@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import type { CreatePatientRequest } from '@drmayday/shared';
 import type { PasswordService } from '../auth/password.service.js';
 import { Paginated } from '../common/paginated.js';
 import type { RoleRecord } from '../roles/role-mapping.js';
@@ -184,7 +185,10 @@ describe('PatientsService (spec B, mục 5.2)', () => {
 
     it('không gửi gender → null', async () => {
       const { service, patients } = setup();
-      await service.create({ ...dto, gender: undefined } as CreatePatientDto);
+      await service.create({
+        ...(dto as CreatePatientRequest),
+        gender: undefined,
+      } as CreatePatientDto);
       expect(patients.create).toHaveBeenCalledWith(
         expect.objectContaining({ gender: null }),
         expect.anything(),
