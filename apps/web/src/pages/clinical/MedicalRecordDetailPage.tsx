@@ -1,40 +1,56 @@
 import { describeError, RECORD_TYPE_LABELS, type MedicalRecordData } from '@drmayday/shared';
 import { Alert, Descriptions, Skeleton, Space } from 'antd';
-import type { ReactNode } from 'react';
-import { useParams } from 'react-router';
+import { useState, type ReactNode } from 'react';
+import { Link, useParams } from 'react-router';
+import { EMPTY_VALUE } from '../../clinical/clinical-display';
 import { useMedicalRecord, usePatientHistory } from '../../clinical/medical-records-api';
+import { RecordTypeBadge } from '../../clinical/record-type';
 import { MedicalRecordStatusTag } from '../../clinical/status';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { ItemList } from '../../components/ItemList';
 import { Page } from '../../layout/Page';
 import { Panel } from '../../layout/Panel';
 import { formatDate, formatDateTime } from '../../lib/format-date';
+import { AddVisitModal } from './records/AddVisitModal';
+import { CaseFieldsPanel } from './records/CaseFieldsPanel';
+import { RecordActions } from './records/RecordActions';
+import { SelfReportPanel } from './records/SelfReportPanel';
+import { useTransitions } from './records/TransitionModals';
+import { VisitsPanel } from './records/VisitsPanel';
 
-const EMPTY = '—';
+const BACK = { to: '/medical-records', label: 'Bệnh án' };
 
 /** "Khám lần đầu …" hoặc "Chưa đến khám" (hồ sơ chưa tiếp nhận, D-B9). */
 function firstVisitText(firstVisitAt: string | null): string {
   return firstVisitAt ? formatDateTime(firstVisitAt) : 'Chưa đến khám';
 }
 
+/** Phụ đề: họ tên (link tới trang bệnh nhân) · loại · trạng thái (spec B, mục 8.7). */
+function RecordSubtitle({ record }: { record: MedicalRecordData }) {
+  return (
+    <Space size={8} wrap>
+      <Link to={`/patients/${record.patient_id}`}>{record.patient_name}</Link>
+      <RecordTypeBadge type={record.record_type} />
+      <MedicalRecordStatusTag status={record.status} />
+    </Space>
+  );
+}
+
 /** Panel "Tóm tắt" (spec B, mục 8.7): trường suy ra của hồ sơ (mục 3.8). */
 function SummaryPanel({ record }: { record: MedicalRecordData }) {
   const items: { label: string; value: ReactNode }[] = [
-    { label: 'Bệnh nhân', value: `${record.patient_name} · ${record.patient_phone}` },
-    { label: 'Loại bệnh án', value: RECORD_TYPE_LABELS[record.record_type] },
-    { label: 'Trạng thái', value: <MedicalRecordStatusTag status={record.status} /> },
-    { label: 'Bác sĩ phụ trách', value: record.assigned_doctor_name ?? EMPTY },
+    { label: 'Bác sĩ phụ trách', value: record.assigned_doctor_name ?? EMPTY_VALUE },
     { label: 'Khám lần đầu', value: firstVisitText(record.first_visit_at) },
     { label: 'Số phiên khám', value: <span className="num">{record.visit_count}</span> },
     {
       label: 'Lần khám gần nhất',
-      value: record.last_visit_date ? formatDate(record.last_visit_date) : EMPTY,
+      value: record.last_visit_date ? formatDate(record.last_visit_date) : EMPTY_VALUE,
     },
     {
       label: 'Hẹn tái khám',
-      value: record.next_appointment_date ? formatDate(record.next_appointment_date) : EMPTY,
+      value: record.next_appointment_date ? formatDate(record.next_appointment_date) : EMPTY_VALUE,
     },
-    { label: 'Dặn dò gần nhất', value: record.instructions ?? EMPTY },
+    { label: 'Dặn dò gần nhất', value: record.instructions ?? EMPTY_VALUE },
   ];
   return (
     <Panel title="Tóm tắt">
@@ -79,36 +95,52 @@ function HistoryPanel({ patientId }: { patientId: number }) {
 }
 
 /**
- * Màn chi tiết bệnh án. Phiếu động đã gỡ (D-B27); trong lúc chờ form có kiểu, phiên khám (B5) và thao
- * tác chuyển trạng thái (B4/B5), màn chỉ có tóm tắt và lịch sử bệnh án của bệnh nhân (spec B, mục 13,
- * B2). Panel UAS7, đơn thuốc, xét nghiệm, tổn thương da giữ file tới tiểu dự án C nhưng không render
- * ở đây (spec B, mục 8.9).
+ * Màn chi tiết bệnh án (spec B, mục 8.7): thao tác theo `allowed_actions` (hộp xác nhận dùng chung của
+ * bảng cột), "Tóm tắt", "Bệnh nhân tự khai", "Hồ sơ" và bệnh án cấp/mạn (form có kiểu dựng từ bộ mô tả,
+ * D-B13; chỉ ở dạng của nhân viên), "Phiên khám", lịch sử bệnh án của bệnh nhân. Panel UAS7, đơn thuốc,
+ * xét nghiệm, tổn thương da giữ file tới tiểu dự án C nhưng không render (mục 8.9).
  */
 export function MedicalRecordDetailPage() {
   const id = Number(useParams().id);
   const { data, error, isPending } = useMedicalRecord(id);
+  const transitions = useTransitions();
+  const [addingVisit, setAddingVisit] = useState(false);
 
   const title = `Bệnh án #${id}`;
-  const back = { to: '/medical-records', label: 'Bệnh án' };
-
   if (error) {
     return (
-      <Page title={title} back={back}>
+      <Page title={title} back={BACK}>
         <Alert type="error" showIcon title={describeError(error)} />
       </Page>
     );
   }
   if (isPending) {
     return (
-      <Page title={title} back={back}>
+      <Page title={title} back={BACK}>
         <Skeleton active />
       </Page>
     );
   }
   return (
-    <Page title={title} back={back}>
+    <Page
+      title={title}
+      subtitle={<RecordSubtitle record={data} />}
+      back={BACK}
+      actions={
+        <RecordActions
+          record={data}
+          transitions={transitions}
+          onAddVisit={() => setAddingVisit(true)}
+        />
+      }
+    >
       <SummaryPanel record={data} />
+      <SelfReportPanel record={data} />
+      {data.details && <CaseFieldsPanel record={data} details={data.details} />}
+      <VisitsPanel record={data} onAddVisit={() => setAddingVisit(true)} />
       <HistoryPanel patientId={data.patient_id} />
+      {transitions.modals}
+      <AddVisitModal recordId={id} open={addingVisit} onClose={() => setAddingVisit(false)} />
     </Page>
   );
 }
