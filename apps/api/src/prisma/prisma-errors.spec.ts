@@ -1,3 +1,4 @@
+import { createServer } from 'node:net';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Prisma, PrismaClient } from '../generated/prisma/client.js';
 import {
@@ -9,6 +10,7 @@ import {
   recordNotFound,
   uniqueViolation,
   valueTooLong,
+  validationError,
 } from './prisma-error.fixture.js';
 import {
   checkConstraintName,
@@ -167,7 +169,48 @@ describe('isDatabaseConnectionError (spec A, mục 4.6)', () => {
   );
 });
 
+describe('hết giờ kết nối pg-pool (9902)', () => {
+  it(
+    'server nhận kết nối nhưng không trả lời: model và $queryRaw đều là lỗi kết nối',
+    { timeout: 30_000 },
+    async () => {
+      const server = createServer(() => undefined);
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      const { port } = server.address() as { port: number };
+      const prisma = new PrismaClient({
+        adapter: new PrismaPg({
+          connectionString: `postgresql://u:p@127.0.0.1:${port}/db`,
+          connectionTimeoutMillis: 300,
+        }),
+      });
+      try {
+        const errors = await Promise.all([
+          prisma.nguoi.findFirst().catch((error: unknown) => error),
+          prisma.$queryRaw`SELECT 1`.catch((error: unknown) => error),
+        ]);
+        for (const error of errors) expect(isDatabaseConnectionError(error)).toBe(true);
+        expect(describeDatabaseError(errors[0])).toContain('connection timeout');
+      } finally {
+        await prisma.$disconnect();
+        server.close();
+      }
+    },
+  );
+});
+
 describe('describeDatabaseError', () => {
+  it('lỗi validate: chỉ ghi tên lớp lỗi, không bao giờ ghi message (chứa tham số gọi)', () => {
+    const text = describeDatabaseError(validationError())!;
+    expect(text).toBe('name=PrismaClientValidationError');
+    expect(text).not.toContain('0912345678');
+  });
+
+  it('KnownRequestError không có driver cause: không ghi message của Prisma', () => {
+    const text = describeDatabaseError(knownError('P2025', undefined, 'Record 0912345678 gone'))!;
+    expect(text).toContain('code=P2025');
+    expect(text).not.toContain('0912345678');
+  });
+
   it('có code, kind, SQLSTATE, tên ràng buộc, message; không có detail (dữ liệu cá nhân)', () => {
     const text = describeDatabaseError(checkViolation('ck_nguoi_ho_ten'))!;
     expect(text).toContain('code=P2039');

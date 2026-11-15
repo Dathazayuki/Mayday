@@ -61,6 +61,10 @@ export const connectionError = (code = 'P1001') =>
 
 export const recordNotFound = () => knownError('P2025');
 
+/** Lỗi validate của Prisma: message dựng lại nguyên tham số gọi (có thể chứa dữ liệu cá nhân). */
+export const validationError = (message = 'Unknown argument `so_dien_thoai`: "0912345678"') =>
+  new Prisma.PrismaClientValidationError(message, { clientVersion });
+
 /** Lỗi lúc COMMIT của transaction tương tác: DriverAdapterError thô, không có code/meta (spike 3c). */
 export function commitError(cause: DriverCause): Error {
   return Object.assign(new Error(cause.kind ?? 'DriverAdapterError'), {

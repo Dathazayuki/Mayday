@@ -69,10 +69,24 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return { code: '2003', httpStatus: 400 };
     }
     // Lỗi CSDL chỉ ghi code/kind/SQLSTATE/ràng buộc/message, không ghi cause.detail (dữ liệu cá nhân).
-    this.logger.error(
-      describeDatabaseError(exception) ??
-        (exception instanceof Error ? (exception.stack ?? exception.message) : String(exception)),
-    );
+    // Message của stack có thể chứa tham số gọi nên chỉ giữ các dòng "    at …".
+    const description = describeDatabaseError(exception);
+    if (description !== undefined) {
+      this.logger.error(`${description}\n${stackFrames(exception)}`.trimEnd());
+    } else {
+      this.logger.error(
+        exception instanceof Error ? (exception.stack ?? exception.message) : String(exception),
+      );
+    }
     return { code: '9901' };
   }
+}
+
+/** Chỉ các dòng frame của stack, bỏ phần message (có thể chứa dữ liệu cá nhân). */
+function stackFrames(error: unknown): string {
+  if (!(error instanceof Error) || error.stack === undefined) return '';
+  return error.stack
+    .split('\n')
+    .filter((line) => /^\s+at /.test(line))
+    .join('\n');
 }

@@ -79,8 +79,19 @@ const CONNECTION_KINDS = new Set([
 /** 08xxx: lỗi kết nối; 57P01–57P03: server tắt hoặc khởi động lại. 57014 (hết giờ câu lệnh) không thuộc. */
 const CONNECTION_SQLSTATE = /^(08|57P0[123])/;
 
+/**
+ * pg-pool hết giờ chờ kết nối (server nhận TCP nhưng không trả lời): adapter-pg ném lại nguyên lỗi
+ * `Error` thường, không có code Prisma lẫn driver cause. Thông điệp là hằng của pg-pool.
+ */
+const PG_CONNECT_TIMEOUT = 'Connection terminated due to connection timeout';
+
+function isPgConnectTimeout(error: unknown): boolean {
+  return error instanceof Error && error.message === PG_CONNECT_TIMEOUT;
+}
+
 /** Lỗi do không kết nối được CSDL → 9902. */
 export function isDatabaseConnectionError(error: unknown): boolean {
+  if (isPgConnectTimeout(error)) return true;
   if (error instanceof Prisma.PrismaClientInitializationError) return true;
   if (error instanceof Prisma.PrismaClientKnownRequestError && CONNECTION_CODES.has(error.code)) {
     return true;
@@ -91,23 +102,27 @@ export function isDatabaseConnectionError(error: unknown): boolean {
 }
 
 /**
- * Mô tả lỗi CSDL để ghi log: code, kind, SQLSTATE, tên ràng buộc, message. Không bao giờ có
- * `cause.detail` (spike 3b). Không phải lỗi CSDL → undefined.
+ * Mô tả lỗi CSDL để ghi log: code, kind, SQLSTATE, tên ràng buộc, message an toàn. Không bao giờ có
+ * `cause.detail` (spike 3b); không lấy message của lỗi validate hay KnownRequestError không có
+ * driver cause vì Prisma dựng message từ tham số gọi (có thể chứa dữ liệu cá nhân). Không phải lỗi
+ * CSDL → undefined.
  */
 export function describeDatabaseError(error: unknown): string | undefined {
+  if (error instanceof Prisma.PrismaClientValidationError) return `name=${error.name}`;
+  if (isPgConnectTimeout(error)) return `message=${PG_CONNECT_TIMEOUT}`;
   const cause = driverCause(error);
   const code = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : undefined;
   const isInit = error instanceof Prisma.PrismaClientInitializationError;
   if (cause === undefined && code === undefined && !isInit) return undefined;
   const state = sqlState(cause);
   const constraint = cause?.constraint?.index ?? checkConstraintName(error);
-  const message = cause?.message ?? cause?.originalMessage ?? (error as Error).message;
+  const message = cause?.message ?? cause?.originalMessage ?? (isInit ? error.message : undefined);
   return [
     code && `code=${code}`,
     cause?.kind && `kind=${cause.kind}`,
     state && `sqlstate=${state}`,
     constraint && `constraint=${constraint}`,
-    `message=${message}`,
+    message && `message=${message}`,
   ]
     .filter(Boolean)
     .join(' ');

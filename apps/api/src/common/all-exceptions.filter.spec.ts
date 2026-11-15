@@ -13,6 +13,7 @@ import {
   connectionError,
   knownError,
   uniqueViolation,
+  validationError,
   valueTooLong,
 } from '../prisma/prisma-error.fixture.js';
 import { AllExceptionsFilter } from './all-exceptions.filter.js';
@@ -68,6 +69,13 @@ describe('AllExceptionsFilter', () => {
       ['2007', 'Request body invalid'],
     ],
     ['lỗi bất ngờ', new Error('boom'), 500, INTERNAL],
+    [
+      'hết giờ kết nối pg-pool',
+      new Error('Connection terminated due to connection timeout', { cause: new Error('x') }),
+      500,
+      DB_DOWN,
+    ],
+    ['lỗi validate của Prisma', validationError(), 500, INTERNAL],
     ['P1001 kèm DatabaseNotReachable', connectionError(), 500, DB_DOWN],
     ['$queryRaw P2010 kèm DatabaseNotReachable', connectionError('P2010'), 500, DB_DOWN],
     [
@@ -120,6 +128,17 @@ describe('AllExceptionsFilter', () => {
     const logged = logError.mock.calls.map(([message]: unknown[]) => String(message)).join('\n');
     expect(logged).toContain('sqlstate=57014');
     expect(logged).not.toContain('0912345678');
+  });
+
+  it.each<[string, unknown]>([
+    ['lỗi validate của Prisma', validationError()],
+    ['P2025 kèm message có dữ liệu', knownError('P2025', undefined, 'Bản ghi 0912345678 không có')],
+  ])('%s: log không chứa dữ liệu cá nhân, chỉ giữ các dòng stack', (_name, error) => {
+    const { host } = hostWithResponse();
+    filter.catch(error, host);
+    const logged = logError.mock.calls.map(([message]: unknown[]) => String(message)).join('\n');
+    expect(logged).not.toContain('0912345678');
+    expect(logged).toMatch(/\n\s+at /);
   });
 
   it('trả kèm data của AppException', () => {
