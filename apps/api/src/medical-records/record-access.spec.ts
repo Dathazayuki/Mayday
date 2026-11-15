@@ -11,7 +11,11 @@ import {
 } from './caller.fixture.js';
 import {
   allowedActions,
+  assertAssignedDoctor,
+  assertCanAccept,
+  assertCanAddVisit,
   assertOwnRecord,
+  assertStaffCanCancel,
   assertStaffCanEdit,
   requireStaffPermission,
   requireStaffWriter,
@@ -198,5 +202,108 @@ describe('allowedActions (spec B, mục 6.4, 7.5)', () => {
     ],
   ])('%s → %j', (_title, caller, record, expected) => {
     expect(allowedActions(caller, record)).toEqual(expected);
+  });
+});
+
+describe('assertCanAccept (bảng 6.1, hàng "Tiếp nhận"; mục 6.3)', () => {
+  it('chờ tiếp nhận, bác sĩ đã phân công → qua', () => {
+    expect(codeOf(() => assertCanAccept(doctorCaller(), state('pending')))).toBeNull();
+  });
+
+  it.each(['draft', 'completed', 'cancelled'] as const)(
+    '%s → 4004 (MT-113: nháp không tiếp nhận được)',
+    (status) => {
+      expect(codeOf(() => assertCanAccept(doctorCaller(), state(status, DOCTOR_ID)))).toBe('4004');
+    },
+  );
+
+  it('đang khám: bác sĩ phụ trách là người khác → 4005 (test case medrec07); là chính người gọi → 4004', () => {
+    expect(
+      codeOf(() => assertCanAccept(doctorCaller(), state('in_progress', OTHER_DOCTOR_ID))),
+    ).toBe('4005');
+    expect(codeOf(() => assertCanAccept(doctorCaller(), state('in_progress', DOCTOR_ID)))).toBe(
+      '4004',
+    );
+  });
+
+  it('chưa có dòng nhanvien → 3101 (MT-106), xét sau ô trạng thái', () => {
+    const unassigned = doctorCaller({ hasStaffRow: false });
+    expect(codeOf(() => assertCanAccept(unassigned, state('pending')))).toBe('3101');
+    expect(codeOf(() => assertCanAccept(unassigned, state('in_progress', OTHER_DOCTOR_ID)))).toBe(
+      '4005',
+    );
+  });
+});
+
+describe('assertAssignedDoctor, assertCanAddVisit (thêm/sửa phiên, hoàn tất, huỷ bằng PUT)', () => {
+  it.each(['visit', 'complete', 'cancel_in_progress'] as const)(
+    '%s: đang khám, bác sĩ phụ trách → qua; bác sĩ khác, điều dưỡng → 3105; nháp, chờ tiếp nhận, đã huỷ → 4009; hoàn tất → 4003',
+    (transition) => {
+      const run = (caller: Caller, record: RecordState) =>
+        codeOf(() => assertAssignedDoctor(caller, record, transition));
+      expect(run(doctorCaller(), state('in_progress', DOCTOR_ID))).toBeNull();
+      expect(run(doctorCaller(), state('in_progress', OTHER_DOCTOR_ID))).toBe('3105');
+      expect(run(nurseCaller(), state('in_progress', DOCTOR_ID))).toBe('3105');
+      expect(run(doctorCaller(), state('draft'))).toBe('4009');
+      expect(run(doctorCaller(), state('pending'))).toBe('4009');
+      expect(run(doctorCaller(), state('cancelled', DOCTOR_ID))).toBe('4009');
+      expect(run(doctorCaller(), state('completed', DOCTOR_ID))).toBe('4003');
+    },
+  );
+
+  it('assertCanAddVisit: thêm điều kiện có dòng nhanvien (3101), xét sau bác sĩ phụ trách (3105)', () => {
+    expect(
+      codeOf(() => assertCanAddVisit(doctorCaller(), state('in_progress', DOCTOR_ID))),
+    ).toBeNull();
+    expect(
+      codeOf(() =>
+        assertCanAddVisit(doctorCaller({ hasStaffRow: false }), state('in_progress', DOCTOR_ID)),
+      ),
+    ).toBe('3101');
+    expect(
+      codeOf(() =>
+        assertCanAddVisit(
+          doctorCaller({ hasStaffRow: false }),
+          state('in_progress', OTHER_DOCTOR_ID),
+        ),
+      ),
+    ).toBe('3105');
+    expect(codeOf(() => assertCanAddVisit(doctorCaller(), state('completed', DOCTOR_ID)))).toBe(
+      '4003',
+    );
+  });
+});
+
+describe('assertStaffCanCancel (PATCH /:id/status, nhánh nhân viên; bảng 6.1, hàng "Huỷ")', () => {
+  it.each(['draft', 'pending'] as const)('%s: nhân viên có quyền huỷ được (MT-113)', (status) => {
+    expect(codeOf(() => assertStaffCanCancel(nurseCaller(), state(status)))).toBeNull();
+  });
+
+  it('đang khám: chỉ bác sĩ phụ trách; bác sĩ khác, điều dưỡng, admin → 3105', () => {
+    expect(
+      codeOf(() => assertStaffCanCancel(doctorCaller(), state('in_progress', DOCTOR_ID))),
+    ).toBeNull();
+    for (const caller of [
+      doctorCaller({ userId: OTHER_DOCTOR_ID }),
+      nurseCaller(),
+      adminCaller(),
+    ]) {
+      expect(codeOf(() => assertStaffCanCancel(caller, state('in_progress', DOCTOR_ID)))).toBe(
+        '3105',
+      );
+    }
+  });
+
+  it('hoàn tất → 4003; đã huỷ → 4009 (kể cả với bác sĩ phụ trách)', () => {
+    expect(codeOf(() => assertStaffCanCancel(doctorCaller(), state('completed', DOCTOR_ID)))).toBe(
+      '4003',
+    );
+    expect(codeOf(() => assertStaffCanCancel(doctorCaller(), state('cancelled', DOCTOR_ID)))).toBe(
+      '4009',
+    );
+  });
+
+  it('bệnh nhân → 3101 (hàm tự chặn; nhánh tự huỷ D-B32 làm ở B6)', () => {
+    expect(codeOf(() => assertStaffCanCancel(patientCaller(), state('pending')))).toBe('3101');
   });
 });

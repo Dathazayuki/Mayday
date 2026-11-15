@@ -66,17 +66,77 @@ export function assertOwnRecord(caller: Caller, patientId: number): void {
   if (caller.isPatient && patientId !== caller.userId) throw new AppException('3106');
 }
 
+/** Thao tác chỉ bác sĩ phụ trách làm (bảng 6.1): thêm/sửa phiên, hoàn tất, huỷ khi đang khám bằng PUT. */
+export type AssignedTransition = Extract<
+  RecordTransition,
+  'visit' | 'complete' | 'cancel_in_progress'
+>;
+
+/** Ô của bảng 6.1 cho `transition` (null = ✓); có mã thì ném. Ô trạng thái xét trước người làm (mục 6.3). */
+function assertOpen(
+  transition: RecordTransition,
+  record: RecordState,
+  callerIsAssigned = false,
+): void {
+  const code = transitionError(transition, record.status, callerIsAssigned);
+  if (code) throw new AppException(code);
+}
+
+/** Bác sĩ phụ trách = bác sĩ của phiên có lan_kham_thu nhỏ nhất (D-B6, MT-114); người khác → 3105. */
+function assertAssigned(caller: Caller, record: RecordState): void {
+  if (record.assignedDoctorId !== caller.userId) throw new AppException('3105');
+}
+
 /**
  * Sửa hồ sơ, nhánh nhân viên (bảng 6.1, hàng "Sửa hồ sơ"): completed → 4003, cancelled → 4009; đang
  * khám chỉ bác sĩ phụ trách (3105). Quyền manage_medical_records đã kiểm trước khi đọc CSDL.
  */
 export function assertStaffCanEdit(caller: Caller, record: RecordState): void {
   if (caller.isPatient) throw new AppException('3101');
-  const code = transitionError('edit', record.status);
-  if (code) throw new AppException(code);
-  if (record.status === 'in_progress' && record.assignedDoctorId !== caller.userId) {
-    throw new AppException('3105');
-  }
+  assertOpen('edit', record);
+  if (record.status === 'in_progress') assertAssigned(caller, record);
+}
+
+/**
+ * Huỷ qua PATCH /:id/status, nhánh nhân viên (bảng 6.1, hàng "Huỷ"; mục 7.2): completed → 4003, cancelled
+ * → 4009; đang khám chỉ bác sĩ phụ trách (3105). Quyền manage_medical_records đã kiểm trước khi đọc CSDL.
+ * Bệnh nhân tự huỷ (D-B32) là của B6: tới lúc đó hàm tự chặn 3101.
+ */
+export function assertStaffCanCancel(caller: Caller, record: RecordState): void {
+  if (caller.isPatient) throw new AppException('3101');
+  assertOpen('cancel', record);
+  if (record.status === 'in_progress') assertAssigned(caller, record);
+}
+
+/**
+ * Tiếp nhận (bảng 6.1, hàng "Tiếp nhận"): ô trạng thái (4004; 4005 khi bác sĩ phụ trách là người khác) →
+ * có dòng nhanvien (3101, MT-106: phiên mới ghi ma_bac_si = người gọi). Vai trò bac_si và
+ * examine_medical_records đã qua guard (mục 7.2).
+ */
+export function assertCanAccept(caller: Caller, record: RecordState): void {
+  if (caller.isPatient) throw new AppException('3101');
+  assertOpen('accept', record, record.assignedDoctorId === caller.userId);
+  if (!caller.hasStaffRow) throw new AppException('3101');
+}
+
+/**
+ * Thêm/sửa phiên (`visit`), hoàn tất (`complete`), huỷ khi đang khám bằng PUT (`cancel_in_progress`): ô
+ * trạng thái (4003/4009) → bác sĩ phụ trách (3105).
+ */
+export function assertAssignedDoctor(
+  caller: Caller,
+  record: RecordState,
+  transition: AssignedTransition,
+): void {
+  if (caller.isPatient) throw new AppException('3101');
+  assertOpen(transition, record);
+  assertAssigned(caller, record);
+}
+
+/** Thêm phiên: như assertAssignedDoctor('visit'), rồi có dòng nhanvien (3101, MT-106). */
+export function assertCanAddVisit(caller: Caller, record: RecordState): void {
+  assertAssignedDoctor(caller, record, 'visit');
+  if (!caller.hasStaffRow) throw new AppException('3101');
 }
 
 /**
