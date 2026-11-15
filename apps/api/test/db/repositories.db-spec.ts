@@ -1,7 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import type { App } from 'supertest/types.js';
 import type { SeedResult } from '../../prisma/seed.js';
-import { TokenBlacklistRepository } from '../../src/auth/token-blacklist.repository.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import { PermissionsRepository } from '../../src/permissions/permissions.repository.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
@@ -109,21 +108,6 @@ describe('Repository (MySQL thật)', () => {
       });
       const updated = await users.updateProfile(user_id, { gender: null });
       expect(updated).toMatchObject({ gioi_tinh: null, patients: null });
-    });
-  });
-
-  describe('TokenBlacklistRepository', () => {
-    it('add cùng jti hai lần (đăng xuất đồng thời) không lỗi, chỉ có một bản ghi', async () => {
-      const { user_id } = await users.createPatient({
-        ...newUser,
-        patientRoleId: seed.roles.patient,
-      });
-      const blacklist = app.get(TokenBlacklistRepository);
-      const entry = { jti: 'jti-trung', userId: user_id, expiresAt: new Date(Date.now() + 60_000) };
-      await blacklist.add(entry);
-      await expect(blacklist.add(entry)).resolves.toBeUndefined();
-      expect(await prisma.token_blacklist.count()).toBe(1);
-      await expect(blacklist.has('jti-trung')).resolves.toBe(true);
     });
   });
 

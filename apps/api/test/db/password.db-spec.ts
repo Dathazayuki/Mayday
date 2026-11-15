@@ -1,9 +1,10 @@
-import { createHmac } from 'node:crypto';
 import { Logger, type INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import type { VerifiedJwt } from '../../src/auth/jwt-payload.js';
+import { deriveOtpKey, otpFor, windowAt } from '../../src/auth/reset-otp.js';
+import { TokenDenylist } from '../../src/auth/token-denylist.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { createTestApp, resetData } from './helpers.js';
@@ -16,12 +17,6 @@ const CHANGE = {
   new_password: NEW_PASSWORD,
   confirm_password: NEW_PASSWORD,
 };
-const TEN_MINUTES_MS = 10 * 60 * 1000;
-
-/** HMAC-SHA256 hex của OTP, khoá JWT_SECRET của app test (vitest.config.db.ts), tiền tố tách miền. */
-const otpHmac = (otp: string) =>
-  createHmac('sha256', process.env.JWT_SECRET!).update(`otp-reset:${otp}`).digest('hex');
-
 describe('Quên mật khẩu và đổi mật khẩu (MySQL thật)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaClient;
@@ -61,11 +56,11 @@ describe('Quên mật khẩu và đổi mật khẩu (MySQL thật)', () => {
   });
 
   describe('POST /auth/forgot-password', () => {
-    it('200 / 1000: lưu HMAC-SHA256 hex (64 ký tự) của OTP đã gửi, hết hạn sau 10 phút', async () => {
+    it('200 / 1000: gửi OTP tính từ tài khoản và hash mật khẩu; không ghi CSDL', async () => {
       const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-      const before = Date.now();
+      const before = await findUser();
+      const window = windowAt(Date.now());
       const res = await forgotPassword({ phone: PHONE }).expect(200);
-      const after = Date.now();
       expect(res.body).toEqual({ code: '1000', message: 'OK', data: {} });
 
       // DevLogOtpSender (APP_ENV=test) ghi "OTP khôi phục cho ***5678: <otp>".
@@ -73,14 +68,14 @@ describe('Quên mật khẩu và đổi mật khẩu (MySQL thật)', () => {
         .map(([message]) => String(message))
         .find((message) => message.startsWith('OTP khôi phục cho ***5678: '));
       expect(otpLog).toMatch(/: \d{6}$/);
-
-      const user = await findUser();
-      expect(user.reset_token).toMatch(/^[0-9a-f]{64}$/);
-      expect(user.reset_token).toBe(otpHmac(otpLog!.slice(-6)));
-      // Cột datetime(0) làm tròn tới giây.
-      const expiresAt = user.reset_token_expires!.getTime();
-      expect(expiresAt).toBeGreaterThanOrEqual(before + TEN_MINUTES_MS - 1000);
-      expect(expiresAt).toBeLessThanOrEqual(after + TEN_MINUTES_MS + 1000);
+      const key = deriveOtpKey(process.env.JWT_SECRET!);
+      const subject = { accountId: before.user_id, passwordHash: before.password_hash };
+      expect([otpFor(key, subject, window), otpFor(key, subject, window + 1)]).toContain(
+        otpLog!.slice(-6),
+      );
+      const after = await findUser();
+      expect(after.updated_at).toEqual(before.updated_at);
+      expect(after.reset_token).toBeNull();
     });
 
     it('số chưa đăng ký → 404 / 3007', async () => {
@@ -110,7 +105,7 @@ describe('Quên mật khẩu và đổi mật khẩu (MySQL thật)', () => {
       expect(res.body).toEqual({ code: '1000', message: 'OK', data: {} });
 
       const { jti } = app.get(JwtService).decode<VerifiedJwt>(token);
-      expect(await prisma.token_blacklist.count({ where: { jti } })).toBe(1);
+      expect(app.get(TokenDenylist).has(jti)).toBe(true);
       const reused = await getProfile(token).expect(401);
       expect(reused.body).toEqual({ code: '3001', message: 'Token is invalid' });
 

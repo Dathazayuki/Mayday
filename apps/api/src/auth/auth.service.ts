@@ -1,6 +1,5 @@
-import { createHmac, randomInt, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type {
   CreateStaffResponseData,
@@ -8,7 +7,6 @@ import type {
   SignupResponseData,
 } from '@drmayday/shared';
 import { AppException, corruptData, invalidReference } from '../common/app.exception.js';
-import type { Env } from '../config/env.js';
 import { FacilitiesService } from '../facilities/facilities.service.js';
 import { PATIENT_ROLE } from '../roles/role-names.js';
 import { RolesRepository } from '../roles/roles.repository.js';
@@ -28,32 +26,8 @@ import type { SignupDto } from './dto/signup.dto.js';
 import type { JwtPayload, VerifiedJwt } from './jwt-payload.js';
 import { OtpSender } from './otp-sender.js';
 import { PasswordService } from './password.service.js';
-import { TokenBlacklistRepository } from './token-blacklist.repository.js';
-
-/** OTP khôi phục mật khẩu: 6 chữ số, hết hạn sau 10 phút (bảng mã 3005 "Sau 10 phút"). */
-const OTP_DIGITS = 6;
-const OTP_TTL_MS = 10 * 60 * 1000;
-
-/** OTP ngẫu nhiên an toàn (crypto), đệm 0 ở đầu cho đủ OTP_DIGITS chữ số. */
-function generateOtp(): string {
-  return randomInt(0, 10 ** OTP_DIGITS)
-    .toString()
-    .padStart(OTP_DIGITS, '0');
-}
-
-/** Tách miền: khoá HMAC của OTP là JWT_SECRET, cũng là khoá ký JWT. */
-const OTP_HMAC_PREFIX = 'otp-reset:';
-
-/**
- * Giá trị lưu ở `users.reset_token`: HMAC-SHA256 (hex, 64 ký tự) của OTP với khoá bí mật của server,
- * không lưu OTP gốc. OTP chỉ có 10^6 giá trị nên SHA-256 trần dò ngược được ngay khi lộ CSDL; HMAC
- * thì cần thêm khoá. Mọi chỗ băm/đối chiếu OTP (reset-password sau này, MT-16) dùng hàm này.
- */
-function hashOtp(otp: string, secret: string): string {
-  return createHmac('sha256', secret)
-    .update(OTP_HMAC_PREFIX + otp)
-    .digest('hex');
-}
+import { ResetOtp } from './reset-otp.js';
+import { TokenDenylist } from './token-denylist.js';
 
 @Injectable()
 export class AuthService {
@@ -64,10 +38,10 @@ export class AuthService {
     private readonly roles: RolesRepository,
     private readonly facilities: FacilitiesService,
     private readonly passwords: PasswordService,
-    private readonly blacklist: TokenBlacklistRepository,
+    private readonly denylist: TokenDenylist,
+    private readonly resetOtp: ResetOtp,
     private readonly jwt: JwtService,
     private readonly otpSender: OtpSender,
-    private readonly config: ConfigService<Env, true>,
   ) {}
 
   /** Tạo tài khoản bệnh nhân (users + patients). Trùng số điện thoại → 3006. */
@@ -132,39 +106,26 @@ export class AuthService {
     return { token: await this.jwt.signAsync(payload), user_info: toLoginUserInfo(user, roleId) };
   }
 
-  /**
-   * Xoá mọi FCM token của người dùng (MT-60) rồi thu hồi token hiện tại tới lúc nó hết hạn.
-   * Thu hồi là bước cuối: bước nào lỗi thì token vẫn dùng được để client gọi lại logout (cả hai
-   * bước đều idempotent). Làm ngược lại, lỗi khi xoá FCM sẽ để thiết bị tiếp tục nhận thông báo
-   * mà không đăng xuất lại được.
-   */
-  async logout(payload: JwtPayload & { exp: number }): Promise<void> {
-    const userId = Number(payload.sub);
-    await this.users.deleteFcmTokens(userId);
-    await this.blacklist.add({ jti: payload.jti, userId, expiresAt: new Date(payload.exp * 1000) });
+  /** Chặn jti của token hiện tại tới lúc hết hạn (spec A, mục 6.3). Không còn xoá FCM token (quyết định 14). */
+  async logout(jwt: VerifiedJwt): Promise<void> {
+    this.denylist.add(jwt.jti, jwt.exp * 1000);
   }
 
   /**
-   * Cấp OTP khôi phục mật khẩu (reset-password chờ MT-16). Chưa có kênh gửi → 9903 trước khi ghi gì,
-   * để không đè reset_token đang dùng; không có số điện thoại → 3007. Lưu mã băm trước rồi mới gửi,
-   * để OTP đã tới tay người dùng luôn có bản ghi để đối chiếu.
+   * Gửi OTP khôi phục mật khẩu, không ghi CSDL (spec A, mục 6.4). Chưa có kênh gửi → 9903, kiểm tra
+   * trước tiên; số chưa có tài khoản → 3007.
    */
   async forgotPassword(dto: ForgotPasswordDto): Promise<void> {
     if (!this.otpSender.isAvailable()) throw new AppException('9903');
     const user = await this.users.findByPhone(dto.phone);
     if (!user) throw new AppException('3007');
-
-    const otp = generateOtp();
-    const tokenHash = hashOtp(otp, this.config.get('JWT_SECRET', { infer: true }));
-    await this.users.setResetToken(user.user_id, tokenHash, new Date(Date.now() + OTP_TTL_MS));
+    const otp = this.resetOtp.issue({ accountId: user.user_id, passwordHash: user.password_hash });
     await this.otpSender.send(dto.phone, otp);
   }
 
   /**
    * Kiểm tra theo thứ tự: confirm_password khớp new_password (2003) → người dùng tồn tại (3007) →
-   * mật khẩu cũ (3009). Thành công thì thu hồi token hiện tại rồi mới ghi mật khẩu mới: nếu ghi lỗi,
-   * người dùng chỉ phải đăng nhập lại bằng mật khẩu cũ. Làm ngược lại, lỗi khi thu hồi sẽ để mật
-   * khẩu đã đổi trong khi client báo thất bại.
+   * mật khẩu cũ (3009). Thành công thì chặn jti hiện tại rồi ghi hash mới.
    */
   async changePassword(jwt: VerifiedJwt, dto: ChangePasswordDto): Promise<void> {
     if (dto.confirm_password !== dto.new_password) {
@@ -176,9 +137,8 @@ export class AuthService {
     if (!(await this.passwords.verify(dto.old_password, user.password_hash))) {
       throw new AppException('3009');
     }
-
     const passwordHash = await this.passwords.hash(dto.new_password);
-    await this.blacklist.add({ jti: jwt.jti, userId, expiresAt: new Date(jwt.exp * 1000) });
+    this.denylist.add(jwt.jti, jwt.exp * 1000);
     await this.users.updatePasswordHash(userId, passwordHash);
   }
 }

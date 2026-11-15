@@ -28,7 +28,7 @@ function whereOf({ roleId }: UserFilter): Prisma.usersWhereInput {
   return { OR: [{ staffs: { role_id: roleId } }, { patients: { role_id: roleId } }] };
 }
 
-/** Bảng `users`, hai bảng subtype `staffs`/`patients` và `user_fcm_tokens` của người dùng. */
+/** Bảng `users` và hai bảng subtype `staffs`/`patients`. */
 @Injectable()
 export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -45,8 +45,8 @@ export class UsersRepository {
   }
 
   /**
-   * Người dùng của token cho JwtAuthGuard. Chưa cấu hình CSDL thì không tra được (như
-   * TokenBlacklistRepository.has) → undefined; người dùng không còn → null.
+   * Người dùng của token cho JwtAuthGuard. Chưa cấu hình CSDL thì không tra được
+   * → undefined; người dùng không còn → null.
    */
   async findSessionUser(userId: number): Promise<UserRecord | null | undefined> {
     if (!this.prisma.configured) return undefined;
@@ -103,13 +103,6 @@ export class UsersRepository {
     });
   }
 
-  async setResetToken(userId: number, tokenHash: string, expiresAt: Date): Promise<void> {
-    await this.prisma.db.users.update({
-      where: { user_id: userId },
-      data: { reset_token: tokenHash, reset_token_expires: expiresAt },
-    });
-  }
-
   /** Đọc ngày sinh đang lưu (quy tắc năm sinh, MT-13) rồi ghi users + patients trong một transaction. */
   updateProfile(userId: number, changes: Partial<ProfileWrite>): Promise<UserRecord> {
     return this.prisma.db.$transaction(async (tx) => {
@@ -143,22 +136,10 @@ export class UsersRepository {
     });
   }
 
-  /**
-   * Xoá người dùng trong một transaction: `user_fcm_tokens` là RESTRICT nên xoá trước (MT-66);
-   * staffs/patients/token_blacklist tự CASCADE. Trả false khi không có người dùng này.
-   */
+  /** staffs/patients tự CASCADE. Trả false khi không có người dùng này. */
   async delete(userId: number): Promise<boolean> {
-    const db = this.prisma.db;
-    const [, users] = await db.$transaction([
-      db.user_fcm_tokens.deleteMany({ where: { user_id: userId } }),
-      db.users.deleteMany({ where: { user_id: userId } }),
-    ]);
-    return users.count > 0;
-  }
-
-  /** Đăng xuất xoá mọi FCM token của người dùng: request không cho biết thiết bị nào (MT-60). */
-  async deleteFcmTokens(userId: number): Promise<void> {
-    await this.prisma.db.user_fcm_tokens.deleteMany({ where: { user_id: userId } });
+    const { count } = await this.prisma.db.users.deleteMany({ where: { user_id: userId } });
+    return count > 0;
   }
 
   /**

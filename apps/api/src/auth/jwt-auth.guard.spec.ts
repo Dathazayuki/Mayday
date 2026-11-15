@@ -3,13 +3,12 @@ import { Logger, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '../generated/prisma/client.js';
-import { isDatabaseConnectionError } from '../prisma/prisma-errors.js';
 import { staffUserRecord, userRecord } from '../users/user-record.fixture.js';
 import type { UsersRepository } from '../users/users.repository.js';
 import { JwtAuthGuard, extractBearerToken } from './jwt-auth.guard.js';
 import type { JwtPayload, VerifiedJwt } from './jwt-payload.js';
 import { Public } from './public.decorator.js';
-import type { TokenBlacklistRepository } from './token-blacklist.repository.js';
+import { TokenDenylist } from './token-denylist.js';
 
 class SampleController {
   secret() {
@@ -22,11 +21,13 @@ class SampleController {
   }
 }
 
+let denylist: TokenDenylist | undefined;
+
 const jwt = new JwtService({ secret: 'jwt-secret-cho-unit-test' });
 const payload: JwtPayload = { sub: '12', role_id: '3', jti: 'jti-1' };
 
 function setup() {
-  const blacklist = { has: vi.fn<TokenBlacklistRepository['has']>().mockResolvedValue(false) };
+  denylist = new TokenDenylist();
   // Mặc định: người dùng 12 vẫn tồn tại, đang hoạt động, vai trò trong CSDL trùng token (role_id 3).
   const users = {
     findSessionUser: vi
@@ -36,12 +37,12 @@ function setup() {
   const guard = new JwtAuthGuard(
     jwt,
     new Reflector(),
-    blacklist as unknown as TokenBlacklistRepository,
+    denylist,
     users as unknown as UsersRepository,
   );
   // Lỗi 9901 được ghi log; chặn log để output test gọn.
   vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-  return { guard, blacklist, users };
+  return { guard, denylist, users };
 }
 
 function contextFor(handler: (...args: never[]) => unknown, authorization?: string) {
@@ -76,6 +77,7 @@ describe('extractBearerToken', () => {
 
 describe('JwtAuthGuard', () => {
   afterEach(() => {
+    denylist?.onModuleDestroy();
     vi.restoreAllMocks();
   });
 
@@ -105,10 +107,9 @@ describe('JwtAuthGuard', () => {
   });
 
   it('token hợp lệ → gắn request.user là payload đã verify, có exp/iat', async () => {
-    const { guard, blacklist } = setup();
+    const { guard } = setup();
     const { context, request } = await contextWithValidToken();
     await expect(guard.canActivate(context)).resolves.toBe(true);
-    expect(blacklist.has).toHaveBeenCalledWith('jti-1');
     expect(request.user).toMatchObject({
       ...payload,
       exp: expect.any(Number),
@@ -116,27 +117,12 @@ describe('JwtAuthGuard', () => {
     });
   });
 
-  it('jti nằm trong token_blacklist (đã đăng xuất) → 3001', async () => {
-    const { guard, blacklist } = setup();
-    blacklist.has.mockResolvedValue(true);
+  it('jti đã đăng xuất (TokenDenylist) → 3001', async () => {
+    const { guard, denylist } = setup();
+    denylist.add('jti-1', Date.now() + 60_000);
     const { context, request } = await contextWithValidToken();
     await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '3001' });
     expect(request.user).toBeUndefined();
-  });
-
-  it('lỗi kết nối khi tra blacklist được ném tiếp (filter trả 9902), không thành 3001', async () => {
-    const { guard, blacklist } = setup();
-    const connectionError = new Prisma.PrismaClientKnownRequestError(
-      "Can't reach database server",
-      {
-        code: 'P1001',
-        clientVersion: Prisma.prismaVersion.client,
-      },
-    );
-    blacklist.has.mockRejectedValue(connectionError);
-    const { context } = await contextWithValidToken();
-    await expect(guard.canActivate(context)).rejects.toBe(connectionError);
-    expect(isDatabaseConnectionError(connectionError)).toBe(true);
   });
 
   describe('phiên theo trạng thái hiện tại của người dùng trong CSDL', () => {
@@ -161,8 +147,8 @@ describe('JwtAuthGuard', () => {
     });
 
     it('jti đã bị thu hồi → 3001 trước khi tra người dùng', async () => {
-      const { guard, blacklist, users } = setup();
-      blacklist.has.mockResolvedValue(true);
+      const { guard, denylist, users } = setup();
+      denylist.add('jti-1', Date.now() + 60_000);
       const { context } = await contextWithValidToken();
       await expect(guard.canActivate(context)).rejects.toMatchObject({ code: '3001' });
       expect(users.findSessionUser).not.toHaveBeenCalled();

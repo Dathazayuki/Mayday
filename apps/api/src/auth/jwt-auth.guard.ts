@@ -7,7 +7,7 @@ import { requireRoleId } from '../users/require-role-id.js';
 import { UsersRepository } from '../users/users.repository.js';
 import type { VerifiedJwt } from './jwt-payload.js';
 import { IS_PUBLIC_KEY } from './public.decorator.js';
-import { TokenBlacklistRepository } from './token-blacklist.repository.js';
+import { TokenDenylist } from './token-denylist.js';
 
 export type AuthenticatedRequest = Request & { user?: VerifiedJwt };
 
@@ -19,7 +19,7 @@ export function extractBearerToken(header: string | undefined): string | undefin
 
 /**
  * Guard toàn cục: mọi route cần JWT trừ khi gắn @Public().
- * Thiếu token → 3003, token sai hoặc đã bị thu hồi (token_blacklist) → 3001, hết hạn → 3002.
+ * Thiếu token → 3003, token sai hoặc jti đã bị chặn (TokenDenylist) → 3001, hết hạn → 3002.
  * Token hợp lệ còn phải thuộc người dùng đang tồn tại và đang hoạt động (xem `currentRoleId`).
  */
 @Injectable()
@@ -29,7 +29,7 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwt: JwtService,
     private readonly reflector: Reflector,
-    private readonly blacklist: TokenBlacklistRepository,
+    private readonly denylist: TokenDenylist,
     private readonly users: UsersRepository,
   ) {}
 
@@ -52,10 +52,9 @@ export class JwtAuthGuard implements CanActivate {
       throw new AppException(expired ? '3002' : '3001');
     }
 
-    // Lỗi CSDL khi tra blacklist hoặc người dùng được ném tiếp → AllExceptionsFilter trả 9902.
-    if (await this.blacklist.has(user.jti)) {
-      throw new AppException('3001');
-    }
+    // jti đã đăng xuất hoặc đã đổi mật khẩu (TokenDenylist) → 3001.
+    if (this.denylist.has(user.jti)) throw new AppException('3001');
+    // Lỗi CSDL khi tra người dùng được ném tiếp → AllExceptionsFilter trả 9902.
     request.user = { ...user, role_id: await this.currentRoleId(user) };
     return true;
   }

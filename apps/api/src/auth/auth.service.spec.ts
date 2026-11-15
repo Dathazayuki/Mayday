@@ -1,11 +1,8 @@
-import { createHmac } from 'node:crypto';
 import { Logger } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
 import type { JwtService } from '@nestjs/jwt';
 import type { ChangePasswordRequest, CreateStaffRequest, SignupRequest } from '@drmayday/shared';
 import type { FacilitiesRepository } from '../facilities/facilities.repository.js';
 import { FacilitiesService } from '../facilities/facilities.service.js';
-import type { Env } from '../config/env.js';
 import type { patients, roles, staffs } from '../generated/prisma/client.js';
 import type { RolesRepository } from '../roles/roles.repository.js';
 import { newUserToDb } from '../users/user-mapping.js';
@@ -15,10 +12,10 @@ import { AuthService } from './auth.service.js';
 import type { VerifiedJwt } from './jwt-payload.js';
 import type { OtpSender } from './otp-sender.js';
 import type { PasswordService } from './password.service.js';
-import type { TokenBlacklistRepository } from './token-blacklist.repository.js';
+import { deriveOtpKey, otpFor, ResetOtp, windowAt } from './reset-otp.js';
+import { TokenDenylist } from './token-denylist.js';
 
 const PATIENT_ROLE_ID = 2;
-const TEN_MINUTES_MS = 10 * 60 * 1000;
 const JWT_SECRET = 'jwt-secret-cua-unit-test-du-32-ky-tu!';
 const DOCTOR_ROLE_ID = 6;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -50,6 +47,9 @@ function findIn<T extends { id: number }>(rows: T[]) {
   return async (id: number) => rows.find((row) => row.id === id) ?? null;
 }
 
+/** Dọn timer của TokenDenylist do setup() gần nhất tạo. */
+let cleanup: (() => void) | undefined;
+
 function setup() {
   const users = {
     findByPhone: vi.fn<UsersRepository['findByPhone']>(),
@@ -75,9 +75,7 @@ function setup() {
           patients: null,
         }),
     ),
-    deleteFcmTokens: vi.fn<UsersRepository['deleteFcmTokens']>().mockResolvedValue(undefined),
     findById: vi.fn<UsersRepository['findById']>().mockResolvedValue(userRecord()),
-    setResetToken: vi.fn<UsersRepository['setResetToken']>().mockResolvedValue(undefined),
     updatePasswordHash: vi.fn<UsersRepository['updatePasswordHash']>().mockResolvedValue(undefined),
   };
   const roleRepo = {
@@ -99,7 +97,8 @@ function setup() {
     hash: vi.fn<PasswordService['hash']>(async (plain) => `hash-cua-${plain}`),
     verify: vi.fn<PasswordService['verify']>(async (plain, hash) => hash === `hash-cua-${plain}`),
   };
-  const blacklist = { add: vi.fn<TokenBlacklistRepository['add']>().mockResolvedValue(undefined) };
+  const denylist = new TokenDenylist();
+  const resetOtp = new ResetOtp({ get: () => JWT_SECRET } as never);
   const jwt = {
     signAsync: vi.fn<(payload: object) => Promise<string>>().mockResolvedValue('signed-token'),
   };
@@ -107,28 +106,25 @@ function setup() {
     isAvailable: vi.fn<OtpSender['isAvailable']>().mockReturnValue(true),
     send: vi.fn<OtpSender['send']>().mockResolvedValue(undefined),
   };
-  const config = { get: (key: keyof Env) => (key === 'JWT_SECRET' ? JWT_SECRET : undefined) };
   const service = new AuthService(
     users as unknown as UsersRepository,
     roleRepo as unknown as RolesRepository,
     new FacilitiesService(facilityRepo as unknown as FacilitiesRepository),
     passwords as unknown as PasswordService,
-    blacklist as unknown as TokenBlacklistRepository,
+    denylist,
+    resetOtp,
     jwt as unknown as JwtService,
     otpSender,
-    config as unknown as ConfigService<Env, true>,
   );
+  cleanup = () => denylist.onModuleDestroy();
   // Lỗi 9901 được ghi log; chặn log để output test gọn và kiểm tra nội dung.
   const logError = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-  return { service, users, roleRepo, facilityRepo, passwords, blacklist, jwt, otpSender, logError };
+  return { service, users, roleRepo, facilityRepo, passwords, denylist, jwt, otpSender, logError };
 }
-
-/** Oracle độc lập: HMAC-SHA256 hex, khoá JWT_SECRET, thông điệp có tiền tố tách miền 'otp-reset:'. */
-const otpHmac = (otp: string) =>
-  createHmac('sha256', JWT_SECRET).update(`otp-reset:${otp}`).digest('hex');
 
 describe('AuthService', () => {
   afterEach(() => {
+    cleanup?.();
     vi.restoreAllMocks();
   });
 
@@ -318,83 +314,57 @@ describe('AuthService', () => {
   });
 
   describe('logout', () => {
-    it('xoá FCM token của người dùng (MT-60) rồi mới đưa jti vào blacklist tới lúc token hết hạn', async () => {
-      const { service, blacklist, users } = setup();
-      await service.logout({ sub: '7', role_id: '2', jti: 'jti-1', exp: 1_800_000_000 });
-      expect(users.deleteFcmTokens).toHaveBeenCalledWith(7);
-      expect(blacklist.add).toHaveBeenCalledWith({
-        jti: 'jti-1',
-        userId: 7,
-        expiresAt: new Date(1_800_000_000_000),
-      });
-      const [deleteOrder] = users.deleteFcmTokens.mock.invocationCallOrder;
-      const [blacklistOrder] = blacklist.add.mock.invocationCallOrder;
-      expect(deleteOrder).toBeLessThan(blacklistOrder!);
-    });
-
-    it('xoá FCM token lỗi → không thu hồi token (client đăng xuất lại được)', async () => {
-      const { service, blacklist, users } = setup();
-      users.deleteFcmTokens.mockRejectedValue(new Error('mất kết nối'));
-      await expect(
-        service.logout({ sub: '7', role_id: '2', jti: 'jti-1', exp: 1_800_000_000 }),
-      ).rejects.toThrow('mất kết nối');
-      expect(blacklist.add).not.toHaveBeenCalled();
+    it('chặn jti của token tới lúc token hết hạn; không chạm CSDL', async () => {
+      const { service, denylist, users } = setup();
+      const exp = Math.floor(Date.now() / 1000) + 3600;
+      await service.logout({ sub: '7', role_id: '2', jti: 'jti-1', exp, iat: exp - 3600 });
+      expect(denylist.has('jti-1')).toBe(true);
+      expect(users.findById).not.toHaveBeenCalled();
     });
   });
 
   describe('forgotPassword', () => {
     const dto = { phone: '0912345678' };
 
-    it('số điện thoại chưa đăng ký → 3007, không lưu token, không gửi OTP', async () => {
+    it('số điện thoại chưa đăng ký → 3007, không gửi OTP', async () => {
       const { service, users, otpSender } = setup();
       users.findByPhone.mockResolvedValue(null);
       await expect(service.forgotPassword(dto)).rejects.toMatchObject({ code: '3007' });
-      expect(users.setResetToken).not.toHaveBeenCalled();
       expect(otpSender.send).not.toHaveBeenCalled();
     });
 
-    it('gửi OTP 6 chữ số đúng 1 lần; lưu HMAC-SHA256 của OTP đó, hết hạn sau 10 phút', async () => {
+    it('gửi đúng 1 lần OTP của cửa sổ hiện tại (tài khoản + hash mật khẩu); không ghi CSDL', async () => {
       const { service, users, otpSender } = setup();
       users.findByPhone.mockResolvedValue(userRecord());
-      const before = Date.now();
+      const window = windowAt(Date.now());
       await service.forgotPassword(dto);
-      const after = Date.now();
-
       expect(otpSender.send).toHaveBeenCalledOnce();
       const [phone, otp] = otpSender.send.mock.calls[0]!;
       expect(phone).toBe('0912345678');
-      expect(otp).toMatch(/^\d{6}$/);
-
-      expect(users.setResetToken).toHaveBeenCalledOnce();
-      const [userId, tokenHash, expiresAt] = users.setResetToken.mock.calls[0]!;
-      expect(userId).toBe(7);
-      expect(tokenHash).toMatch(/^[0-9a-f]{64}$/);
-      expect(tokenHash).toBe(otpHmac(otp));
-      expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + TEN_MINUTES_MS);
-      expect(expiresAt.getTime()).toBeLessThanOrEqual(after + TEN_MINUTES_MS);
+      const key = deriveOtpKey(JWT_SECRET);
+      const subject = { accountId: 7, passwordHash: 'hash-cua-matkhau' };
+      expect([otpFor(key, subject, window), otpFor(key, subject, window + 1)]).toContain(otp);
+      expect(users.updatePasswordHash).not.toHaveBeenCalled();
     });
 
-    it('lưu token trước rồi mới gửi OTP (OTP đã gửi luôn kiểm tra được)', async () => {
-      const { service, users, otpSender } = setup();
-      users.findByPhone.mockResolvedValue(userRecord());
-      await service.forgotPassword(dto);
-      const [saveOrder] = users.setResetToken.mock.invocationCallOrder;
-      const [sendOrder] = otpSender.send.mock.invocationCallOrder;
-      expect(saveOrder).toBeLessThan(sendOrder!);
-    });
-
-    it('chưa có kênh gửi OTP (production, MT-16) → 9903 trước khi ghi: reset_token đang có giữ nguyên', async () => {
+    it('chưa có kênh gửi OTP (production, MT-16) → 9903 trước khi tra tài khoản', async () => {
       const { service, users, otpSender } = setup();
       users.findByPhone.mockResolvedValue(userRecord());
       otpSender.isAvailable.mockReturnValue(false);
       await expect(service.forgotPassword(dto)).rejects.toMatchObject({ code: '9903' });
-      expect(users.setResetToken).not.toHaveBeenCalled();
+      expect(users.findByPhone).not.toHaveBeenCalled();
       expect(otpSender.send).not.toHaveBeenCalled();
     });
   });
 
   describe('changePassword', () => {
-    const jwt: VerifiedJwt = { sub: '7', role_id: '2', jti: 'jti-1', exp: 1_800_000_000, iat: 0 };
+    const jwt: VerifiedJwt = {
+      sub: '7',
+      role_id: '2',
+      jti: 'jti-1',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      iat: 0,
+    };
     const dto: ChangePasswordRequest = {
       old_password: 'matkhau',
       new_password: 'matkhau-moi',
@@ -419,31 +389,20 @@ describe('AuthService', () => {
     });
 
     it('sai mật khẩu cũ → 3009, không đổi mật khẩu, không thu hồi token', async () => {
-      const { service, users, blacklist } = setup();
+      const { service, users, denylist } = setup();
       await expect(
         service.changePassword(jwt, { ...dto, old_password: 'sai-mat-khau' }),
       ).rejects.toMatchObject({ code: '3009' });
       expect(users.updatePasswordHash).not.toHaveBeenCalled();
-      expect(blacklist.add).not.toHaveBeenCalled();
+      expect(denylist.has('jti-1')).toBe(false);
     });
 
-    it('thành công: lưu hash của mật khẩu mới và thu hồi token hiện tại tới lúc hết hạn', async () => {
-      const { service, users, blacklist } = setup();
+    it('thành công: lưu hash của mật khẩu mới và chặn jti hiện tại tới lúc hết hạn', async () => {
+      const { service, users, denylist } = setup();
       await service.changePassword(jwt, dto);
       expect(users.findById).toHaveBeenCalledWith(7);
       expect(users.updatePasswordHash).toHaveBeenCalledWith(7, 'hash-cua-matkhau-moi');
-      expect(blacklist.add).toHaveBeenCalledWith({
-        jti: 'jti-1',
-        userId: 7,
-        expiresAt: new Date(1_800_000_000_000),
-      });
-    });
-
-    it('thu hồi token lỗi → không đổi mật khẩu (client đăng nhập lại bằng mật khẩu cũ được)', async () => {
-      const { service, users, blacklist } = setup();
-      blacklist.add.mockRejectedValue(new Error('mất kết nối'));
-      await expect(service.changePassword(jwt, dto)).rejects.toThrow('mất kết nối');
-      expect(users.updatePasswordHash).not.toHaveBeenCalled();
+      expect(denylist.has('jti-1')).toBe(true);
     });
   });
 });

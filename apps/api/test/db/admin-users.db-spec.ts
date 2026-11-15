@@ -337,23 +337,12 @@ describe('quản trị người dùng /admin/users (MySQL thật)', () => {
   });
 
   describe('DELETE /admin/users/:id', () => {
-    it('xoá người dùng cùng 2 FCM token của họ trong một transaction (MT-66)', async () => {
+    it('xoá người dùng cùng bản ghi subtype → 200 / 1000', async () => {
       const id = await createUser('0911111111', seed.roles.patient);
-      await prisma.user_fcm_tokens.createMany({
-        data: [
-          { user_id: id, fcm_token: 'token-android', device_type: 'android' },
-          { user_id: id, fcm_token: 'token-web', device_type: 'web' },
-          { user_id: adminId, fcm_token: 'token-admin', device_type: 'ios' },
-        ],
-      });
-
       const res = await api('delete', `/admin/users/${id}`).expect(200);
       expect(res.body).toEqual({ ...OK, data: {} });
       expect(await findUser(id)).toBeNull();
       expect(await prisma.patients.count({ where: { user_id: id } })).toBe(0);
-      expect(await prisma.user_fcm_tokens.count({ where: { user_id: id } })).toBe(0);
-      // Token của người dùng khác giữ nguyên.
-      expect(await prisma.user_fcm_tokens.count({ where: { user_id: adminId } })).toBe(1);
       await api('get', `/admin/users/${id}`).expect(404);
     });
 
@@ -433,11 +422,10 @@ describe('quản trị người dùng /admin/users (MySQL thật)', () => {
       expect(res.body).toEqual({ code: '3001', message: 'Token is invalid' });
     });
 
-    it('token đã đăng xuất, dòng blacklist mất theo CASCADE khi xoá người dùng → vẫn 3001', async () => {
+    it('token đã đăng xuất rồi người dùng bị xoá → vẫn 3001', async () => {
       const { id, token } = await patientSession();
       await api('post', '/auth/logout', token).expect(200);
       await api('delete', `/admin/users/${id}`).expect(200);
-      expect(await prisma.token_blacklist.count({ where: { user_id: id } })).toBe(0);
       expect((await profile(token).expect(401)).body.code).toBe('3001');
     });
 

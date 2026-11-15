@@ -2,6 +2,8 @@ import { Controller, Get, type INestApplication, type Type } from '@nestjs/commo
 import { Test } from '@nestjs/testing';
 import type { App } from 'supertest/types.js';
 import { seedBase, type SeedOptions, type SeedResult } from '../../prisma/seed.js';
+import { ResetOtp } from '../../src/auth/reset-otp.js';
+import { TokenDenylist } from '../../src/auth/token-denylist.js';
 import { AppModule } from '../../src/app.module.js';
 import { configureApp } from '../../src/app.setup.js';
 import { PermissionCache } from '../../src/permissions/permission-cache.js';
@@ -35,7 +37,7 @@ export async function createTestApp({ controllers = [] }: { controllers?: Type[]
 
 /**
  * Xoá dữ liệu mọi bảng (bảng con trước bảng cha), seed lại vai trò, quyền và cơ sở vật chất dev, rồi
- * xoá cache trong bộ nhớ của app (id đổi sau mỗi lần seed lại). `opts` truyền cho seedBase.
+ * xoá cache trong bộ nhớ của app (id đổi sau mỗi lần seed lại), xoá denylist và bộ đếm OTP. `opts` truyền cho seedBase.
  */
 export async function resetData(
   app: INestApplication,
@@ -60,5 +62,7 @@ export async function resetData(
   const seed = await seedBase(prisma, opts);
   app.get(RolesRepository).clearCache();
   app.get(PermissionCache).invalidate();
+  app.get(TokenDenylist).clear();
+  app.get(ResetOtp).clear();
   return seed;
 }

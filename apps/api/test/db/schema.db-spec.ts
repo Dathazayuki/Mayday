@@ -174,7 +174,7 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
 
   it('resetData xoá sạch các bảng con đang có dữ liệu rồi seed lại dữ liệu nền', async () => {
     const { roles, branchId, departmentId, roomId } = await seedBase(prisma);
-    const patient = await prisma.users.create({
+    await prisma.users.create({
       data: {
         password_hash: 'hash',
         ho_ten: 'BỆNH NHÂN',
@@ -182,7 +182,7 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
         patients: { create: { role_id: roles.patient } },
       },
     });
-    const staff = await prisma.users.create({
+    await prisma.users.create({
       data: {
         password_hash: 'hash',
         ho_ten: 'BÁC SĨ',
@@ -197,16 +197,6 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
         },
       },
     });
-    await prisma.user_fcm_tokens.create({
-      data: { user_id: patient.user_id, fcm_token: 'fcm-token', device_type: 'android' },
-    });
-    await prisma.token_blacklist.create({
-      data: {
-        jti: 'jti-reset',
-        user_id: staff.user_id,
-        expires_at: new Date(Date.now() + 3_600_000),
-      },
-    });
     const extra = await prisma.permissions.create({ data: { name: 'quyen_them' } });
     await prisma.role_permissions.create({
       data: { role_id: roles.doctor, permission_id: extra.permission_id },
@@ -218,10 +208,8 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
       prisma.users.count(),
       prisma.patients.count(),
       prisma.staffs.count(),
-      prisma.user_fcm_tokens.count(),
-      prisma.token_blacklist.count(),
     ]);
-    expect(childCounts).toEqual([0, 0, 0, 0, 0]);
+    expect(childCounts).toEqual([0, 0, 0]);
 
     const baseCounts = await prisma.$transaction([
       prisma.roles.count(),

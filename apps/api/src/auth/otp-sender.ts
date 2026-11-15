@@ -8,7 +8,7 @@ import type { Env } from '../config/env.js';
  * Lớp trừu tượng làm luôn injection token: AuthService không cần `@Inject(token)`.
  */
 export abstract class OtpSender {
-  /** Kênh đang dùng được: AuthService kiểm tra trước khi ghi reset_token. */
+  /** Kênh đang dùng được: AuthService kiểm tra trước khi tra tài khoản. */
   abstract isAvailable(): boolean;
   abstract send(phone: string, otp: string): Promise<void>;
 }

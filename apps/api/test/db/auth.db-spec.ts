@@ -4,6 +4,7 @@ import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import type { SeedResult } from '../../prisma/seed.js';
 import type { VerifiedJwt } from '../../src/auth/jwt-payload.js';
+import { TokenDenylist } from '../../src/auth/token-denylist.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { createTestApp, resetData } from './helpers.js';
@@ -162,30 +163,12 @@ describe('Xác thực: signup, login, logout (MySQL thật)', () => {
       await logout(fresh).expect(200);
     });
 
-    it('ghi token_blacklist: jti, user_id và expires_at = exp của token', async () => {
+    it('đăng xuất chặn đúng jti của token tới lúc hết hạn; không ghi CSDL', async () => {
       const token = await signupAndLogin();
-      const { jti, sub, exp } = app.get(JwtService).decode<VerifiedJwt>(token);
+      const { jti } = app.get(JwtService).decode<VerifiedJwt>(token);
       await logout(token).expect(200);
-      const entry = await prisma.token_blacklist.findUniqueOrThrow({ where: { jti } });
-      expect(entry).toMatchObject({ user_id: Number(sub), expires_at: new Date(exp * 1000) });
-    });
-
-    it('xoá mọi user_fcm_tokens của người dùng, giữ của người khác (MT-60)', async () => {
-      const token = await signupAndLogin();
-      const other = (await signup({ ...SIGNUP, phone: '0987654321' }).expect(201)).body.data;
-      const user = await prisma.users.findUniqueOrThrow({ where: { so_dien_thoai: PHONE } });
-      await prisma.user_fcm_tokens.createMany({
-        data: [
-          { user_id: user.user_id, fcm_token: 'fcm-android', device_type: 'android' },
-          { user_id: user.user_id, fcm_token: 'fcm-web', device_type: 'web' },
-          { user_id: other.user_id, fcm_token: 'fcm-nguoi-khac', device_type: 'ios' },
-        ],
-      });
-
-      await logout(token).expect(200);
-
-      const remaining = await prisma.user_fcm_tokens.findMany({ select: { fcm_token: true } });
-      expect(remaining).toEqual([{ fcm_token: 'fcm-nguoi-khac' }]);
+      expect(app.get(TokenDenylist).has(jti)).toBe(true);
+      expect(await prisma.token_blacklist.count()).toBe(0);
     });
   });
 });

@@ -1,4 +1,4 @@
-/** Nội dung access token do login ký; jti dùng cho token_blacklist. */
+/** Nội dung access token do login ký; jti dùng cho TokenDenylist khi đăng xuất. */
 export interface JwtPayload {
   sub: string;
   role_id: string;
