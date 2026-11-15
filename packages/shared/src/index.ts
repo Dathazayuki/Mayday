@@ -16,6 +16,7 @@ export * from './contracts/patients.js';
 export * from './contracts/medical-records.js';
 export * from './medical-records.js';
 export * from './contracts/visits.js';
+export * from './contracts/dashboard.js';
 export * from './clinical-fields.js';
 export * from './duration.js';
 export * from './vn-date.js';

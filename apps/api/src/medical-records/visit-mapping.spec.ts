@@ -5,11 +5,14 @@ import {
   chronicVisitColumns,
   newVisitToDb,
   startVisit,
+  toDayVisit,
+  toTodayVisitItem,
   toVisitData,
   toVisitRecord,
   visitChangesToDb,
   type AcuteVisitColumns,
   type ChronicVisitColumns,
+  type DayVisitRow,
   type VisitColumns,
   type VisitRow,
 } from './visit-mapping.js';
@@ -370,5 +373,67 @@ describe('visit-mapping: bản ghi miền → contract', () => {
     expect(Object.keys(EMPTY_ACUTE_VISIT)).toHaveLength(10);
     expect(Object.keys(EMPTY_CHRONIC_VISIT)).toHaveLength(33);
     expect(Object.values(EMPTY_CHRONIC_VISIT).every((value) => value === null)).toBe(true);
+  });
+});
+
+/** Phiên 31 (lần 2) của hồ sơ MAN 12 đang khám: bệnh nhân LÊ THỊ MAI, bác sĩ NGUYỄN VĂN AN, phòng 101. */
+const dayVisitRow = (overrides: Partial<DayVisitRow> = {}): DayVisitRow => ({
+  ma_phien_kham: 31n,
+  ma_ho_so: 12n,
+  lan_kham_thu: 2,
+  loai_benh_an: 'MAN',
+  nhanvien: { nguoi: { ho_ten: 'NGUYỄN VĂN AN' } },
+  phongkham: { ten_phong_kham: 'Phòng 101' },
+  hosobenhan: { trang_thai: 'in_progress', benhnhan: { nguoi: { ho_ten: 'LÊ THỊ MAI' } } },
+  ...overrides,
+});
+
+describe('visit-mapping: phiên trong ngày (Tổng quan, spec B mục 5.5)', () => {
+  it('toDayVisit: bigint → number, loại và trạng thái hồ sơ, tên bệnh nhân, bác sĩ, phòng', () => {
+    expect(toDayVisit(dayVisitRow())).toEqual({
+      id: 31,
+      recordId: 12,
+      number: 2,
+      recordType: 'MAN',
+      recordStatus: 'in_progress',
+      patientName: 'LÊ THỊ MAI',
+      doctorName: 'NGUYỄN VĂN AN',
+      roomName: 'Phòng 101',
+    });
+  });
+
+  it('chưa phân phòng (MT-115) → roomName null; trạng thái hồ sơ ngoài CHECK → lỗi', () => {
+    expect(toDayVisit(dayVisitRow({ phongkham: null })).roomName).toBeNull();
+    expect(() =>
+      toDayVisit(
+        dayVisitRow({ hosobenhan: { trang_thai: 'mo', benhnhan: { nguoi: { ho_ten: 'X' } } } }),
+      ),
+    ).toThrow(/trang_thai/);
+  });
+
+  it('toTodayVisitItem: đúng 8 khoá của TodayVisitItem theo thứ tự contract', () => {
+    const item = toTodayVisitItem(
+      toDayVisit(dayVisitRow({ loai_benh_an: 'CAP', phongkham: null })),
+    );
+    expect(Object.keys(item)).toEqual([
+      'visit_id',
+      'medical_record_id',
+      'visit_number',
+      'record_type',
+      'record_status',
+      'patient_name',
+      'doctor_name',
+      'room_name',
+    ]);
+    expect(item).toEqual({
+      visit_id: 31,
+      medical_record_id: 12,
+      visit_number: 2,
+      record_type: 'CAP',
+      record_status: 'in_progress',
+      patient_name: 'LÊ THỊ MAI',
+      doctor_name: 'NGUYỄN VĂN AN',
+      room_name: null,
+    });
   });
 });

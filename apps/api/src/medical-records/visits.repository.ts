@@ -1,20 +1,26 @@
 import { Injectable } from '@nestjs/common';
+import type { PageResult } from '@drmayday/shared';
 import { AppException, conflict, invalidReference } from '../common/app.exception.js';
+import type { PageWindow } from '../common/paginated.js';
 import { hasChanges } from '../common/require-changes.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { fromDbId, toDbId } from '../prisma/db-id.js';
+import { dateFromIso } from '../prisma/db-values.js';
 import { isForeignKeyViolation, isUniqueViolation } from '../prisma/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { RecordLock } from './medical-record-mapping.js';
 import { lockRecord } from './medical-records.repository.js';
 import {
+  DAY_VISIT_SELECT,
   VISIT_INCLUDE,
   acuteVisitColumns,
   chronicVisitColumns,
   newVisitToDb,
   startVisit,
+  toDayVisit,
   toVisitRecord,
   visitChangesToDb,
+  type DayVisit,
   type NewVisit,
   type RecordVisits,
   type VisitChanges,
@@ -159,6 +165,26 @@ export class VisitsRepository {
       orderBy: { lan_kham_thu: 'asc' },
     });
     return { patientId: fromDbId(record.ma_benh_nhan), visits: rows.map(toVisitRecord) };
+  }
+
+  /**
+   * GET /dashboard/summary (spec B, mục 5.5): phiên có ngay_kham = `date` (hôm nay giờ Việt Nam do service
+   * tính, D-B23), mới nhất trước (ma_phien_kham giảm dần); một trang và tổng số đọc trong cùng transaction.
+   */
+  async listOnDate(date: string, { skip, take }: PageWindow): Promise<PageResult<DayVisit>> {
+    const db = this.prisma.db;
+    const where = { ngay_kham: dateFromIso(date) } satisfies Prisma.phienkhamWhereInput;
+    const [rows, total] = await db.$transaction([
+      db.phienkham.findMany({
+        where,
+        select: DAY_VISIT_SELECT,
+        orderBy: { ma_phien_kham: 'desc' },
+        skip,
+        take,
+      }),
+      db.phienkham.count({ where }),
+    ]);
+    return { items: rows.map(toDayVisit), total };
   }
 
   /**

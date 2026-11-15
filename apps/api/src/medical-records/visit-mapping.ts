@@ -1,8 +1,11 @@
 import {
+  MEDICAL_RECORD_STATUSES,
   RECORD_TYPES,
   type AcuteVisitFields,
   type ChronicVisitFields,
+  type MedicalRecordStatus,
   type RecordType,
+  type TodayVisitItem,
   type VisitCoreFields,
   type VisitData,
 } from '@drmayday/shared';
@@ -86,6 +89,21 @@ export interface VisitChanges {
   chronic?: Partial<ChronicVisitFields>;
 }
 
+/** Phiên trong một ngày (Tổng quan, spec B mục 5.5): phiên, trạng thái hồ sơ, tên bệnh nhân, bác sĩ, phòng. */
+export interface DayVisit {
+  id: number;
+  recordId: number;
+  /** lan_kham_thu. */
+  number: number;
+  recordType: RecordType;
+  /** trang_thai hiện tại của hồ sơ. */
+  recordStatus: MedicalRecordStatus;
+  patientName: string;
+  doctorName: string;
+  /** null "khi chưa phân phòng" (SQL:1459, MT-115). */
+  roomName: string | null;
+}
+
 // ---- Hàng của CSDL ----
 
 /** include của mọi lần đọc phiên: tên bác sĩ, tên phòng, hai bảng subtype (phienkham không có INTERVAL). */
@@ -103,6 +121,21 @@ type AcuteVisitRow = NonNullable<
 type ChronicVisitRow = NonNullable<
   VisitRow['phienkhamman_phienkhamman_ma_phien_kham_loai_benh_anTophienkham']
 >;
+
+/** select của phiên trong ngày: tên bác sĩ, tên phòng; trạng thái hồ sơ và tên bệnh nhân qua hosobenhan. */
+export const DAY_VISIT_SELECT = {
+  ma_phien_kham: true,
+  ma_ho_so: true,
+  lan_kham_thu: true,
+  loai_benh_an: true,
+  nhanvien: { select: { nguoi: { select: { ho_ten: true } } } },
+  phongkham: { select: { ten_phong_kham: true } },
+  hosobenhan: {
+    select: { trang_thai: true, benhnhan: { select: { nguoi: { select: { ho_ten: true } } } } },
+  },
+} satisfies Prisma.phienkhamSelect;
+
+export type DayVisitRow = Prisma.phienkhamGetPayload<{ select: typeof DAY_VISIT_SELECT }>;
 
 /** Cột phienkham mà repository được ghi: bỏ identity và cột generated (spec A, mục 4.7; spike 3f). */
 export type VisitColumns = Omit<
@@ -202,6 +235,19 @@ export function toVisitRecord(row: VisitRow): VisitRecord {
     },
     acute: acute && toAcuteVisit(acute),
     chronic: chronic && toChronicVisit(chronic),
+  };
+}
+
+export function toDayVisit(row: DayVisitRow): DayVisit {
+  return {
+    id: fromDbId(row.ma_phien_kham),
+    recordId: fromDbId(row.ma_ho_so),
+    number: row.lan_kham_thu,
+    recordType: oneOf(RECORD_TYPES, row.loai_benh_an, 'loai_benh_an'),
+    recordStatus: oneOf(MEDICAL_RECORD_STATUSES, row.hosobenhan.trang_thai, 'trang_thai'),
+    patientName: row.hosobenhan.benhnhan.nguoi.ho_ten,
+    doctorName: row.nhanvien.nguoi.ho_ten,
+    roomName: row.phongkham?.ten_phong_kham ?? null,
   };
 }
 
@@ -336,5 +382,19 @@ export function toVisitData(visit: VisitRecord, view: RecordView): VisitData {
     instructions: visit.instructions,
     details:
       view === 'patient' ? null : { ...visit.core, acute: visit.acute, chronic: visit.chronic },
+  };
+}
+
+/** Phần tử "Phiên khám hôm nay" của GET /dashboard/summary (spec B, mục 5.5). */
+export function toTodayVisitItem(visit: DayVisit): TodayVisitItem {
+  return {
+    visit_id: visit.id,
+    medical_record_id: visit.recordId,
+    visit_number: visit.number,
+    record_type: visit.recordType,
+    record_status: visit.recordStatus,
+    patient_name: visit.patientName,
+    doctor_name: visit.doctorName,
+    room_name: visit.roomName,
   };
 }
