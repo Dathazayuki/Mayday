@@ -1,7 +1,7 @@
 import { LIMIT_DEFAULT, LIMIT_MAX, PAGE_DEFAULT } from '@drmayday/shared';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { PAGE_MAX, pageWindow, PaginationQuery } from './paginated.js';
+import { integerQueryValue, PAGE_MAX, pageWindow, PaginationQuery } from './paginated.js';
 import { validationErrorsToException } from './validation.js';
 
 /** Mã phản hồi mà ValidationPipe toàn cục trả cho query này (null = hợp lệ) và query sau khi đổi kiểu. */
@@ -52,5 +52,15 @@ describe('pageWindow', () => {
   it('trang 1 bắt đầu từ bản ghi đầu; trang n bỏ qua (n - 1) × limit bản ghi', () => {
     expect(pageWindow({ page: 1, limit: 20 })).toEqual({ skip: 0, take: 20 });
     expect(pageWindow({ page: 3, limit: 10 })).toEqual({ skip: 20, take: 10 });
+  });
+});
+
+describe('integerQueryValue', () => {
+  it('chuỗi số nguyên (kể cả âm) → number; giá trị khác giữ nguyên để @IsInt báo 2002', () => {
+    expect(integerQueryValue('1990')).toBe(1990);
+    expect(integerQueryValue('-1')).toBe(-1);
+    for (const value of ['1.5', '1e3', ' 7', 'abc', 7, undefined]) {
+      expect(integerQueryValue(value)).toBe(value);
+    }
   });
 });

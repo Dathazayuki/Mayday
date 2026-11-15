@@ -18,16 +18,20 @@ export const PAGE_MAX = 2_147_483_647;
  */
 const INTEGER_PATTERN = /^-?\d+$/;
 
+/** Chuỗi số nguyên (có thể âm) của query → number; giá trị khác giữ nguyên để `@IsInt` báo 2002. */
+export function integerQueryValue(value: unknown): unknown {
+  return typeof value === 'string' && INTEGER_PATTERN.test(value) ? Number(value) : value;
+}
+
 /**
  * Query số nguyên dương có mặc định: vắng, rỗng hoặc chỉ có khoảng trắng → `fallback`; số nguyên
  * ngoài [1, max] → 2003; còn lại (abc, 1.5, 1e2, có khoảng trắng...) giữ nguyên để `@IsInt` báo 2002.
  */
 const PositiveIntQuery = (fallback: number, max: number) =>
   applyDecorators(
-    Transform(({ value }: { value: unknown }) => {
-      if (value === undefined || isBlank(value)) return fallback;
-      return typeof value === 'string' && INTEGER_PATTERN.test(value) ? Number(value) : value;
-    }),
+    Transform(({ value }: { value: unknown }) =>
+      value === undefined || isBlank(value) ? fallback : integerQueryValue(value),
+    ),
     IsInt(),
     Min(1),
     Max(max),
