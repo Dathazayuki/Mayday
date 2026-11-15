@@ -1,9 +1,9 @@
 import { FIELD_LIMITS, type MedicalRecordListItem } from '@drmayday/shared';
 import { useEffect } from 'react';
-import { Form, Input, Modal, Select, Skeleton, type FormInstance } from 'antd';
-import { toNumericId, useBranches, useRooms } from '../../../admin/facilities-api';
+import { Form, Input, Modal, Skeleton, type FormInstance } from 'antd';
 import { useMedicalRecord } from '../../../clinical/medical-records-api';
 import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
+import { RoomField } from './RoomField';
 
 /** Phần của hồ sơ mà hộp xác nhận cần (thẻ, kéo thả, màn chi tiết). */
 export type TransitionRecord = Pick<
@@ -17,27 +17,6 @@ interface AcceptValues {
 
 interface CompleteValues {
   instructions?: string;
-}
-
-/** Phòng khám để chọn khi tiếp nhận, nhãn kèm tên chi nhánh (spec B, mục 8.6); `GET /rooms`, `/branches`. */
-function RoomField() {
-  const rooms = useRooms();
-  const branches = useBranches();
-  const branchNames = new Map(branches.data?.map((branch) => [branch.id, branch.name]));
-  const options = (rooms.data ?? []).map((room) => ({
-    value: toNumericId(room.id),
-    label: [room.name, branchNames.get(room.branch_id)].filter(Boolean).join(' · '),
-  }));
-  return (
-    <Form.Item name="room_id" label="Phòng khám" extra="Để trống nếu chưa phân phòng">
-      <Select
-        allowClear
-        placeholder="Chưa phân phòng"
-        loading={rooms.isPending || branches.isPending}
-        options={options}
-      />
-    </Form.Item>
-  );
 }
 
 /** Hộp Tiếp nhận: "Tiếp nhận bệnh án #id của <họ tên>?" + phòng khám tuỳ chọn → POST /:id/accept. */
