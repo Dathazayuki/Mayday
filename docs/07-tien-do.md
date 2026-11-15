@@ -28,7 +28,7 @@
 |---|---|---|---|---|
 | 1 — Xác thực, tài khoản, hồ sơ | [x] | [x] | [x] | 8 API |
 | 2 — Quản trị người dùng, vai trò, quyền (RBAC động), cơ sở vật chất | [x] | [x] | — | Giai đoạn này không có Mobile |
-| 3 — Mẫu phiếu khám động | [x] | [x] | — | Web: trình thiết kế mẫu phiếu. API: 11 API, quyền `manage_templates` (G3-2) |
+| 3 — Mẫu phiếu khám động | — | — | — | Đã gỡ ở A2 (spec A): API mẫu phiếu và trình thiết kế mẫu phiếu trên Web, vì CSDL thật không có bảng mẫu phiếu. Tiểu dự án B quyết định lại phần phiếu khám |
 | 4 — Bệnh nhân, bệnh án | [ ] | [x] | [x] | API là G4-2 |
 | 5/6b — Kho ảnh, tổn thương da | [ ] | [x] | [x] | API là G5-2/G5-3 |
 | 6a — UAS7 | [ ] | [x] | [x] | API là G6-2 |
@@ -59,8 +59,8 @@ Spec: [2026-11-15-giai-doan-2-quan-tri-design.md](superpowers/specs/2026-11-15-g
 Spec: [2026-11-15-giai-doan-3-mau-phieu-design.md](superpowers/specs/2026-11-15-giai-doan-3-mau-phieu-design.md) · Kế hoạch: [2026-11-15-giai-doan-3-mau-phieu.md](superpowers/plans/2026-11-15-giai-doan-3-mau-phieu.md)
 
 - [x] Shared: kiểu và quy tắc dùng chung (G3-1)
-- [x] Web: trình thiết kế mẫu phiếu (G3-3)
-- [x] API (G3-2): 11 API mẫu phiếu, section, câu hỏi; `@RequirePermission('manage_templates')` cho API ghi (admin luôn qua, vai trò khác cần được cấp qua `role_permissions`); seed mẫu dev `TMPL_DEV_SAMPLE`. Kiểm tra trên nhánh `gd3-api` sau khi gộp `main`: `pnpm test` shared 226, API 767, Web 225 (output không có log WARN/ERROR); `test:e2e` 13; `test:db` 263 (chạy 3 lần liền với `--retry=0`, đều xanh); `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build` xanh. Điểm cần chốt: MT-67, MT-68, MT-69, MT-98 và mục F.17–F.20 trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md)
+- [x] Web: trình thiết kế mẫu phiếu (G3-3). **Đã gỡ ở A2** (spec A)
+- [x] API (G3-2) **(đã gỡ ở A2, spec A; ghi lại để lưu lịch sử)**: 11 API mẫu phiếu, section, câu hỏi; `@RequirePermission('manage_templates')` cho API ghi (admin luôn qua, vai trò khác cần được cấp qua `role_permissions`); seed mẫu dev `TMPL_DEV_SAMPLE`. Kiểm tra trên nhánh `gd3-api` sau khi gộp `main`: `pnpm test` shared 226, API 767, Web 225 (output không có log WARN/ERROR); `test:e2e` 13; `test:db` 263 (chạy 3 lần liền với `--retry=0`, đều xanh); `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build` xanh. Điểm cần chốt: MT-67, MT-68, MT-69, MT-98 và mục F.17–F.20 trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md)
 
 ## Giai đoạn 4 — Bệnh nhân, bệnh án
 
@@ -124,15 +124,15 @@ Spec: [2026-11-15-giao-dien-cendo-design.md](superpowers/specs/2026-11-15-giao-d
 
 ## Việc tiếp theo
 
-1. **API còn thiếu, theo thứ tự phụ thuộc:** G4-2 (bệnh nhân, bệnh án; thêm kiểm tra 4105 khi xoá mẫu phiếu đang được dùng) → G6-2 (UAS7) và G7-2 (đơn thuốc, xét nghiệm, thông báo) → G5-2/G5-3 (kho ảnh, tổn thương da). Các API sau phụ thuộc bệnh án của G4-2.
+1. **API còn thiếu, theo thứ tự phụ thuộc:** G4-2 (bệnh nhân, bệnh án) → G6-2 (UAS7) và G7-2 (đơn thuốc, xét nghiệm, thông báo) → G5-2/G5-3 (kho ảnh, tổn thương da). Các API sau phụ thuộc bệnh án của G4-2.
 2. **Tiểu dự án B và C** (hồ sơ/phiên khám CAP–MAN, giai đoạn 5–8 trên CSDL thật): viết spec sau khi nhóm DB trả lời MT-99, MT-100, MT-110, MT-111, MT-112.
 3. **Thử app trên máy thật** (Expo Go: camera, chọn ảnh, bàn phím, `router.replace('/login')`).
-4. **Duyệt mục E và F** trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md); cần chốt riêng `gender: ''` (2001 hay 2003), `reset-password` (MT-16), và các mục từ review tổng thể: đổi mật khẩu chưa thu hồi phiên trên thiết bị khác (MT-95), chưa giới hạn tần suất đăng nhập/quên mật khẩu (MT-96), giới hạn tối đa 72 byte của mật khẩu (MT-97); từ review G3-2: toàn vẹn cây câu hỏi rẽ nhánh (MT-98).
+4. **Duyệt mục E và F** trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md); cần chốt riêng `gender: ''` (2001 hay 2003), `reset-password` (MT-16), và các mục từ review tổng thể: chưa giới hạn tần suất đăng nhập/quên mật khẩu (MT-96), giới hạn tối đa 72 byte của mật khẩu (MT-97).
 5. **Các mục Minor còn mở** (rút gọn từ sổ theo dõi review và review tổng thể trước khi gộp vào `main`):
-   - API: thêm Swagger request schema (plugin CLI không chạy với ESM nên schema yêu cầu đang rỗng); `session lookup` nên `select` hẹp; bản ghi có cả hai subtype xử lý chưa thống nhất; seed tạo và gán chưa atomic: tạo quyền rồi mới cấp cho vai trò mặc định, tạo user admin rồi mới gán vai trò, ở các lệnh riêng; lỗi giữa chừng thì chạy lại không cấp nữa (quyền đã có), nên gói trong một transaction; route `@Param` số phải dùng `parseIdPipe`; mapper viết thẳng trong service RBAC (vai trò, quyền, gán quyền) nên tách ra `*-mapping.ts` như các module khác; chuyển `PasswordService` sang `UsersModule`; khoá HMAC của OTP nên là khoá con suy ra bằng HKDF từ `JWT_SECRET` thay vì dùng thẳng `JWT_SECRET`.
-   - Hạ tầng: `docker-compose` MinIO dùng `latest` chưa ghim phiên bản; `Number()` nhận `1e3`/`0x10` làm port; cache quyền nằm trong bộ nhớ từng tiến trình API: seed ghi lại gắn quyền–endpoint thì phải khởi động lại API (đã ghi trong README), chạy nhiều tiến trình cần cơ chế xoá cache chung.
+   - API: thêm Swagger request schema (plugin CLI không chạy với ESM nên schema yêu cầu đang rỗng); route `@Param` số phải dùng `parseIdPipe`; chuyển `PasswordService` sang `UsersModule`; khoá HMAC của OTP nên là khoá con suy ra bằng HKDF từ `JWT_SECRET` thay vì dùng thẳng `JWT_SECRET`.
+   - Hạ tầng: `docker-compose` MinIO dùng `latest` chưa ghim phiên bản; `Number()` nhận `1e3`/`0x10` làm port; cache quyền nằm trong bộ nhớ từng tiến trình API: chạy nhiều tiến trình cần cơ chế xoá cache chung.
    - Web: chunk JS lớn hơn 500 kB, nên lazy-load nhóm trang quản trị và lâm sàng; bảng hàng chỉ click chuột (thiếu truy cập bàn phím); khung CRUD chung có vài cast và lặp (`useDeleteAction`).
    - Mobile: `keyboardVerticalOffset` trên iOS; bỏ các dependency của mẫu Expo chưa dùng; `records.tsx`/`uas7.tsx` còn `Number(user?.user_id)`; `mix_text_image` mới là placeholder.
-   - Shared: thống nhất hiển thị giờ tổn thương (Web nay hiển thị `HH:mm` theo shared); định dạng ngày, nhãn trường hồ sơ, tên vai trò và đường dẫn API đang lặp giữa Web và Mobile, nên chuyển vào `packages/shared`; chuyển `FieldErrors` từ `lesion-form.ts` sang một module form dùng chung.
-   - Test: spec HTTP status chỉ kiểm 11/71 mã; thiếu e2e 9902 qua HTTP khi CSDL tắt.
+   - Shared: thống nhất hiển thị giờ tổn thương (Web nay hiển thị `HH:mm` theo shared); định dạng ngày, nhãn trường hồ sơ và đường dẫn API đang lặp giữa Web và Mobile, nên chuyển vào `packages/shared`; chuyển `FieldErrors` từ `lesion-form.ts` sang một module form dùng chung.
+   - Test: spec HTTP status chỉ kiểm 11/71 mã.
 6. **Quy tắc cho route/provider mới:** không dùng `@Inject(token)` với danh sách tham số riêng lẻ, vì làm hỏng `db:seed` chạy bằng tsx (đã có test chặn).
