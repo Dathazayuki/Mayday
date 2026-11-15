@@ -4,3 +4,6 @@
 *.xlsx binary
 *.png binary
 *.jpg binary
+
+# Bản sao file SQL của nhóm DB: giữ nguyên từng byte (CRLF) để khớp sha256 trong source.json.
+apps/api/prisma/vendor/** -text
