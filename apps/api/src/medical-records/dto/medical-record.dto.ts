@@ -25,8 +25,8 @@ import {
   type SelfReportFields,
   type UpdateMedicalRecordRequest,
 } from '@drmayday/shared';
-import { Transform, Type } from 'class-transformer';
-import { IsIn, IsObject, IsOptional, ValidateIf, ValidateNested } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsIn, IsOptional, ValidateIf } from 'class-validator';
 import { IdQuery, IdRule } from '../../common/id.js';
 import { isPresent } from '../../common/is-present.js';
 import { PaginationQuery } from '../../common/paginated.js';
@@ -40,6 +40,7 @@ import {
   ClinicalEnum,
   ClinicalInt,
   ClinicalText,
+  NestedBlock,
 } from './clinical-field.decorators.js';
 
 /** Khối `self_report` (D-B31). Bệnh nhân tự khai khối này ở B6; nhân viên sửa theo luật của nhân viên. */
@@ -111,10 +112,6 @@ export class RecordCoreDto implements RecordCoreRequest {
   @ClinicalText() family_history_detail?: string | null; // cặp với family_history (D-B14)
   @ClinicalBool() treated_before_visit?: boolean | null;
 }
-
-/** Khối con: vắng = không gửi; phải là object (sai kiểu → 2002, null → 2001); kiểm từng trường bên trong. */
-const NestedBlock = (type: () => Function) =>
-  applyDecorators(ValidateIf(isPresent), IsObject(), ValidateNested(), Type(type));
 
 /**
  * PATCH /medical_records/:id (mới, thay medrec10): ít nhất 1 trường (2001, record-changes.ts).

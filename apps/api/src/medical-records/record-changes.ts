@@ -16,8 +16,8 @@ import type { MedicalRecord, NewMedicalRecord, RecordChanges } from './medical-r
 
 type RecordBlocks = Pick<NewMedicalRecord, 'selfReport' | 'core' | 'acute' | 'chronic'>;
 
-/** Cặp cờ ↔ ghi rõ có CHECK (SQL:1613–1614, 1643–1644); `field` là đường dẫn trong body để báo lỗi. */
-interface DetailPair<T> {
+/** Cặp cờ ↔ ghi rõ có CHECK (SQL:1613–1614, 1637–1638, 1643–1644); `field` là đường dẫn trong body để báo lỗi. Dùng chung với visit-changes.ts. */
+export interface DetailPair<T> {
   flag: keyof T;
   detail: keyof T;
   isOn: (value: T[keyof T] | undefined) => boolean;
@@ -39,7 +39,7 @@ const CINDU_OTHER_PAIR: DetailPair<ChronicRecordFields> = {
 };
 
 /** Chỉ các khoá đã gửi (khác undefined); null giữ lại vì nghĩa là xoá. Khối vắng → {}. */
-function sent<T extends object>(block: Partial<T> | undefined): Partial<T> {
+export function sent<T extends object>(block: Partial<T> | undefined): Partial<T> {
   if (block === undefined) return {};
   return Object.fromEntries(
     Object.entries(block).filter(([, value]) => value !== undefined),
@@ -82,7 +82,7 @@ function assertBlocksMatchType(type: RecordType, dto: UpdateMedicalRecordDto): v
  * D-B14 sau khi gộp `patch` vào `stored`: cờ không bật → ô ghi rõ phải trống (gửi khác rỗng → 2003; đang
  * lưu giá trị thì tự ghi null); cờ bật → phải có ghi rõ (2001). Trả patch đã thêm `detail: null` nếu cần.
  */
-function applyDetailPair<T extends object>(
+export function applyDetailPair<T extends object>(
   stored: Partial<T>,
   patch: Partial<T>,
   pair: DetailPair<T>,
