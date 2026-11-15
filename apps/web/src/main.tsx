@@ -6,6 +6,7 @@ import '@fontsource/sora/500.css';
 import '@fontsource/sora/600.css';
 import '@fontsource/sora/700.css';
 import './theme/global.css';
+import './layout/layout.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';

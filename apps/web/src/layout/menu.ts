@@ -1,3 +1,11 @@
+import {
+  BankOutlined,
+  FileTextOutlined,
+  FormOutlined,
+  SafetyCertificateOutlined,
+  TeamOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import type { ComponentType } from 'react';
 import { FacilitiesPage } from '../pages/admin/FacilitiesPage';
 import { RolesPage } from '../pages/admin/RolesPage';
@@ -9,6 +17,8 @@ import { PatientsPage } from '../pages/clinical/PatientsPage';
 export interface NavItem {
   key: string;
   label: string;
+  /** Icon outlined nét mảnh, giống bộ Feather của Cendo. */
+  icon: ComponentType;
   /** Trang thật của mục; chưa có thì route dùng ComingSoonPage. */
   page?: ComponentType;
 }
@@ -31,18 +41,33 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Khám và điều trị',
     staffOnly: true,
     items: [
-      { key: '/patients', label: 'Bệnh nhân', page: PatientsPage },
-      { key: '/medical-records', label: 'Bệnh án', page: MedicalRecordsPage },
+      { key: '/patients', label: 'Bệnh nhân', icon: TeamOutlined, page: PatientsPage },
+      {
+        key: '/medical-records',
+        label: 'Bệnh án',
+        icon: FileTextOutlined,
+        page: MedicalRecordsPage,
+      },
     ],
   },
   {
     label: 'Quản trị hệ thống',
     adminOnly: true,
     items: [
-      { key: '/admin/users', label: 'Người dùng', page: UsersPage },
-      { key: '/admin/roles', label: 'Vai trò và quyền hạn', page: RolesPage },
-      { key: '/admin/facilities', label: 'Cơ sở vật chất', page: FacilitiesPage },
-      { key: '/admin/templates', label: 'Mẫu phiếu khám', page: TemplatesPage },
+      { key: '/admin/users', label: 'Người dùng', icon: UserOutlined, page: UsersPage },
+      {
+        key: '/admin/roles',
+        label: 'Vai trò và quyền hạn',
+        icon: SafetyCertificateOutlined,
+        page: RolesPage,
+      },
+      {
+        key: '/admin/facilities',
+        label: 'Cơ sở vật chất',
+        icon: BankOutlined,
+        page: FacilitiesPage,
+      },
+      { key: '/admin/templates', label: 'Mẫu phiếu khám', icon: FormOutlined, page: TemplatesPage },
     ],
   },
 ];

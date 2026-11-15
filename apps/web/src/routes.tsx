@@ -1,7 +1,7 @@
 import { Route, Routes } from 'react-router';
 import { RequireAdmin } from './admin/RequireAdmin';
 import { RequireAuth } from './auth/RequireAuth';
-import { AppLayout } from './layout/AppLayout';
+import { AppShell } from './layout/AppShell';
 import { NAV_GROUPS, type NavItem } from './layout/menu';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
@@ -27,7 +27,7 @@ export function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<RequireAuth />}>
-        <Route element={<AppLayout />}>
+        <Route element={<AppShell />}>
           <Route index element={<ComingSoonPage title="Tổng quan" />} />
           {NAV_GROUPS.filter((group) => !group.adminOnly).flatMap((group) =>
             group.items.map(pageRoute),
