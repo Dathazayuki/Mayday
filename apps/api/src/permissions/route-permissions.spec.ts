@@ -5,6 +5,7 @@ import { AdminUsersController } from '../admin-users/admin-users.controller.js';
 import { AuthController } from '../auth/auth.controller.js';
 import { BranchesController } from '../facilities/branches.controller.js';
 import { RoomsController } from '../facilities/rooms.controller.js';
+import { MedicalRecordsController } from '../medical-records/medical-records.controller.js';
 import { PatientsController } from '../patients/patients.controller.js';
 import { REQUIRED_ROLES_KEY } from '../roles/require-role.decorator.js';
 import { RolesController } from '../roles/roles.controller.js';
@@ -91,5 +92,39 @@ describe('quyền khai báo trên route bệnh nhân', () => {
     for (const handler of [search, get, create, update]) {
       expect(declaredRoles(PatientsController, handler)).toBeUndefined();
     }
+  });
+});
+
+/**
+ * Bệnh án của B2 (spec B, mục 7.2, D-B18): route chỉ cho nhân viên khai báo quyền; route dùng chung cho
+ * nhân viên và bệnh nhân (đọc theo id, lịch sử, POST, PATCH) không khai báo gì, service kiểm bằng
+ * PermissionChecker; DELETE là admin (3102).
+ */
+describe('quyền khai báo trên route bệnh án', () => {
+  const routes = MedicalRecordsController.prototype;
+
+  it('view_medical_records: danh sách và số đếm; không giới hạn vai trò', () => {
+    for (const handler of [routes.list, routes.statusCounts]) {
+      expect(declared(MedicalRecordsController, handler)).toEqual(['view_medical_records']);
+      expect(declaredRoles(MedicalRecordsController, handler)).toBeUndefined();
+    }
+  });
+
+  it('route dùng chung: không khai báo quyền, không giới hạn vai trò', () => {
+    for (const handler of [
+      routes.create,
+      routes.get,
+      routes.summary,
+      routes.history,
+      routes.update,
+    ]) {
+      expect(declared(MedicalRecordsController, handler)).toEqual([]);
+      expect(declaredRoles(MedicalRecordsController, handler)).toBeUndefined();
+    }
+  });
+
+  it('DELETE: admin (3102) và manage_medical_records', () => {
+    expect(declared(MedicalRecordsController, routes.remove)).toEqual(['manage_medical_records']);
+    expect(declaredRoles(MedicalRecordsController, routes.remove)).toEqual(['admin']);
   });
 });

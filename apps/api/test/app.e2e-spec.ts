@@ -86,6 +86,36 @@ describe('Nền tảng API (e2e)', () => {
     },
   );
 
+  it.each<['post' | 'get' | 'put', string]>([
+    ['post', '/api/v1/medical_records/classify'],
+    ['get', '/api/v1/medical_records/1/answers'],
+    ['put', '/api/v1/medical_records/1/answers'],
+    ['post', '/api/v1/medical_records/1/answers'],
+  ])(
+    'API phân loại, câu trả lời đã bỏ (spec B, D-B11, MT-118): %s %s → 404 / 2003',
+    async (method, path) => {
+      const token = await jwt.signAsync(payload);
+      const res = await request(app.getHttpServer())
+        [method](path)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
+      expect(res.body).toEqual({ code: '2003', message: 'Invalid parameter value' });
+    },
+  );
+
+  it('GET /medical_records/classify-questions khớp GET /medical_records/:id nên trả 400 / 2002 (id sai dạng), như mọi :id', async () => {
+    const token = await jwt.signAsync(payload);
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/medical_records/classify-questions')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(400);
+    expect(res.body).toEqual({
+      code: '2002',
+      message: 'Invalid parameter type',
+      data: { field: 'id' },
+    });
+  });
+
   it('body JSON hỏng → 400 / 2007', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/e2e-sample')
