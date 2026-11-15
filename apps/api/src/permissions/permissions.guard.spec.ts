@@ -6,32 +6,20 @@ import { Public } from '../auth/public.decorator.js';
 import { connectionError } from '../prisma/prisma-error.fixture.js';
 import { isDatabaseConnectionError } from '../prisma/prisma-errors.js';
 import type { RolesRepository } from '../roles/roles.repository.js';
+import {
+  ACCESS_CASES,
+  DOCTOR,
+  PATIENT,
+  RULES,
+  roleById,
+  type SamplePermission,
+} from './access-rules.fixture.js';
 import { PermissionCache } from './permission-cache.js';
-import { PermissionsGuard } from './permissions.guard.js';
+import { PermissionChecker } from './permission-checker.js';
 import type { AccessRules } from './permission-mapping.js';
+import { PermissionsGuard } from './permissions.guard.js';
 import type { PermissionsRepository } from './permissions.repository.js';
 import { RequirePermission } from './require-permission.decorator.js';
-
-const ADMIN = 1;
-const PATIENT = 2;
-const DOCTOR = 6;
-const ROLE_NAMES: Record<number, string> = {
-  [ADMIN]: 'admin',
-  [PATIENT]: 'benh_nhan',
-  [DOCTOR]: 'bac_si',
-};
-
-/**
- * manage_users (10) cấp cho bác sĩ; manage_roles (11) không cấp cho ai; manage_facilities khai báo
- * trong code nhưng chưa có dòng trong bảng quyền.
- */
-const RULES: AccessRules = {
-  rolePermissions: [{ roleId: DOCTOR, permissionId: 10 }],
-  permissions: [
-    { permissionId: 10, name: 'manage_users' },
-    { permissionId: 11, name: 'manage_roles' },
-  ],
-};
 
 @Controller('samples')
 class SampleController {
@@ -64,21 +52,21 @@ class SampleAdminController {
   list() {}
 }
 
+/** Handler khai báo đúng quyền của từng trường hợp trong ACCESS_CASES. */
+const HANDLERS: Record<SamplePermission, (...args: never[]) => unknown> = {
+  manage_users: SampleController.prototype.create,
+  manage_roles: SampleController.prototype.detail,
+  manage_facilities: SampleController.prototype.remove,
+};
+
 function setup(rules: AccessRules = RULES) {
   const findAccessRules = vi
     .fn<PermissionsRepository['findAccessRules']>()
     .mockResolvedValue(rules);
-  const findById = vi.fn<RolesRepository['findById']>(async (roleId) =>
-    ROLE_NAMES[roleId]
-      ? { id: roleId, name: ROLE_NAMES[roleId], displayName: ROLE_NAMES[roleId], description: null }
-      : null,
-  );
+  const findById = vi.fn<RolesRepository['findById']>(async (roleId) => roleById(roleId));
   const cache = new PermissionCache({ findAccessRules } as unknown as PermissionsRepository);
-  const guard = new PermissionsGuard(
-    new Reflector(),
-    { findById } as unknown as RolesRepository,
-    cache,
-  );
+  const checker = new PermissionChecker({ findById } as unknown as RolesRepository, cache);
+  const guard = new PermissionsGuard(new Reflector(), checker);
   return { guard, cache, findAccessRules, findById };
 }
 
@@ -99,8 +87,16 @@ function contextFor(
   } as unknown as ExecutionContext;
 }
 
+/** Kết quả của guard: 'qua', hoặc mã lỗi mà guard ném. */
+function outcome(guard: PermissionsGuard, context: ExecutionContext): Promise<string | undefined> {
+  return guard.canActivate(context).then(
+    () => 'qua',
+    (error: { code?: string }) => error.code,
+  );
+}
+
 describe('PermissionsGuard (quyền khai báo trong code, spec A mục 6.5)', () => {
-  const { list, open, create, detail, remove } = SampleController.prototype;
+  const { list, open, create } = SampleController.prototype;
 
   it('route @Public() → qua, không đọc CSDL', async () => {
     const { guard, findAccessRules } = setup();
@@ -115,34 +111,15 @@ describe('PermissionsGuard (quyền khai báo trong code, spec A mục 6.5)', ()
     expect(findAccessRules).not.toHaveBeenCalled();
   });
 
-  it('vai trò có quyền khai báo → qua', async () => {
-    const { guard } = setup();
-    await expect(guard.canActivate(contextFor(create, DOCTOR))).resolves.toBe(true);
-  });
-
-  it('vai trò không có quyền khai báo → 3101', async () => {
-    const { guard } = setup();
-    await expect(guard.canActivate(contextFor(create, PATIENT))).rejects.toMatchObject({
-      code: '3101',
-    });
-    await expect(guard.canActivate(contextFor(detail, DOCTOR))).rejects.toMatchObject({
-      code: '3101',
-    });
-  });
-
-  it('admin → qua dù không được cấp quyền', async () => {
-    const { guard, findById } = setup();
-    await expect(guard.canActivate(contextFor(detail, ADMIN))).resolves.toBe(true);
-    expect(findById).toHaveBeenCalledWith(ADMIN);
-  });
-
-  it('quyền khai báo chưa có dòng trong bảng quyền → chỉ admin qua', async () => {
-    const { guard } = setup();
-    await expect(guard.canActivate(contextFor(remove, DOCTOR))).rejects.toMatchObject({
-      code: '3101',
-    });
-    await expect(guard.canActivate(contextFor(remove, ADMIN))).resolves.toBe(true);
-  });
+  it.each(ACCESS_CASES)(
+    'cùng bộ trường hợp với PermissionChecker: $title → qua = $allowed (không qua → 3101)',
+    async ({ roleId, permission, allowed }) => {
+      const { guard } = setup();
+      await expect(outcome(guard, contextFor(HANDLERS[permission], roleId))).resolves.toBe(
+        allowed ? 'qua' : '3101',
+      );
+    },
+  );
 
   it('khai báo ở controller → áp dụng cho handler của controller đó', async () => {
     const { guard } = setup();
@@ -153,13 +130,6 @@ describe('PermissionsGuard (quyền khai báo trong code, spec A mục 6.5)', ()
     await expect(
       guard.canActivate(contextFor(adminList, DOCTOR, SampleAdminController)),
     ).resolves.toBe(true);
-  });
-
-  it('role_id không còn trong bảng vai trò → 3101', async () => {
-    const { guard } = setup();
-    await expect(guard.canActivate(contextFor(create, 999))).rejects.toMatchObject({
-      code: '3101',
-    });
   });
 
   it('chưa có request.user (JwtAuthGuard chưa chạy) → 3003', async () => {
