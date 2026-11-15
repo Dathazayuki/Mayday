@@ -12,8 +12,8 @@ function setup() {
     createBranch: vi.fn<FacilitiesRepository['createBranch']>().mockResolvedValue(branchRecord()),
     updateBranch: vi.fn<FacilitiesRepository['updateBranch']>().mockResolvedValue(branchRecord()),
     deleteBranch: vi.fn<FacilitiesRepository['deleteBranch']>().mockResolvedValue(undefined),
-    countDepartments: vi.fn<FacilitiesRepository['countDepartments']>().mockResolvedValue(0),
-    countStaffs: vi.fn<FacilitiesRepository['countStaffs']>().mockResolvedValue(0),
+    countRooms: vi.fn<FacilitiesRepository['countRooms']>().mockResolvedValue(0),
+    countStaff: vi.fn<FacilitiesRepository['countStaff']>().mockResolvedValue(0),
   };
   return { repo, service: new BranchesService(repo as unknown as FacilitiesRepository) };
 }
@@ -29,7 +29,12 @@ describe('BranchesService', () => {
 
     it('get: id kiểu int', async () => {
       const { service } = setup();
-      await expect(service.get(10)).resolves.toMatchObject({ id: 10, name: 'Chi nhánh Hà Nội' });
+      expect(await service.get(10)).toStrictEqual({
+        id: 10,
+        name: 'Chi nhánh Hà Nội',
+        address: '1 Phố Huế',
+        phone: '0912345678',
+      });
     });
 
     it('get: không tồn tại → 2003 / 404', async () => {
@@ -81,23 +86,23 @@ describe('BranchesService', () => {
       expect(repo.deleteBranch).not.toHaveBeenCalled();
     });
 
-    it('còn khoa trực thuộc → 2003 / 409, không xoá', async () => {
+    it('còn phòng trực thuộc → 2003 / 409, không xoá', async () => {
       const { service, repo } = setup();
-      repo.countDepartments.mockResolvedValue(2);
+      repo.countRooms.mockResolvedValue(2);
       await expect(service.remove(10)).rejects.toMatchObject(CONFLICT);
-      expect(repo.countDepartments).toHaveBeenCalledWith(10);
+      expect(repo.countRooms).toHaveBeenCalledWith(10);
       expect(repo.deleteBranch).not.toHaveBeenCalled();
     });
 
     it('còn nhân viên trực thuộc → 2003 / 409, không xoá', async () => {
       const { service, repo } = setup();
-      repo.countStaffs.mockResolvedValue(1);
+      repo.countStaff.mockResolvedValue(1);
       await expect(service.remove(10)).rejects.toMatchObject(CONFLICT);
-      expect(repo.countStaffs).toHaveBeenCalledWith({ branchId: 10 });
+      expect(repo.countStaff).toHaveBeenCalledWith(10);
       expect(repo.deleteBranch).not.toHaveBeenCalled();
     });
 
-    it('không còn khoa hay nhân viên → xoá', async () => {
+    it('không còn phòng hay nhân viên → xoá', async () => {
       const { service, repo } = setup();
       await service.remove(10);
       expect(repo.deleteBranch).toHaveBeenCalledWith(10);

@@ -1,41 +1,33 @@
-import type { CreateRoomRequest, UpdateRoomRequest } from '@drmayday/shared';
-import { IsDefined, IsOptional, ValidateIf } from 'class-validator';
+import { FIELD_LIMITS, type CreateRoomRequest, type UpdateRoomRequest } from '@drmayday/shared';
+import { IsDefined, ValidateIf } from 'class-validator';
 import { IdQuery, IdRule } from '../../common/id.js';
 import { isPresent } from '../../common/is-present.js';
-import { NonBlankTextRule, TextRule } from './field-rules.js';
+import { NonBlankTextRule } from './field-rules.js';
 
-/** POST /rooms. */
+/** POST /rooms: phòng thuộc thẳng chi nhánh; không còn description, department_id (MT-108). */
 export class CreateRoomDto implements CreateRoomRequest {
   @IsDefined()
-  @NonBlankTextRule()
+  @NonBlankTextRule(FIELD_LIMITS.room_name)
   name: string;
-
-  @IsOptional()
-  @TextRule()
-  description?: string;
 
   @IsDefined()
   @IdRule()
-  department_id: number;
+  branch_id: number;
 }
 
-/** PUT /rooms/:id: ít nhất một trường; `description: null` xoá mô tả. */
+/** PUT /rooms/:id: ít nhất một trường (RoomsService kiểm tra, 2001). */
 export class UpdateRoomDto implements UpdateRoomRequest {
   @ValidateIf(isPresent)
-  @NonBlankTextRule()
+  @NonBlankTextRule(FIELD_LIMITS.room_name)
   name?: string;
-
-  @IsOptional()
-  @TextRule()
-  description?: string | null;
 
   @ValidateIf(isPresent)
   @IdRule()
-  department_id?: number;
+  branch_id?: number;
 }
 
-/** GET /rooms?department_id= (vắng hoặc rỗng = không lọc). */
+/** GET /rooms?branch_id= (vắng hoặc rỗng = không lọc). */
 export class ListRoomsQuery {
   @IdQuery()
-  department_id?: number;
+  branch_id?: number;
 }

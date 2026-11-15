@@ -4,7 +4,6 @@ import { Reflector } from '@nestjs/core';
 import { AdminUsersController } from '../admin-users/admin-users.controller.js';
 import { AuthController } from '../auth/auth.controller.js';
 import { BranchesController } from '../facilities/branches.controller.js';
-import { DepartmentsController } from '../facilities/departments.controller.js';
 import { RoomsController } from '../facilities/rooms.controller.js';
 import { RolesController } from '../roles/roles.controller.js';
 import { PermissionsController } from './permissions.controller.js';
@@ -51,17 +50,13 @@ describe('quyền khai báo trên route quản trị', () => {
     }
   });
 
-  it('manage_facilities: POST/PUT/DELETE chi nhánh, khoa, phòng; GET không cần quyền', () => {
+  it('manage_facilities: POST/PUT/DELETE chi nhánh, phòng; GET không cần quyền', () => {
     const branches = BranchesController.prototype;
-    const departments = DepartmentsController.prototype;
     const rooms = RoomsController.prototype;
     const writes: [Type, Function][] = [
       [BranchesController, branches.create],
       [BranchesController, branches.update],
       [BranchesController, branches.remove],
-      [DepartmentsController, departments.create],
-      [DepartmentsController, departments.update],
-      [DepartmentsController, departments.remove],
       [RoomsController, rooms.create],
       [RoomsController, rooms.update],
       [RoomsController, rooms.remove],
@@ -72,8 +67,6 @@ describe('quyền khai báo trên route quản trị', () => {
     const reads: [Type, Function][] = [
       [BranchesController, branches.list],
       [BranchesController, branches.get],
-      [DepartmentsController, departments.list],
-      [DepartmentsController, departments.get],
       [RoomsController, rooms.list],
       [RoomsController, rooms.get],
     ];

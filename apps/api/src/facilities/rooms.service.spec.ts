@@ -1,84 +1,63 @@
 import type { FacilitiesRepository } from './facilities.repository.js';
 import { FacilitiesService } from './facilities.service.js';
-import { roomRecord } from './facility-record.fixture.js';
+import { branchRecord, roomRecord } from './facility-record.fixture.js';
 import { RoomsService } from './rooms.service.js';
 
 const NOT_FOUND = { code: '2003', httpStatus: 404 };
-const CONFLICT = { code: '2003', httpStatus: 409 };
 
 function setup() {
   const repo = {
+    getBranch: vi.fn<FacilitiesRepository['getBranch']>(async (id) =>
+      id === 10 || id === 11 ? branchRecord({ id }) : null,
+    ),
     listRooms: vi.fn<FacilitiesRepository['listRooms']>().mockResolvedValue([roomRecord()]),
     getRoom: vi.fn<FacilitiesRepository['getRoom']>().mockResolvedValue(roomRecord()),
-    createRoom: vi.fn<FacilitiesRepository['createRoom']>().mockResolvedValue(roomRecord()),
-    updateRoom: vi.fn<FacilitiesRepository['updateRoom']>().mockResolvedValue(roomRecord()),
+    createRoom: vi.fn<FacilitiesRepository['createRoom']>(async ({ name, branchId }) =>
+      roomRecord({ name, branchId }),
+    ),
+    updateRoom: vi.fn<FacilitiesRepository['updateRoom']>(async (id, { name, branchId }) =>
+      roomRecord({ id, name: name ?? 'Phòng 101', branchId: branchId ?? 10 }),
+    ),
     deleteRoom: vi.fn<FacilitiesRepository['deleteRoom']>().mockResolvedValue(undefined),
-    findDepartment: vi
-      .fn<FacilitiesRepository['findDepartment']>()
-      .mockResolvedValue({ id: 21, branch_id: 10 }),
-    countStaffs: vi.fn<FacilitiesRepository['countStaffs']>().mockResolvedValue(0),
   };
   const facilities = repo as unknown as FacilitiesRepository;
   return { repo, service: new RoomsService(facilities, new FacilitiesService(facilities)) };
 }
 
-describe('RoomsService', () => {
-  describe('list / get', () => {
-    it('list: id và department_id kiểu string; không lọc → undefined', async () => {
-      const { service, repo } = setup();
-      await expect(service.list({})).resolves.toEqual([
-        {
-          id: '30',
-          name: 'Phòng 101',
-          department_id: '20',
-          description: null,
-          created_at: '2026-11-15T01:02:03.000Z',
-        },
-      ]);
-      expect(repo.listRooms).toHaveBeenCalledWith(undefined);
-    });
+describe('RoomsService (spec A, mục 5.4)', () => {
+  it('list: lọc theo chi nhánh, id kiểu string', async () => {
+    const { service, repo } = setup();
+    await expect(service.list({ branch_id: 10 })).resolves.toEqual([
+      { id: '30', name: 'Phòng 101', branch_id: '10' },
+    ]);
+    expect(repo.listRooms).toHaveBeenCalledWith(10);
+  });
 
-    it('list: lọc theo department_id', async () => {
-      const { service, repo } = setup();
-      await service.list({ department_id: 20 });
-      expect(repo.listRooms).toHaveBeenCalledWith(20);
-    });
-
-    it('get: id kiểu int, department_id null khi khoa đã bị xoá', async () => {
-      const { service, repo } = setup();
-      repo.getRoom.mockResolvedValue(roomRecord({ department_id: null }));
-      await expect(service.get(30)).resolves.toMatchObject({ id: 30, department_id: null });
-    });
-
-    it('get: không tồn tại → 2003 / 404', async () => {
-      const { service, repo } = setup();
-      repo.getRoom.mockResolvedValue(null);
-      await expect(service.get(99)).rejects.toMatchObject(NOT_FOUND);
-    });
+  it('get: id kiểu int; không tồn tại → 2003 / 404', async () => {
+    const { service, repo } = setup();
+    await expect(service.get(30)).resolves.toEqual({ id: 30, name: 'Phòng 101', branch_id: 10 });
+    repo.getRoom.mockResolvedValue(null);
+    await expect(service.get(99)).rejects.toMatchObject(NOT_FOUND);
   });
 
   describe('create', () => {
-    it('department_id không tồn tại → 2003 kèm field, không ghi', async () => {
+    it('chi nhánh không tồn tại → 2003 kèm field branch_id, không ghi', async () => {
       const { service, repo } = setup();
-      repo.findDepartment.mockResolvedValue(null);
-      await expect(service.create({ name: 'P', department_id: 99 })).rejects.toMatchObject({
+      await expect(service.create({ name: 'P', branch_id: 99 })).rejects.toMatchObject({
         code: '2003',
-        data: { field: 'department_id' },
-        httpStatus: undefined,
+        data: { field: 'branch_id' },
       });
       expect(repo.createRoom).not.toHaveBeenCalled();
     });
 
-    it('trả object với id và department_id kiểu string (MT-34)', async () => {
+    it('trả {id, name, branch_id} kiểu string (MT-34, MT-108)', async () => {
       const { service, repo } = setup();
-      await expect(service.create({ name: 'Phòng 101', department_id: 20 })).resolves.toEqual({
+      await expect(service.create({ name: 'Phòng 102', branch_id: 11 })).resolves.toStrictEqual({
         id: '30',
-        name: 'Phòng 101',
-        department_id: '20',
-        description: null,
-        created_at: '2026-11-15T01:02:03.000Z',
+        name: 'Phòng 102',
+        branch_id: '11',
       });
-      expect(repo.createRoom).toHaveBeenCalledWith({ name: 'Phòng 101', department_id: 20 });
+      expect(repo.createRoom).toHaveBeenCalledWith({ name: 'Phòng 102', branchId: 11 });
     });
   });
 
@@ -95,64 +74,41 @@ describe('RoomsService', () => {
       await expect(service.update(99, { name: 'X' })).rejects.toMatchObject(NOT_FOUND);
     });
 
-    it('đổi sang khoa không tồn tại → 2003 kèm field', async () => {
+    it('chuyển sang chi nhánh khác tự do (nhân viên không gắn với phòng)', async () => {
       const { service, repo } = setup();
-      repo.findDepartment.mockResolvedValue(null);
-      await expect(service.update(30, { department_id: 99 })).rejects.toMatchObject({
+      await expect(service.update(30, { branch_id: 11 })).resolves.toEqual({
+        id: 30,
+        name: 'Phòng 101',
+        branch_id: 11,
+      });
+      expect(repo.updateRoom).toHaveBeenCalledWith(30, { name: undefined, branchId: 11 });
+    });
+
+    it('chi nhánh mới không tồn tại → 2003 kèm field branch_id', async () => {
+      const { service, repo } = setup();
+      await expect(service.update(30, { branch_id: 99 })).rejects.toMatchObject({
         code: '2003',
-        data: { field: 'department_id' },
+        data: { field: 'branch_id' },
       });
       expect(repo.updateRoom).not.toHaveBeenCalled();
     });
 
-    it('đổi khoa khi phòng còn nhân viên → 2003 / 409, không ghi', async () => {
+    it('chỉ đổi tên: không tra chi nhánh', async () => {
       const { service, repo } = setup();
-      repo.countStaffs.mockResolvedValue(2);
-      await expect(service.update(30, { department_id: 21 })).rejects.toMatchObject(CONFLICT);
-      expect(repo.countStaffs).toHaveBeenCalledWith({ roomId: 30 });
-      expect(repo.updateRoom).not.toHaveBeenCalled();
-    });
-
-    it('đổi khoa khi phòng không còn nhân viên → ghi', async () => {
-      const { service, repo } = setup();
-      await service.update(30, { department_id: 21 });
-      expect(repo.updateRoom).toHaveBeenCalledWith(30, { department_id: 21 });
-    });
-
-    it('department_id không đổi → không tra khoa và nhân viên', async () => {
-      const { service, repo } = setup();
-      repo.countStaffs.mockResolvedValue(2);
-      await service.update(30, { name: 'Tên mới', department_id: 20 });
-      expect(repo.findDepartment).not.toHaveBeenCalled();
-      expect(repo.countStaffs).not.toHaveBeenCalled();
-      expect(repo.updateRoom).toHaveBeenCalledWith(30, { name: 'Tên mới', department_id: 20 });
-    });
-
-    it('phòng chưa thuộc khoa (department_id NULL) gán khoa mới → ghi', async () => {
-      const { service, repo } = setup();
-      repo.getRoom.mockResolvedValue(roomRecord({ department_id: null }));
-      await service.update(30, { department_id: 21 });
-      expect(repo.updateRoom).toHaveBeenCalledWith(30, { department_id: 21 });
+      await service.update(30, { name: 'Phòng 103' });
+      expect(repo.getBranch).not.toHaveBeenCalled();
     });
   });
 
   describe('remove', () => {
-    it('không tồn tại → 2003 / 404', async () => {
+    it('không tồn tại → 2003 / 404, không xoá', async () => {
       const { service, repo } = setup();
       repo.getRoom.mockResolvedValue(null);
       await expect(service.remove(99)).rejects.toMatchObject(NOT_FOUND);
       expect(repo.deleteRoom).not.toHaveBeenCalled();
     });
 
-    it('còn nhân viên → 2003 / 409, không xoá', async () => {
-      const { service, repo } = setup();
-      repo.countStaffs.mockResolvedValue(1);
-      await expect(service.remove(30)).rejects.toMatchObject(CONFLICT);
-      expect(repo.countStaffs).toHaveBeenCalledWith({ roomId: 30 });
-      expect(repo.deleteRoom).not.toHaveBeenCalled();
-    });
-
-    it('không còn nhân viên → xoá', async () => {
+    it('xoá trực tiếp; phòng đã dùng ở phiên khám do hàng rào FK của repository chặn (409)', async () => {
       const { service, repo } = setup();
       await service.remove(30);
       expect(repo.deleteRoom).toHaveBeenCalledWith(30);

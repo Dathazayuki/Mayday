@@ -1,93 +1,101 @@
-import type {
-  BranchData,
-  BranchListItem,
-  DepartmentCreatedData,
-  DepartmentData,
-  DepartmentListItem,
-  RoomCreatedData,
-  RoomData,
-  RoomListItem,
-} from '@drmayday/shared';
-import type { branches, departments, rooms } from '../generated/prisma/client.js';
+import type { BranchData, BranchListItem, RoomData, RoomListItem } from '@drmayday/shared';
+import type { Prisma, chinhanh, phongkham } from '../generated/prisma/client.js';
+import { fromDbId, toDbId } from '../prisma/db-id.js';
 
 /**
- * Hàng CSDL → data trả về của branches/departments/rooms (spec giai đoạn 2, mục 3.5). Kiểu ID
- * theo từng tab Sheet (MT-06): danh sách và kết quả tạo khoa/phòng là string, chi tiết là int.
+ * Ánh xạ API ↔ CSDL thật của chi nhánh (`chinhanh`) và phòng khám (`phongkham`) (spec A, mục 5.4).
+ * Kiểu ID theo tab Sheet (MT-06): danh sách và kết quả tạo phòng là string, chi tiết là int.
+ * Không có cột thời gian (MT-108); không đọc/ghi `trang_thai` (MT-109).
  */
 
-export function toBranchData(row: branches): BranchData {
+export interface BranchRecord {
+  id: number;
+  name: string;
+  address: string;
+  phone: string | null;
+}
+
+export interface RoomRecord {
+  id: number;
+  name: string;
+  branchId: number;
+}
+
+export interface NewBranch {
+  name: string;
+  address: string;
+  phone: string;
+}
+
+export type BranchChanges = Partial<NewBranch>;
+
+export interface NewRoom {
+  name: string;
+  branchId: number;
+}
+
+export type RoomChanges = Partial<NewRoom>;
+
+export function toBranchRecord(row: chinhanh): BranchRecord {
   return {
-    id: row.id,
-    name: row.name,
-    address: row.address,
-    phone: row.phone,
-    created_at: row.created_at.toISOString(),
-    updated_at: row.updated_at.toISOString(),
+    id: fromDbId(row.ma_chi_nhanh),
+    name: row.ten_chi_nhanh,
+    address: row.dia_chi,
+    phone: row.so_dien_thoai,
   };
 }
 
-export function toBranchListItem(row: branches): BranchListItem {
-  return { id: String(row.id), name: row.name, address: row.address, phone: row.phone };
-}
-
-export function toDepartmentData(row: departments): DepartmentData {
+export function toRoomRecord(row: phongkham): RoomRecord {
   return {
-    id: row.id,
-    name: row.name,
-    description: row.description,
-    branch_id: row.branch_id,
-    created_at: row.created_at.toISOString(),
-    updated_at: row.updated_at.toISOString(),
+    id: fromDbId(row.ma_phong_kham),
+    name: row.ten_phong_kham,
+    branchId: fromDbId(row.ma_chi_nhanh),
   };
 }
 
-export function toDepartmentListItem(row: departments): DepartmentListItem {
+export function newBranchToDb({ name, address, phone }: NewBranch) {
   return {
-    id: String(row.id),
-    name: row.name,
-    branch_id: String(row.branch_id),
-    description: row.description,
-  };
+    ten_chi_nhanh: name,
+    dia_chi: address,
+    so_dien_thoai: phone,
+  } satisfies Prisma.chinhanhCreateInput;
 }
 
-export function toDepartmentCreatedData(row: departments): DepartmentCreatedData {
+export function branchChangesToDb(changes: BranchChanges) {
   return {
-    id: String(row.id),
-    name: row.name,
-    branch_id: String(row.branch_id),
-    description: row.description,
-    created_at: row.created_at.toISOString(),
-  };
+    ten_chi_nhanh: changes.name,
+    dia_chi: changes.address,
+    so_dien_thoai: changes.phone,
+  } satisfies Prisma.chinhanhUpdateInput;
 }
 
-export function toRoomData(row: rooms): RoomData {
+export function newRoomToDb({ name, branchId }: NewRoom) {
   return {
-    id: row.id,
-    name: row.name,
-    description: row.description,
-    department_id: row.department_id,
-    created_at: row.created_at.toISOString(),
-    updated_at: row.updated_at.toISOString(),
-  };
+    ten_phong_kham: name,
+    ma_chi_nhanh: toDbId(branchId),
+  } satisfies Prisma.phongkhamUncheckedCreateInput;
 }
 
-export function toRoomListItem(row: rooms): RoomListItem {
+export function roomChangesToDb(changes: RoomChanges) {
   return {
-    id: String(row.id),
-    name: row.name,
-    department_id: row.department_id === null ? null : String(row.department_id),
-    description: row.description,
-    created_at: row.created_at.toISOString(),
-  };
+    ten_phong_kham: changes.name,
+    ma_chi_nhanh: changes.branchId === undefined ? undefined : toDbId(changes.branchId),
+  } satisfies Prisma.phongkhamUncheckedUpdateInput;
 }
 
-/** `departmentId`: khoa vừa gán khi tạo; cột `department_id` của hàng nullable nên kiểu hàng không đảm bảo có. */
-export function toRoomCreatedData(row: rooms, departmentId: number): RoomCreatedData {
-  return {
-    id: String(row.id),
-    name: row.name,
-    department_id: String(departmentId),
-    description: row.description,
-    created_at: row.created_at.toISOString(),
-  };
+export function toBranchData(branch: BranchRecord): BranchData {
+  return { id: branch.id, name: branch.name, address: branch.address, phone: branch.phone };
+}
+
+export function toBranchListItem(branch: BranchRecord): BranchListItem {
+  return { id: String(branch.id), name: branch.name, address: branch.address, phone: branch.phone };
+}
+
+export function toRoomData(room: RoomRecord): RoomData {
+  return { id: room.id, name: room.name, branch_id: room.branchId };
+}
+
+/** Phần tử của GET /rooms, cũng là data của POST /rooms (1001). */
+export function toRoomListItem(room: RoomRecord): RoomListItem {
+  return { id: String(room.id), name: room.name, branch_id: String(room.branchId) };
 }

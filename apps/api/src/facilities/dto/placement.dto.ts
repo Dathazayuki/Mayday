@@ -1,21 +1,13 @@
 import type { AssignUserRequest } from '@drmayday/shared';
-import { IsDefined, IsOptional } from 'class-validator';
+import { IsDefined } from 'class-validator';
 import { IdRule } from '../../common/id.js';
 
 /**
- * Nơi công tác trong body (create-staff, PUT admin/users/:id/assign): chi nhánh và khoa bắt buộc,
- * phòng không bắt buộc. Quan hệ cha–con do FacilitiesService.assertPlacement kiểm tra (sai → 2003).
+ * Nơi công tác trong body (create-staff, PUT admin/users/:id/assign): chỉ còn chi nhánh (spec A,
+ * quyết định 11). Chi nhánh tồn tại hay không do FacilitiesService kiểm tra (2003).
  */
 export class PlacementDto implements AssignUserRequest {
   @IsDefined()
   @IdRule()
   branch_id: number;
-
-  @IsDefined()
-  @IdRule()
-  department_id: number;
-
-  @IsOptional() // "Có thể null nếu không có phòng cố định"
-  @IdRule()
-  room_id?: number | null;
 }

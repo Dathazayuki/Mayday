@@ -6,14 +6,16 @@ import type {
   RoomListItem,
   UpdateRoomRequest,
 } from '@drmayday/shared';
-import { conflict, notFound } from '../common/app.exception.js';
+import { notFound } from '../common/app.exception.js';
 import { requireChanges } from '../common/require-changes.js';
-import type { rooms } from '../generated/prisma/client.js';
 import { FacilitiesRepository } from './facilities.repository.js';
 import { FacilitiesService } from './facilities.service.js';
-import { toRoomCreatedData, toRoomData, toRoomListItem } from './facility-mapping.js';
+import { toRoomData, toRoomListItem, type RoomRecord } from './facility-mapping.js';
 
-/** Phòng (spec giai đoạn 2, mục 3.5). Không tìm thấy → 2003/404; bị khoá ngoại chặn → 2003/409. */
+/**
+ * Phòng khám, thuộc thẳng chi nhánh (spec A, mục 5.4). Không tìm thấy → 2003/404; trùng tên trong
+ * chi nhánh hoặc đã dùng ở phiên khám → 2003/409 (hàng rào của repository).
+ */
 @Injectable()
 export class RoomsService {
   constructor(
@@ -21,8 +23,8 @@ export class RoomsService {
     private readonly references: FacilitiesService,
   ) {}
 
-  async list({ department_id }: { department_id?: number }): Promise<RoomListItem[]> {
-    return (await this.facilities.listRooms(department_id)).map(toRoomListItem);
+  async list({ branch_id }: { branch_id?: number }): Promise<RoomListItem[]> {
+    return (await this.facilities.listRooms(branch_id)).map(toRoomListItem);
   }
 
   async get(id: number): Promise<RoomData> {
@@ -30,31 +32,30 @@ export class RoomsService {
   }
 
   async create(dto: CreateRoomRequest): Promise<RoomCreatedData> {
-    await this.references.assertDepartmentExists(dto.department_id);
-    return toRoomCreatedData(await this.facilities.createRoom(dto), dto.department_id);
+    await this.references.assertBranchExists(dto.branch_id);
+    return toRoomListItem(
+      await this.facilities.createRoom({ name: dto.name, branchId: dto.branch_id }),
+    );
   }
 
-  /**
-   * Đổi khoa: khoa mới phải tồn tại (2003) và phòng không còn nhân viên (họ giữ department_id cũ)
-   * nếu không → 2003/409.
-   */
+  /** Chuyển chi nhánh tự do: nhân viên không còn gắn với phòng (F.6 không áp dụng cho phòng). */
   async update(id: number, dto: UpdateRoomRequest): Promise<RoomData> {
     requireChanges(dto);
     const room = await this.getOrThrow(id);
-    if (dto.department_id !== undefined && dto.department_id !== room.department_id) {
-      await this.references.assertDepartmentExists(dto.department_id);
-      if ((await this.facilities.countStaffs({ roomId: id })) > 0) throw conflict();
+    if (dto.branch_id !== undefined && dto.branch_id !== room.branchId) {
+      await this.references.assertBranchExists(dto.branch_id);
     }
-    return toRoomData(await this.facilities.updateRoom(id, dto));
+    return toRoomData(
+      await this.facilities.updateRoom(id, { name: dto.name, branchId: dto.branch_id }),
+    );
   }
 
   async remove(id: number): Promise<void> {
     await this.getOrThrow(id);
-    if ((await this.facilities.countStaffs({ roomId: id })) > 0) throw conflict();
     await this.facilities.deleteRoom(id);
   }
 
-  private async getOrThrow(id: number): Promise<rooms> {
+  private async getOrThrow(id: number): Promise<RoomRecord> {
     const room = await this.facilities.getRoom(id);
     if (!room) throw notFound();
     return room;

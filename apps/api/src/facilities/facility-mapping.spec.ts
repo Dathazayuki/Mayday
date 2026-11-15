@@ -1,103 +1,78 @@
+import type { chinhanh, phongkham } from '../generated/prisma/client.js';
 import {
+  branchChangesToDb,
+  newBranchToDb,
+  newRoomToDb,
+  roomChangesToDb,
   toBranchData,
   toBranchListItem,
-  toDepartmentCreatedData,
-  toDepartmentData,
-  toDepartmentListItem,
-  toRoomCreatedData,
+  toBranchRecord,
   toRoomData,
   toRoomListItem,
+  toRoomRecord,
 } from './facility-mapping.js';
-import { branchRecord, departmentRecord, roomRecord } from './facility-record.fixture.js';
 
-const CREATED_AT = '2026-11-15T01:02:03.000Z';
-const UPDATED_AT = '2026-11-16T04:05:06.000Z';
+const BRANCH_ROW: chinhanh = {
+  ma_chi_nhanh: 10n,
+  ten_chi_nhanh: 'Chi nhánh Hà Nội',
+  dia_chi: '1 Phố Huế',
+  so_dien_thoai: '0912345678',
+  trang_thai: true,
+};
+const ROOM_ROW: phongkham = { ma_phong_kham: 30n, ma_chi_nhanh: 10n, ten_phong_kham: 'Phòng 101' };
 
-describe('chi nhánh', () => {
-  it('chi tiết: id kiểu int, thời gian ISO', () => {
-    expect(toBranchData(branchRecord())).toEqual({
+describe('facility-mapping (chinhanh, phongkham)', () => {
+  it('chi nhánh: hàng → bản ghi miền → chi tiết (id int) và phần tử danh sách (id string), không có thời gian', () => {
+    const branch = toBranchRecord(BRANCH_ROW);
+    expect(branch).toEqual({
       id: 10,
       name: 'Chi nhánh Hà Nội',
       address: '1 Phố Huế',
       phone: '0912345678',
-      created_at: CREATED_AT,
-      updated_at: UPDATED_AT,
     });
-  });
-
-  it('danh sách: id kiểu string, không có thời gian (MT-06, MT-33)', () => {
-    expect(toBranchListItem(branchRecord({ address: null, phone: null }))).toEqual({
+    expect(toBranchData(branch)).toStrictEqual({
+      id: 10,
+      name: 'Chi nhánh Hà Nội',
+      address: '1 Phố Huế',
+      phone: '0912345678',
+    });
+    expect(toBranchListItem(branch)).toStrictEqual({
       id: '10',
       name: 'Chi nhánh Hà Nội',
-      address: null,
-      phone: null,
-    });
-  });
-});
-
-describe('khoa', () => {
-  it('chi tiết: id và branch_id kiểu int', () => {
-    expect(toDepartmentData(departmentRecord())).toEqual({
-      id: 20,
-      name: 'Khoa Nội',
-      description: 'Nội tổng hợp',
-      branch_id: 10,
-      created_at: CREATED_AT,
-      updated_at: UPDATED_AT,
+      address: '1 Phố Huế',
+      phone: '0912345678',
     });
   });
 
-  it('danh sách: id và branch_id kiểu string', () => {
-    expect(toDepartmentListItem(departmentRecord({ description: null }))).toEqual({
-      id: '20',
-      name: 'Khoa Nội',
-      branch_id: '10',
-      description: null,
-    });
+  it('phòng: hàng → bản ghi miền → chi tiết (int) và phần tử danh sách/kết quả tạo (string)', () => {
+    const room = toRoomRecord(ROOM_ROW);
+    expect(room).toEqual({ id: 30, name: 'Phòng 101', branchId: 10 });
+    expect(toRoomData(room)).toStrictEqual({ id: 30, name: 'Phòng 101', branch_id: 10 });
+    expect(toRoomListItem(room)).toStrictEqual({ id: '30', name: 'Phòng 101', branch_id: '10' });
   });
 
-  it('tạo: id và branch_id kiểu string, có created_at, không có updated_at (MT-34)', () => {
-    expect(toDepartmentCreatedData(departmentRecord())).toEqual({
-      id: '20',
-      name: 'Khoa Nội',
-      branch_id: '10',
-      description: 'Nội tổng hợp',
-      created_at: CREATED_AT,
+  it('ghi: tên cột tiếng Việt, id bigint; trường vắng giữ nguyên; không ghi trang_thai (MT-109)', () => {
+    expect(newBranchToDb({ name: 'CN', address: 'Đ/c', phone: '0912345678' })).toEqual({
+      ten_chi_nhanh: 'CN',
+      dia_chi: 'Đ/c',
+      so_dien_thoai: '0912345678',
     });
-  });
-});
-
-describe('phòng', () => {
-  it('chi tiết: id và department_id kiểu int, department_id null khi khoa đã bị xoá', () => {
-    expect(toRoomData(roomRecord())).toEqual({
-      id: 30,
-      name: 'Phòng 101',
-      description: null,
-      department_id: 20,
-      created_at: CREATED_AT,
-      updated_at: UPDATED_AT,
+    expect(branchChangesToDb({ address: 'Mới' })).toEqual({
+      ten_chi_nhanh: undefined,
+      dia_chi: 'Mới',
+      so_dien_thoai: undefined,
     });
-    expect(toRoomData(roomRecord({ department_id: null })).department_id).toBeNull();
-  });
-
-  it('danh sách: id và department_id kiểu string, department_id null giữ null', () => {
-    expect(toRoomListItem(roomRecord())).toEqual({
-      id: '30',
-      name: 'Phòng 101',
-      department_id: '20',
-      description: null,
-      created_at: CREATED_AT,
+    expect(newRoomToDb({ name: 'P1', branchId: 10 })).toEqual({
+      ten_phong_kham: 'P1',
+      ma_chi_nhanh: 10n,
     });
-    expect(toRoomListItem(roomRecord({ department_id: null })).department_id).toBeNull();
-  });
-
-  it('tạo: id và department_id kiểu string (MT-34)', () => {
-    expect(toRoomCreatedData(roomRecord(), 20)).toEqual({
-      id: '30',
-      name: 'Phòng 101',
-      department_id: '20',
-      description: null,
-      created_at: CREATED_AT,
+    expect(roomChangesToDb({ branchId: 11 })).toEqual({
+      ten_phong_kham: undefined,
+      ma_chi_nhanh: 11n,
+    });
+    expect(roomChangesToDb({ name: 'P2' })).toEqual({
+      ten_phong_kham: 'P2',
+      ma_chi_nhanh: undefined,
     });
   });
 });
