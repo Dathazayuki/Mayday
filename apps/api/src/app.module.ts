@@ -7,6 +7,7 @@ import { AllExceptionsFilter } from './common/all-exceptions.filter.js';
 import { ResponseInterceptor } from './common/response.interceptor.js';
 import { createValidationPipe } from './common/validation.js';
 import { validateEnv } from './config/env.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
 import { FacilitiesModule } from './facilities/facilities.module.js';
 import { HealthController } from './health/health.controller.js';
 import { MedicalRecordsModule } from './medical-records/medical-records.module.js';
@@ -28,6 +29,7 @@ import { ProfileModule } from './profile/profile.module.js';
     AdminUsersModule,
     PatientsModule,
     MedicalRecordsModule,
+    DashboardModule,
   ],
   controllers: [HealthController],
   providers: [

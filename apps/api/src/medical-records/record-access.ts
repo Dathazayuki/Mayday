@@ -6,6 +6,7 @@ import {
 import { AppException } from '../common/app.exception.js';
 import type { AppPermissionName } from '../permissions/app-permissions.js';
 import { ADMIN_ROLE_NAME, type RoleName } from '../roles/role-names.js';
+import type { RecordOverview } from './medical-record-mapping.js';
 import { transitionError, type RecordTransition } from './record-transitions.js';
 
 /**
@@ -22,8 +23,11 @@ export const RECORD_PERMISSIONS = [
 ] as const satisfies readonly AppPermissionName[];
 export type RecordPermission = (typeof RECORD_PERMISSIONS)[number];
 
-/** Vai trò của các route tiếp nhận, phiên khám, chốt (`@RequireRole('bac_si')`, 3103; spec B mục 7.2). */
-const DOCTOR_ROLE: RoleName = 'bac_si';
+/**
+ * Vai trò của các route tiếp nhận, phiên khám, chốt (`@RequireRole('bac_si')`, 3103; spec B mục 7.2); Tổng
+ * quan chỉ có "Bệnh án tôi phụ trách" với vai trò này (mục 5.5).
+ */
+export const DOCTOR_ROLE: RoleName = 'bac_si';
 
 /** Người gọi API bệnh án (spec B, mục 4.2). */
 export interface Caller {
@@ -45,6 +49,15 @@ export interface RecordState {
   status: MedicalRecordStatus;
   /** Bác sĩ của phiên có lan_kham_thu nhỏ nhất (D-B6); null khi chưa có phiên. */
   assignedDoctorId: number | null;
+}
+
+/** Phần của hồ sơ (danh sách, chi tiết, Tổng quan) mà luật phân quyền cần. */
+export function recordState(record: RecordOverview): RecordState {
+  return {
+    patientId: record.patientId,
+    status: record.status,
+    assignedDoctorId: record.summary.assignedDoctorId,
+  };
 }
 
 /** Nhánh nhân viên của route dùng chung: thiếu quyền → 3101, trả trước khi đọc CSDL (spec B, mục 5.3). */

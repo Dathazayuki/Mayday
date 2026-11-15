@@ -9,7 +9,9 @@ import {
   nurseCaller,
   patientCaller,
 } from './caller.fixture.js';
+import { inProgressRecord, medicalRecord } from './medical-record.fixture.js';
 import {
+  DOCTOR_ROLE,
   allowedActions,
   assertAssignedDoctor,
   assertCanAccept,
@@ -17,6 +19,7 @@ import {
   assertOwnRecord,
   assertStaffCanCancel,
   assertStaffCanEdit,
+  recordState,
   requireStaffPermission,
   requireStaffWriter,
   type Caller,
@@ -305,5 +308,24 @@ describe('assertStaffCanCancel (PATCH /:id/status, nhánh nhân viên; bảng 6.
 
   it('bệnh nhân → 3101 (hàm tự chặn; nhánh tự huỷ D-B32 làm ở B6)', () => {
     expect(codeOf(() => assertStaffCanCancel(patientCaller(), state('pending')))).toBe('3101');
+  });
+});
+
+describe('recordState, DOCTOR_ROLE (dùng chung cho danh sách và Tổng quan)', () => {
+  it('recordState: chủ hồ sơ, trạng thái, bác sĩ phụ trách (D-B6) của hồ sơ ở mức tổng quan', () => {
+    expect(recordState(inProgressRecord(OTHER_DOCTOR_ID))).toEqual({
+      patientId: PATIENT_ID,
+      status: 'in_progress',
+      assignedDoctorId: OTHER_DOCTOR_ID,
+    });
+    expect(recordState(medicalRecord())).toEqual({
+      patientId: PATIENT_ID,
+      status: 'pending',
+      assignedDoctorId: null,
+    });
+  });
+
+  it('DOCTOR_ROLE là vai trò bac_si của các route khám (spec B, mục 7.2)', () => {
+    expect(DOCTOR_ROLE).toBe('bac_si');
   });
 });

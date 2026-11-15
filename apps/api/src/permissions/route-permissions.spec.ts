@@ -3,6 +3,7 @@ import type { Type } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AdminUsersController } from '../admin-users/admin-users.controller.js';
 import { AuthController } from '../auth/auth.controller.js';
+import { DashboardController } from '../dashboard/dashboard.controller.js';
 import { BranchesController } from '../facilities/branches.controller.js';
 import { RoomsController } from '../facilities/rooms.controller.js';
 import { MedicalRecordsController } from '../medical-records/medical-records.controller.js';
@@ -161,5 +162,14 @@ describe('quyền khai báo trên route chuyển trạng thái và phiên khám'
       expect(declared(controller, handler)).toEqual([]);
       expect(declaredRoles(controller, handler)).toBeUndefined();
     }
+  });
+});
+
+/** Tổng quan của B4 (spec B, mục 5.5, 7.2): route chỉ cho nhân viên, chỉ khai báo quyền (D-B18). */
+describe('quyền khai báo trên route Tổng quan', () => {
+  it('GET /dashboard/summary: view_medical_records, không giới hạn vai trò', () => {
+    const { summary } = DashboardController.prototype;
+    expect(declared(DashboardController, summary)).toEqual(['view_medical_records']);
+    expect(declaredRoles(DashboardController, summary)).toBeUndefined();
   });
 });

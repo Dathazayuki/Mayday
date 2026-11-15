@@ -27,7 +27,6 @@ import {
   toMedicalRecordSummary,
   type MedicalRecord,
   type RecordFilter,
-  type RecordOverview,
 } from './medical-record-mapping.js';
 import { MedicalRecordsRepository } from './medical-records.repository.js';
 import {
@@ -37,23 +36,14 @@ import {
   assertOwnRecord,
   assertStaffCanCancel,
   assertStaffCanEdit,
+  recordState,
   requireStaffPermission,
   requireStaffWriter,
   type Caller,
-  type RecordState,
 } from './record-access.js';
 import { planNewRecord, planRecordChanges, requireRecordChanges } from './record-changes.js';
 import { RecordTransitionsRepository } from './record-transitions.repository.js';
 import { TRANSITION_TARGETS } from './record-transitions.js';
-
-/** Phần của hồ sơ mà luật phân quyền cần (record-access.ts). */
-function stateOf(record: RecordOverview): RecordState {
-  return {
-    patientId: record.patientId,
-    status: record.status,
-    assignedDoctorId: record.summary.assignedDoctorId,
-  };
-}
 
 /** Bộ lọc chung của danh sách và số đếm (spec B, mục 5.3). */
 function filterOf(query: StatusCountsQuery): Omit<RecordFilter, 'status'> {
@@ -104,7 +94,7 @@ export class MedicalRecordsService {
     );
     return new Paginated(
       page.items.map((record) =>
-        toMedicalRecordListItem(record, allowedActions(caller, stateOf(record))),
+        toMedicalRecordListItem(record, allowedActions(caller, recordState(record))),
       ),
       page.total,
     );
@@ -154,7 +144,7 @@ export class MedicalRecordsService {
     requireRecordChanges(dto);
     requireStaffWriter(caller, 'manage_medical_records');
     const updated = await this.records.update(recordId, (current) => {
-      assertStaffCanEdit(caller, stateOf(current));
+      assertStaffCanEdit(caller, recordState(current));
       return planRecordChanges(current, dto);
     });
     if (!updated) throw new AppException('4001');
@@ -232,7 +222,7 @@ export class MedicalRecordsService {
   private toData(caller: Caller, record: MedicalRecord): MedicalRecordData {
     return toMedicalRecordData(
       record,
-      allowedActions(caller, stateOf(record)),
+      allowedActions(caller, recordState(record)),
       caller.isPatient ? 'patient' : 'staff',
     );
   }

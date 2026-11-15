@@ -13,7 +13,8 @@ import { VisitsService } from './visits.service.js';
 
 /**
  * Hồ sơ bệnh án, chuyển trạng thái và phiên khám (spec B, mục 4.1, 5.3, 5.4). PermissionsModule cung cấp
- * PermissionChecker cho CallerResolver.
+ * PermissionChecker cho CallerResolver. Export repository hồ sơ, phiên và CallerResolver cho Tổng quan
+ * (DashboardModule, mục 5.5).
  */
 @Module({
   imports: [RolesModule, PermissionsModule, UsersModule],
@@ -26,5 +27,6 @@ import { VisitsService } from './visits.service.js';
     VisitsService,
     CallerResolver,
   ],
+  exports: [MedicalRecordsRepository, VisitsRepository, CallerResolver],
 })
 export class MedicalRecordsModule {}
