@@ -1,5 +1,5 @@
 import { NOTIFICATION_PATHS, type NotificationData } from '@drmayday/shared';
-import { focusManager } from '@tanstack/react-query';
+import { QueryClient, focusManager } from '@tanstack/react-query';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from 'antd';
@@ -175,6 +175,31 @@ describe('NotificationBell', () => {
     await waitFor(() => expect(calls(fetchMock, 'DELETE')).toHaveLength(1));
     expect(calls(fetchMock, 'DELETE')[0][0]).toBe(`${BASE}${NOTIFICATION_PATHS.remove('8')}`);
     expect(calls(fetchMock, 'PUT')).toHaveLength(0);
+  });
+
+  it('gắn lại chuông trong chu kỳ làm mới thì không gọi lại danh sách', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        jsonResponse(200, { code: '1000', message: 'OK', data: [make({})], total: 1 }),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    seedSession();
+    const ui = (
+      <App>
+        <NotificationBell />
+      </App>
+    );
+    const first = renderApp(ui, '/', queryClient);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    first.unmount();
+
+    renderApp(ui, '/', queryClient);
+    // Dữ liệu từ bộ nhớ đệm hiện ngay (huy hiệu 1 chưa đọc) mà không cần gọi API lần nữa.
+    expect(await screen.findByText('1')).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   describe('tự làm mới', () => {

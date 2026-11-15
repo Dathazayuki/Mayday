@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { AppShell } from './AppShell';
@@ -69,9 +69,14 @@ describe('AppShell', () => {
     renderShell('/');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Mở menu' }));
-    expect(await screen.findAllByRole('navigation', { name: 'Điều hướng chính' })).toHaveLength(2);
+    expect(await screen.findByRole('dialog', { name: 'Menu điều hướng' })).toBeInTheDocument();
+    expect(screen.getAllByRole('navigation', { name: 'Điều hướng chính' })).toHaveLength(2);
     const drawerNav = screen.getAllByRole('navigation', { name: 'Điều hướng chính' })[1]!;
     await user.click(within(drawerNav).getByRole('link', { name: /Bệnh án/ }));
     expect(await screen.findByRole('heading', { name: 'Danh sách bệnh án' })).toBeInTheDocument();
+    // Drawer đóng: antd giữ phần tử nhưng ẩn khỏi cây truy cập, nên chỉ còn sidebar cố định.
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Menu điều hướng' })).not.toBeInTheDocument(),
+    );
   });
 });

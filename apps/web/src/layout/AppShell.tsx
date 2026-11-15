@@ -30,6 +30,7 @@ export function AppShell() {
         open={navOpen}
         onClose={() => setNavOpen(false)}
         closable={false}
+        aria-label="Menu điều hướng"
         styles={{ body: { padding: 0 } }}
       >
         <Sidebar onNavigate={() => setNavOpen(false)} />

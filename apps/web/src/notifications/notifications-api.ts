@@ -19,6 +19,9 @@ export function useNotifications() {
         page: 1,
         limit: LIMIT_DEFAULT,
       }),
+    // Chuông nằm trong thanh trên của từng Page nên gắn lại mỗi lần đổi trang; dữ liệu coi là mới
+    // trong suốt chu kỳ làm mới để việc điều hướng không tạo thêm một lần gọi API.
+    staleTime: REFETCH_MS,
     refetchInterval: REFETCH_MS,
     refetchIntervalInBackground: false,
   });
