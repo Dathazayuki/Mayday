@@ -151,7 +151,20 @@ describe('Nền tảng API (e2e)', () => {
     expect(res.body).toEqual({ code: '1000', message: 'OK', data: { ok: true } });
   });
 
-  it('Swagger mở được tại /api/v1/docs', async () => {
+  it('Swagger mở được tại /api/v1/docs (APP_ENV=test, ngoài production)', async () => {
     await request(app.getHttpServer()).get('/api/v1/docs').expect(200);
+  });
+
+  it('CORS mặc định ngoài production: chỉ trả header cho Web dev (http://localhost:5173)', async () => {
+    const dev = await request(app.getHttpServer())
+      .get('/api/v1/health')
+      .set('Origin', 'http://localhost:5173')
+      .expect(200);
+    expect(dev.headers['access-control-allow-origin']).toBe('http://localhost:5173');
+    const other = await request(app.getHttpServer())
+      .get('/api/v1/health')
+      .set('Origin', 'https://evil.example')
+      .expect(200);
+    expect(other.headers['access-control-allow-origin']).toBeUndefined();
   });
 });

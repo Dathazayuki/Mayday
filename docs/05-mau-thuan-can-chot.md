@@ -91,7 +91,7 @@ Tài liệu CSDL chứa khoảng 300 chỗ sửa ở chế độ theo dõi thay 
 
 ## E. Điểm phát sinh khi triển khai (giai đoạn 1–8)
 
-Các mục MT-59 → MT-94 phát sinh khi viết spec từng giai đoạn; nội dung chép nguyên từ bảng "MT mới" của spec (cột "Nguồn" trỏ tới spec). Trạng thái giữ như trong spec. Phần "Cách làm tạm" là điều đang áp dụng trong code hoặc client, **chưa phải quyết định đã chốt**. Với giai đoạn 3 trở đi, chỉ Web và Mobile đã làm; API chưa triển khai (xem [07-tien-do.md](07-tien-do.md)).
+Các mục MT-59 → MT-94 phát sinh khi viết spec từng giai đoạn; nội dung chép nguyên từ bảng "MT mới" của spec (cột "Nguồn" trỏ tới spec). Trạng thái giữ như trong spec. Các mục MT-95 → MT-97 phát sinh từ review tổng thể nhánh giai đoạn 1–2 trước khi gộp vào `main`. Phần "Cách làm tạm" là điều đang áp dụng trong code hoặc client, **chưa phải quyết định đã chốt**. Với giai đoạn 3 trở đi, chỉ Web và Mobile đã làm; API chưa triển khai (xem [07-tien-do.md](07-tien-do.md)).
 
 | Mã | Vấn đề | Cách làm tạm | Trạng thái | Nguồn |
 |---|---|---|---|---|
@@ -131,6 +131,9 @@ Các mục MT-59 → MT-94 phát sinh khi viết spec từng giai đoạn; nội
 | MT-92 | Ai được sửa/xoá dữ liệu tổn thương và khi nào bị khoá: tài liệu chỉ nói bệnh nhân tạo đợt; lesion03 chỉ chặn sửa đợt khi bệnh án `completed` | Chỉ bệnh nhân sở hữu được tạo/sửa/xoá đợt, vị trí, ảnh (nhân viên → 3104, chỉ xem). Mọi thao tác ghi bị chặn khi bệnh án `completed` (4003) hoặc `cancelled` (4009) | Đề xuất | [giai đoạn 5/6b](superpowers/specs/2026-11-15-giai-doan-5-6b-anh-ton-thuong-design.md) |
 | MT-93 | Câu `image_upload` cần một bản ghi `answers` để có `answer_id` gắn ảnh, nhưng tài liệu không nói bản ghi này được tạo thế nào | Client gửi câu trả lời rỗng `{question_id}`; ảnh gắn qua answer-images | Đề xuất | [giai đoạn 5/6b](superpowers/specs/2026-11-15-giai-doan-5-6b-anh-ton-thuong-design.md) |
 | MT-94 | Danh sách thẻ bối cảnh (`context_tags`) không được liệt kê | Nhập tự do; gợi ý lấy từ ví dụ của tài liệu ("Sau ăn", "Sau ăn hải sản", "Sau vận động") | Chờ chốt (bác sĩ) | [giai đoạn 5/6b](superpowers/specs/2026-11-15-giai-doan-5-6b-anh-ton-thuong-design.md) |
+| MT-95 | Đổi mật khẩu chỉ thu hồi token đang dùng (đưa `jti` vào `token_blacklist`); phiên trên thiết bị khác vẫn hợp lệ tới khi token hết hạn. Tài liệu không nói đổi mật khẩu có đăng xuất mọi thiết bị hay không | Giữ như hiện tại. Đề xuất thêm cột `password_changed_at` (hoặc `token_version`) vào `users` và từ chối token phát hành trước mốc đó; cần schema thật (MT-57) | Chờ chốt | Review tổng thể 2026-11-15 |
+| MT-96 | Chưa giới hạn tần suất gọi API đăng nhập và quên mật khẩu (dò mật khẩu, spam OTP); tài liệu không có yêu cầu hay mã lỗi cho trường hợp này | Chưa giới hạn. Đề xuất dùng `@nestjs/throttler` cho `auth/login`, `auth/forgot-password` (và API đặt lại mật khẩu khi có); cần chốt ngưỡng và mã lỗi trả về | Đề xuất | Review tổng thể 2026-11-15 |
+| MT-97 | bcrypt chỉ dùng 72 byte đầu của mật khẩu: hai mật khẩu chung 72 byte đầu được coi là một. Sheet chỉ ghi mật khẩu tối thiểu 6 ký tự, không có giới hạn tối đa | Chưa giới hạn tối đa. Đề xuất giới hạn tối đa 72 byte UTF-8 (tiếng Việt có dấu chiếm 2–3 byte mỗi ký tự), vượt → 2003 như mật khẩu ngắn hơn 6 ký tự | Chờ chốt | Review tổng thể 2026-11-15 |
 
 ## F. Quyết định thiết kế đã áp dụng
 
@@ -149,3 +152,6 @@ Các mục dưới đây **không phải mâu thuẫn tài liệu**. Đây là q
 11. **`POST /role_permissions` dùng INSERT IGNORE:** vai trò hoặc quyền vừa bị xoá thì bị bỏ qua mà vẫn trả 1000.
 12. **Trang Web hiển thị ngày dạng dd/MM/yyyy.**
 13. **Nhãn trạng thái bệnh án lấy từ `packages/shared`** (`completed` = "Hoàn tất").
+14. **Client chỉ gửi Bearer token tới chính API.** `resolveMediaUrl` (`packages/shared`) chỉ trả URL tương đối (ghép với địa chỉ API) hoặc URL tuyệt đối cùng origin với API; origin khác, `//host`, `javascript:`, `data:`… → không tải, Web và Mobile hiện ô lỗi.
+15. **Cấu hình production của API:** Swagger (`/api/v1/docs`) chỉ mở khi `APP_ENV` là `development`/`test`; CORS theo `CORS_ORIGINS` (để trống: dev/test chỉ cho `http://localhost:5173`, production không cho origin nào); `APP_ENV=production` bắt buộc có `DATABASE_URL`. Như mục 2, không đặt `APP_ENV` thì coi như production.
+16. **Seed chỉ tạo admin dev khi số điện thoại chưa có**, không ghi đè mật khẩu/họ tên; từ chối khi `APP_ENV` không phải `development`/`test`, hoặc khi số đã thuộc bệnh nhân hay nhân viên vai trò khác.

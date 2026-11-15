@@ -10,7 +10,13 @@ export interface Env {
   /** Chưa đặt thì nơi dùng coi như production: tính năng chỉ dành cho dev (VD log OTP) bị tắt. */
   APP_ENV?: AppEnv;
   PORT: number;
+  /** Bắt buộc khi APP_ENV=production; môi trường khác để trống thì /health báo db: not_configured. */
   DATABASE_URL?: string;
+  /**
+   * Origin trình duyệt được gọi API (CORS), đọc từ chuỗi cách nhau bởi dấu phẩy. Chưa đặt thì
+   * development/test cho phép Web dev (DEV_WEB_ORIGIN), production không cho origin nào.
+   */
+  CORS_ORIGINS?: string[];
   JWT_SECRET: string;
   /** Thời hạn access token, tính bằng giây. */
   JWT_EXPIRES_IN: number;
@@ -50,17 +56,42 @@ function appEnv(raw: Record<string, unknown>, errors: string[]): AppEnv | undefi
   return known;
 }
 
+/** `http(s)://host[:cổng]`, không có đường dẫn hay dấu `/` cuối: đúng dạng header Origin. */
+const ORIGIN_PATTERN = /^https?:\/\/[^\s/?#@]+$/i;
+
+function corsOrigins(raw: Record<string, unknown>, errors: string[]): string[] | undefined {
+  const value = optionalString(raw, 'CORS_ORIGINS');
+  if (value === undefined) return undefined;
+  const origins = value
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin !== '');
+  const invalid = origins.filter((origin) => !ORIGIN_PATTERN.test(origin));
+  if (invalid.length > 0) {
+    errors.push(
+      `CORS_ORIGINS phải là các origin dạng http(s)://host[:cổng], cách nhau bởi dấu phẩy, không có / cuối (sai: ${invalid.map((origin) => `"${origin}"`).join(', ')})`,
+    );
+  }
+  return origins.length > 0 ? origins : undefined;
+}
+
 export function validateEnv(raw: Record<string, unknown>): Env {
   const errors: string[] = [];
   const jwtSecret = optionalString(raw, 'JWT_SECRET');
   if (!jwtSecret || jwtSecret.length < 32) {
     errors.push('JWT_SECRET là bắt buộc và phải dài tối thiểu 32 ký tự');
   }
+  const runtimeEnv = appEnv(raw, errors);
+  const databaseUrl = optionalString(raw, 'DATABASE_URL');
+  if (runtimeEnv === 'production' && databaseUrl === undefined) {
+    errors.push('DATABASE_URL là bắt buộc khi APP_ENV=production');
+  }
 
   const env: Env = {
-    APP_ENV: appEnv(raw, errors),
+    APP_ENV: runtimeEnv,
     PORT: positiveInt(raw, 'PORT', errors, 3000) ?? 3000,
-    DATABASE_URL: optionalString(raw, 'DATABASE_URL'),
+    DATABASE_URL: databaseUrl,
+    CORS_ORIGINS: corsOrigins(raw, errors),
     JWT_SECRET: jwtSecret ?? '',
     JWT_EXPIRES_IN: positiveInt(raw, 'JWT_EXPIRES_IN', errors, 86400) ?? 86400,
     MINIO_ENDPOINT: optionalString(raw, 'MINIO_ENDPOINT'),

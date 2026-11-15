@@ -3,16 +3,16 @@
 > Tài liệu viết tay, cập nhật sau mỗi đợt triển khai (lần gần nhất: đêm 2026-11-15). Ký hiệu: `[x]` xong (đã kiểm thử và review), `[ ]` chưa làm, `—` không có phần này.
 > Kế hoạch chi tiết từng giai đoạn: [superpowers/plans/](superpowers/plans/). Spec: [superpowers/specs/](superpowers/specs/). Mâu thuẫn và quyết định cần duyệt: [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md).
 
-## Kết quả kiểm tra lần gần nhất (nhánh `giai-doan-1-xac-thuc`, sau khi lắp ráp)
+## Kết quả kiểm tra lần gần nhất (nhánh `giai-doan-1-xac-thuc`, sau khi sửa theo review tổng thể)
 
 | Kiểm tra | Kết quả |
 |---|---|
-| `pnpm lint`, `pnpm typecheck`, `pnpm build` | Xanh |
-| `pnpm test` | shared 223, API 572, Web 220 |
-| `pnpm --filter @drmayday/api test:e2e` | 12 |
-| `pnpm --filter @drmayday/api test:db` | 187 (chạy hai lần liên tiếp đều xanh) |
-| Mobile: `expo export --platform android`, `expo-doctor` | Xuất được bundle Android; 20/20 mục đạt |
-| Chạy thử thật trên CSDL dev bằng curl | 34/34 bước đúng mã (bỏ qua 1 bước vì chưa có API gắn quyền với endpoint) |
+| `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build` | Xanh |
+| `pnpm test` | shared 226, API 592, Web 225; output không còn log WARN/ERROR |
+| `pnpm --filter @drmayday/api test:e2e` | 13 |
+| `pnpm --filter @drmayday/api test:db` | 193 |
+| Mobile: `expo export --platform android` | Xuất được bundle Android (`expo-doctor` 20/20 ở lần lắp ráp trước) |
+| Chạy thử thật trên CSDL dev bằng curl (lần lắp ráp trước) | 34/34 bước đúng mã (bỏ qua 1 bước vì chưa có API gắn quyền với endpoint) |
 
 ## Giai đoạn 0 — Nền tảng (xong 2026-11-15)
 
@@ -108,12 +108,12 @@ Spec: [2026-11-15-giai-doan-7-8-don-thuoc-xet-nghiem-thong-bao-design.md](superp
 1. **API còn thiếu, theo thứ tự phụ thuộc:** G3-2 (mẫu phiếu) → G4-2 (bệnh nhân, bệnh án) → G6-2 (UAS7) và G7-2 (đơn thuốc, xét nghiệm, thông báo) → G5-2/G5-3 (kho ảnh, tổn thương da). Các API sau phụ thuộc bệnh án của G4-2.
 2. **Đối chiếu schema thật** của nhóm DB (MT-57) bằng `prisma db pull`, rồi sửa tầng truy cập dữ liệu và các mục MT-59, 62, 63, 67, 70, 80, 81... trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md).
 3. **Thử app trên máy thật** (Expo Go: camera, chọn ảnh, bàn phím, `router.replace('/login')`).
-4. **Duyệt mục E và F** trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md); cần chốt riêng `gender: ''` (2001 hay 2003), `reset-password` (MT-16).
-5. **Các mục Minor còn mở** (rút gọn từ sổ theo dõi review):
-   - API: thêm Swagger request schema (plugin CLI không chạy với ESM nên schema yêu cầu đang rỗng); `session lookup` nên `select` hẹp; bản ghi có cả hai subtype xử lý chưa thống nhất; seed tạo và gán quyền chưa atomic; route `@Param` số phải dùng `parseIdPipe`.
-   - Hạ tầng: `docker-compose` MinIO dùng `latest` chưa ghim phiên bản; `JWT_SECRET` mẫu trong `.env.example` dùng được như thật (đổi khi triển khai); `Number()` nhận `1e3`/`0x10` làm port.
-   - Web: chunk antd lớn hơn 500 kB; `AuthContext.tsx` còn cảnh báo `only-export-components`; bảng hàng chỉ click chuột (thiếu truy cập bàn phím); khung CRUD chung có vài cast và lặp (`useDeleteAction`).
-   - Mobile: xoá phiên lỗi thì token còn trên máy; `keyboardVerticalOffset` trên iOS; vài dependency mẫu chưa dùng; `records.tsx`/`uas7.tsx` còn `Number(user?.user_id)`; `mix_text_image` mới là placeholder.
-   - Shared: chuyển Web sang dùng `form-rules` của shared; thống nhất hiển thị giờ tổn thương (Web nay hiển thị `HH:mm` theo shared).
+4. **Duyệt mục E và F** trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md); cần chốt riêng `gender: ''` (2001 hay 2003), `reset-password` (MT-16), và các mục từ review tổng thể: đổi mật khẩu chưa thu hồi phiên trên thiết bị khác (MT-95), chưa giới hạn tần suất đăng nhập/quên mật khẩu (MT-96), giới hạn tối đa 72 byte của mật khẩu (MT-97).
+5. **Các mục Minor còn mở** (rút gọn từ sổ theo dõi review và review tổng thể trước khi gộp vào `main`):
+   - API: thêm Swagger request schema (plugin CLI không chạy với ESM nên schema yêu cầu đang rỗng); `session lookup` nên `select` hẹp; bản ghi có cả hai subtype xử lý chưa thống nhất; seed tạo và gán chưa atomic: tạo quyền rồi mới cấp cho vai trò mặc định, tạo user admin rồi mới gán vai trò, ở các lệnh riêng; lỗi giữa chừng thì chạy lại không cấp nữa (quyền đã có), nên gói trong một transaction; route `@Param` số phải dùng `parseIdPipe`; mapper viết thẳng trong service RBAC (vai trò, quyền, gán quyền) nên tách ra `*-mapping.ts` như các module khác; chuyển `PasswordService` sang `UsersModule`; khoá HMAC của OTP nên là khoá con suy ra bằng HKDF từ `JWT_SECRET` thay vì dùng thẳng `JWT_SECRET`.
+   - Hạ tầng: `docker-compose` MinIO dùng `latest` chưa ghim phiên bản; `Number()` nhận `1e3`/`0x10` làm port; cache quyền nằm trong bộ nhớ từng tiến trình API: seed ghi lại gắn quyền–endpoint thì phải khởi động lại API (đã ghi trong README), chạy nhiều tiến trình cần cơ chế xoá cache chung.
+   - Web: chunk JS lớn hơn 500 kB, nên lazy-load nhóm trang quản trị và lâm sàng; bảng hàng chỉ click chuột (thiếu truy cập bàn phím); khung CRUD chung có vài cast và lặp (`useDeleteAction`).
+   - Mobile: `keyboardVerticalOffset` trên iOS; bỏ các dependency của mẫu Expo chưa dùng; `records.tsx`/`uas7.tsx` còn `Number(user?.user_id)`; `mix_text_image` mới là placeholder.
+   - Shared: thống nhất hiển thị giờ tổn thương (Web nay hiển thị `HH:mm` theo shared); định dạng ngày, nhãn trường hồ sơ, tên vai trò và đường dẫn API đang lặp giữa Web và Mobile, nên chuyển vào `packages/shared`; chuyển `FieldErrors` từ `lesion-form.ts` sang một module form dùng chung.
    - Test: spec HTTP status chỉ kiểm 11/71 mã; thiếu e2e 9902 qua HTTP khi CSDL tắt.
 6. **Quy tắc cho route/provider mới:** không dùng `@Inject(token)` với danh sách tham số riêng lẻ, vì làm hỏng `db:seed` chạy bằng tsx (đã có test chặn).

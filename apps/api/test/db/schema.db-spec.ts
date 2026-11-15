@@ -90,6 +90,89 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
     });
   });
 
+  describe('seed admin an toàn', () => {
+    const phone = '0900000098';
+
+    it('seed lại không ghi đè mật khẩu, họ tên admin đã đổi', async () => {
+      await seedBase(prisma, { adminPhone: phone, adminPassword: 'admin123' });
+      const changedHash = await bcrypt.hash('mat-khau-moi', 4);
+      await prisma.users.update({
+        where: { so_dien_thoai: phone },
+        data: { ho_ten: 'ADMIN ĐÃ ĐỔI TÊN', password_hash: changedHash },
+      });
+
+      await seedBase(prisma, { adminPhone: phone, adminPassword: 'mat-khau-seed-khac' });
+
+      const admin = await prisma.users.findUniqueOrThrow({ where: { so_dien_thoai: phone } });
+      expect(admin.ho_ten).toBe('ADMIN ĐÃ ĐỔI TÊN');
+      expect(admin.password_hash).toBe(changedHash);
+      expect(await prisma.users.count({ where: { so_dien_thoai: phone } })).toBe(1);
+    });
+
+    // appEnv = '' giống APP_ENV để trống: coi như production.
+    it.each(['production', ''])(
+      'APP_ENV = "%s" → từ chối seed admin, không ghi gì vào CSDL',
+      async (appEnv) => {
+        await prisma.roles.updateMany({ data: { description: 'mô tả trước seed' } });
+        await expect(
+          seedBase(prisma, { adminPhone: phone, adminPassword: 'admin123', appEnv }),
+        ).rejects.toThrow(/Không seed tài khoản admin khi APP_ENV/);
+        expect(await prisma.users.count({ where: { so_dien_thoai: phone } })).toBe(0);
+        // Từ chối trước khi upsert vai trò: mô tả vai trò vẫn là giá trị cũ.
+        expect(await prisma.roles.count({ where: { description: 'mô tả trước seed' } })).toBe(9);
+      },
+    );
+
+    it('APP_ENV=production mà không có SEED_ADMIN_* thì vẫn seed vai trò, quyền như thường', async () => {
+      await expect(seedBase(prisma, { appEnv: 'production' })).resolves.toMatchObject({
+        roles: expect.objectContaining({ admin: expect.any(Number) }),
+      });
+    });
+
+    it('số đã thuộc bệnh nhân → báo lỗi rõ, giữ nguyên tài khoản bệnh nhân', async () => {
+      const { roles } = await seedBase(prisma);
+      const patient = await prisma.users.create({
+        data: {
+          password_hash: 'hash-benh-nhan',
+          ho_ten: 'BỆNH NHÂN',
+          so_dien_thoai: phone,
+          patients: { create: { role_id: roles.patient } },
+        },
+      });
+
+      await expect(
+        seedBase(prisma, { adminPhone: phone, adminPassword: 'admin123' }),
+      ).rejects.toThrow(/đã là tài khoản bệnh nhân/);
+
+      const after = await prisma.users.findUniqueOrThrow({
+        where: { user_id: patient.user_id },
+        include: { staffs: true, patients: true },
+      });
+      expect(after).toMatchObject({ ho_ten: 'BỆNH NHÂN', password_hash: 'hash-benh-nhan' });
+      expect(after.staffs).toBeNull();
+      expect(after.patients).not.toBeNull();
+    });
+
+    it('số đã là nhân viên vai trò khác → báo lỗi, không đổi vai trò thành admin', async () => {
+      const { roles } = await seedBase(prisma);
+      const doctor = await prisma.users.create({
+        data: {
+          password_hash: 'hash-bac-si',
+          ho_ten: 'BÁC SĨ',
+          so_dien_thoai: phone,
+          staffs: { create: { role_id: roles.doctor } },
+        },
+      });
+
+      await expect(
+        seedBase(prisma, { adminPhone: phone, adminPassword: 'admin123' }),
+      ).rejects.toThrow(/đã là nhân viên vai trò doctor/);
+
+      const staff = await prisma.staffs.findUniqueOrThrow({ where: { user_id: doctor.user_id } });
+      expect(staff.role_id).toBe(roles.doctor);
+    });
+  });
+
   it('resetData xoá sạch các bảng con đang có dữ liệu rồi seed lại dữ liệu nền', async () => {
     const { roles, branchId, departmentId, roomId } = await seedBase(prisma);
     const patient = await prisma.users.create({
