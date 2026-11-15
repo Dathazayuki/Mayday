@@ -1,7 +1,7 @@
 import { plainToInstance, type ClassConstructor } from 'class-transformer';
 import { validate } from 'class-validator';
 import { MAX_ID } from '../../common/id.js';
-import { validationErrorsToException } from '../../common/validation.js';
+import { createValidationPipe, validationErrorsToException } from '../../common/validation.js';
 import { PlacementDto } from '../../facilities/dto/placement.dto.js';
 import { CreateUserDto, ListUsersQuery, UpdateUserDto } from './admin-user.dto.js';
 
@@ -50,8 +50,19 @@ describe('CreateUserDto', () => {
     ['thiếu full_name', { full_name: undefined }, '2001'],
     ['phone sai định dạng', { phone: '12345' }, '2004'],
     ['password ngắn hơn 6 ký tự', { password: '12345' }, '2003'],
+    ['gender other (MT-59)', { gender: 'other' }, '2003'],
+    ['full_name dài quá 150 ký tự', { full_name: 'A'.repeat(151) }, '2003'],
   ])('%s → %s', async (_name, override, code) => {
     expect(await codeFor(CreateUserDto, { ...valid, ...override })).toBe(code);
+  });
+
+  it('branch_id, department_id, room_id bị whitelist lược bỏ (nhân viên chưa phân công, D5)', async () => {
+    const dto = (await createValidationPipe().transform(
+      { ...valid, branch_id: 1, department_id: 1, room_id: 1 },
+      { type: 'body', metatype: CreateUserDto },
+    )) as Record<string, unknown>;
+    expect(dto).not.toHaveProperty('branch_id');
+    expect(dto).not.toHaveProperty('department_id');
   });
 });
 
@@ -59,7 +70,7 @@ describe('UpdateUserDto', () => {
   it('mọi trường không bắt buộc; body rỗng vẫn qua validate (service trả 2001)', async () => {
     expect(await codeFor(UpdateUserDto, {})).toBeNull();
     expect(
-      await codeFor(UpdateUserDto, { full_name: 'B', gender: 'other', role_id: 8, is_active: 1 }),
+      await codeFor(UpdateUserDto, { full_name: 'B', gender: 'female', role_id: 8, is_active: 1 }),
     ).toBeNull();
   });
 
@@ -71,6 +82,7 @@ describe('UpdateUserDto', () => {
   it.each([
     ['full_name không phải chuỗi', { full_name: 5 }, '2002'],
     ['gender ngoài danh sách', { gender: 'nam' }, '2003'],
+    ['gender other (MT-59)', { gender: 'other' }, '2003'],
     ["role_id = 'a'", { role_id: 'a' }, '2002'],
     ['role_id null', { role_id: null }, '2001'],
     ['is_active ngoài {0, 1}', { is_active: 3 }, '2003'],
@@ -81,19 +93,15 @@ describe('UpdateUserDto', () => {
 });
 
 describe('PlacementDto (PUT admin/users/:id/assign)', () => {
-  const valid = { branch_id: 1, department_id: 2 };
+  const valid = { branch_id: 1 };
 
-  it('room_id không bắt buộc, có thể null', async () => {
+  it('chỉ cần branch_id hợp lệ', async () => {
     expect(await codeFor(PlacementDto, valid)).toBeNull();
-    expect(await codeFor(PlacementDto, { ...valid, room_id: 3 })).toBeNull();
-    expect(await codeFor(PlacementDto, { ...valid, room_id: null })).toBeNull();
   });
 
   it.each([
     ['thiếu branch_id', { branch_id: undefined }, '2001'],
-    ['thiếu department_id', { department_id: undefined }, '2001'],
-    ["department_id = 'a'", { department_id: 'a' }, '2002'],
-    ['room_id là chuỗi số', { room_id: '3' }, '2002'],
+    ["branch_id = 'a'", { branch_id: 'a' }, '2002'],
     ['branch_id vượt INT tối đa', { branch_id: MAX_ID + 1 }, '2003'],
   ])('%s → %s', async (_name, override, code) => {
     expect(await codeFor(PlacementDto, { ...valid, ...override })).toBe(code);

@@ -18,11 +18,11 @@ export class ListUsersQuery extends PaginationQuery implements AdminUserListQuer
 }
 
 /**
- * POST /admin/users (admin01): như create-staff (tài khoản + vai trò), bỏ nơi công tác. Vai trò do
- * AdminUsersService kiểm tra (không tồn tại → 2003).
+ * POST /admin/users (admin01): như create-staff (tài khoản + vai trò), bỏ chi nhánh: nhân viên chưa có
+ * dòng nhanvien tới khi phân công (D5). Vai trò do AdminUsersService kiểm tra (không tồn tại → 2003).
  */
 export class CreateUserDto
-  extends OmitType(CreateStaffDto, ['branch_id', 'department_id', 'room_id'] as const)
+  extends OmitType(CreateStaffDto, ['branch_id'] as const)
   implements CreateUserRequest
 {
   @IsOptional() // "Mặc định là 1: active"

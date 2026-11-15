@@ -13,27 +13,22 @@ import { AppException, invalidReference } from '../common/app.exception.js';
 import { pageWindow, Paginated } from '../common/paginated.js';
 import { requireChanges } from '../common/require-changes.js';
 import { FacilitiesService } from '../facilities/facilities.service.js';
-import type { Placement } from '../facilities/placement.js';
 import { PATIENT_ROLE_NAME } from '../roles/role-names.js';
 import { RolesRepository } from '../roles/roles.repository.js';
 import { assertFullNameNotBlank } from '../users/assert-full-name.js';
-import { requireRoleId, requireSubtype } from '../users/require-role-id.js';
 import {
-  isPatient,
-  isStaff,
-  roleIdOf,
   toAdminUserDetail,
   toAssignUserData,
   toUserSummary,
-  type NewUser,
-  type SubtypedUser,
+  type ShapedUser,
 } from '../users/user-mapping.js';
+import { requireShape } from '../users/user-shape.js';
 import { UsersRepository } from '../users/users.repository.js';
 import type { ListUsersQuery } from './dto/admin-user.dto.js';
 
 /**
- * Quản trị người dùng (spec giai đoạn 2, mục 3.3). Người dùng không tồn tại → 3007; tham chiếu
- * (vai trò, nơi công tác) sai → 2003 kèm tên trường.
+ * Quản trị người dùng (spec A, mục 5.4). "Người dùng" = nguoi có taikhoan (D3); không có → 3007.
+ * Tham chiếu (vai trò, chi nhánh) sai → 2003 kèm tên trường.
  */
 @Injectable()
 export class AdminUsersService {
@@ -46,13 +41,10 @@ export class AdminUsersService {
     private readonly passwords: PasswordService,
   ) {}
 
-  /** Một trang người dùng (user_id tăng dần); `total` đếm mọi người dùng khớp bộ lọc. */
+  /** Một trang người dùng (ma_nguoi tăng dần); `total` đếm mọi tài khoản khớp bộ lọc. */
   async list(query: ListUsersQuery): Promise<Paginated<AdminUserListItem>> {
     const page = await this.users.listPage({ roleId: query.role_id }, pageWindow(query));
-    const items = page.items.map((record) =>
-      toUserSummary(record, requireRoleId(record, this.logger)),
-    );
-    return new Paginated(items, page.total);
+    return new Paginated(page.items.map(toUserSummary), page.total);
   }
 
   async get(userId: number): Promise<AdminUserDetailData> {
@@ -60,38 +52,31 @@ export class AdminUsersService {
   }
 
   /**
-   * Kiểm tra theo thứ tự: vai trò tồn tại (2003) → trùng số điện thoại (3006). Vai trò patient tạo
-   * bản ghi `patients`, vai trò khác tạo `staffs` chưa có nơi công tác (phân công sau bằng assign).
+   * Kiểm tra theo thứ tự: vai trò tồn tại (2003) → trùng số (3006). benh_nhan → nguoi + benhnhan +
+   * taikhoan; vai trò khác → nguoi + taikhoan, chưa có nhanvien tới khi phân công (D5, MT-106).
    */
   async create(dto: CreateUserRequest): Promise<CreateUserResponseData> {
     const role = await this.roles.findById(dto.role_id);
     if (!role) throw invalidReference('role_id');
-    if (await this.users.phoneExists(dto.phone)) throw new AppException('3006');
-
-    const account: NewUser = {
-      fullName: dto.full_name,
-      phone: dto.phone,
-      passwordHash: await this.passwords.hash(dto.password),
-      gender: dto.gender ?? null,
-      isActive: dto.is_active !== 0,
-    };
-    const user =
-      role.name === PATIENT_ROLE_NAME
-        ? await this.users.createPatient({ ...account, patientRoleId: role.role_id })
-        : await this.users.createStaff({
-            ...account,
-            roleId: role.role_id,
-            branchId: null,
-            departmentId: null,
-            roomId: null,
-          });
-    return toUserSummary(user, role.role_id);
+    if (await this.users.loginExists(dto.phone)) throw new AppException('3006');
+    const user = await this.users.create(
+      {
+        fullName: dto.full_name,
+        phone: dto.phone,
+        passwordHash: await this.passwords.hash(dto.password),
+        gender: dto.gender ?? null,
+        roleId: role.id,
+        isActive: dto.is_active !== 0,
+      },
+      role.name === PATIENT_ROLE_NAME ? { kind: 'patient' } : { kind: 'none' },
+    );
+    return toUserSummary(user);
   }
 
   /**
-   * Kiểm tra theo thứ tự: có ít nhất 1 trường (2001) → full_name không trống (2003) → người dùng tồn
-   * tại (3007) và có bản ghi subtype (9901) → admin không tự khoá, không tự đổi vai trò (2003) → vai
-   * trò mới tồn tại và cùng nhóm (2003). Trả chi tiết theo vai trò sau khi ghi.
+   * Kiểm tra theo thứ tự: ít nhất 1 trường (2001) → full_name không trống (2003) → tồn tại (3007) →
+   * admin không tự khoá, không tự đổi vai trò (2003) → vai trò mới tồn tại và cùng nhóm (2003, MT-65).
+   * Đổi vai trò, khoá, mở khoá làm mọi token cũ của người đó bị từ chối (spec A, mục 6.2).
    */
   async update(
     userId: number,
@@ -101,48 +86,42 @@ export class AdminUsersService {
     requireChanges(dto);
     assertFullNameNotBlank(dto.full_name);
     const user = await this.findUser(userId);
-    const roleChanged = dto.role_id !== undefined && dto.role_id !== roleIdOf(user);
+    const roleChanged = dto.role_id !== undefined && dto.role_id !== user.roleId;
     if (userId === currentUserId && (dto.is_active === 0 || roleChanged)) {
       throw new AppException('2003', { field: 'id' });
     }
     if (dto.role_id !== undefined) await this.assertSameGroupRole(user, dto.role_id);
-    const updated = requireSubtype(await this.users.update(user, dto), this.logger);
-    return toAdminUserDetail(updated);
+    const updated = await this.users.update(userId, dto);
+    if (!updated) throw new AppException('3007');
+    return toAdminUserDetail(requireShape(updated, this.logger));
   }
 
-  /** Admin không được xoá chính mình (2003); người dùng không tồn tại → 3007. */
+  /** Tự xoá → 2003; không có tài khoản → 3007; còn dữ liệu tham chiếu → 2003 (409) (D6, MT-107). */
   async remove(userId: number, currentUserId: number): Promise<void> {
     if (userId === currentUserId) throw new AppException('2003', { field: 'id' });
     if (!(await this.users.delete(userId))) throw new AppException('3007');
   }
 
-  /**
-   * Kiểm tra theo thứ tự: người dùng tồn tại (3007) và có bản ghi subtype (9901) → là nhân viên
-   * (2003) → nơi công tác hợp lệ (FacilitiesService, dùng chung với create-staff; 2003).
-   */
+  /** Tồn tại (3007) → không phải bệnh nhân (2003, id) → chi nhánh tồn tại (2003, branch_id). */
   async assign(userId: number, dto: AssignUserRequest): Promise<AssignUserResponseData> {
-    if (!isStaff(await this.findUser(userId))) throw new AppException('2003', { field: 'id' });
-    const placement: Placement = {
-      branchId: dto.branch_id,
-      departmentId: dto.department_id,
-      roomId: dto.room_id ?? null,
-    };
-    await this.facilities.assertPlacement(placement);
-    await this.users.assign(userId, placement);
-    return toAssignUserData(userId, placement);
+    const user = await this.findUser(userId);
+    if (user.shape === 'patient') throw new AppException('2003', { field: 'id' });
+    await this.facilities.assertBranchExists(dto.branch_id);
+    await this.users.assign(userId, dto.branch_id);
+    return toAssignUserData(userId, dto.branch_id);
   }
 
-  /** Không tồn tại → 3007; thiếu bản ghi staffs/patients → 9901, kiểm tra trước mọi thao tác ghi. */
-  private async findUser(userId: number): Promise<SubtypedUser> {
+  /** Không có tài khoản → 3007; vai trò benh_nhan thiếu dòng benhnhan → 9901 (MT-112). */
+  private async findUser(userId: number): Promise<ShapedUser> {
     const user = await this.users.findById(userId);
     if (!user) throw new AppException('3007');
-    return requireSubtype(user, this.logger);
+    return requireShape(user, this.logger);
   }
 
-  /** Chỉ đổi vai trò trong cùng nhóm: bệnh nhân ↔ patient, nhân viên ↔ vai trò khác (MT-65). */
-  private async assertSameGroupRole(user: SubtypedUser, roleId: number): Promise<void> {
+  /** Chỉ đổi vai trò trong cùng nhóm: bệnh nhân ↔ benh_nhan, nhân viên ↔ vai trò khác (MT-65). */
+  private async assertSameGroupRole(user: ShapedUser, roleId: number): Promise<void> {
     const role = await this.roles.findById(roleId);
-    if (!role || (role.name === PATIENT_ROLE_NAME) !== isPatient(user)) {
+    if (!role || (role.name === PATIENT_ROLE_NAME) !== (user.shape === 'patient')) {
       throw invalidReference('role_id');
     }
   }
