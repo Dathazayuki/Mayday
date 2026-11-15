@@ -1,4 +1,5 @@
 import {
+  FIELD_LIMITS,
   isPatientProfile,
   isValidIsoDate,
   isValidYearOfBirth,
@@ -10,15 +11,22 @@ import {
 } from '@drmayday/shared';
 import { validateOptionalPhone } from './validation';
 
-/** Các trường chữ tự do của bệnh nhân, nhập như văn bản. */
+/** Các trường chữ tự do của bệnh nhân, nhập như văn bản; `maxLength` theo cột của CSDL thật (FIELD_LIMITS). */
 export const PROFILE_TEXT_FIELDS = [
-  { key: 'ethnic', label: 'Dân tộc' },
-  { key: 'hamlet_address', label: 'Thôn / xóm / số nhà' },
-  { key: 'commune_address', label: 'Xã / phường' },
-  { key: 'city_address', label: 'Tỉnh / thành phố' },
-  { key: 'work_place', label: 'Nơi làm việc' },
-  { key: 'health_insurance_number', label: 'Số thẻ BHYT' },
-  { key: 'next_of_kin_name', label: 'Người thân (họ tên)' },
+  { key: 'ethnic', label: 'Dân tộc', maxLength: FIELD_LIMITS.ethnic },
+  { key: 'hamlet_address', label: 'Thôn / xóm / số nhà', maxLength: FIELD_LIMITS.hamlet_address },
+  { key: 'commune_address', label: 'Xã / phường', maxLength: FIELD_LIMITS.commune_address },
+  { key: 'city_address', label: 'Tỉnh / thành phố', maxLength: FIELD_LIMITS.city_address },
+  {
+    key: 'health_insurance_number',
+    label: 'Số thẻ BHYT',
+    maxLength: FIELD_LIMITS.health_insurance_number,
+  },
+  {
+    key: 'next_of_kin_name',
+    label: 'Người thân (họ tên)',
+    maxLength: FIELD_LIMITS.next_of_kin_name,
+  },
 ] as const;
 type ProfileTextKey = (typeof PROFILE_TEXT_FIELDS)[number]['key'];
 
@@ -46,7 +54,6 @@ export function toFormValues(profile: ProfileData): ProfileFormValues {
     hamlet_address: patient?.hamlet_address ?? '',
     commune_address: patient?.commune_address ?? '',
     city_address: patient?.city_address ?? '',
-    work_place: patient?.work_place ?? '',
     health_insurance_number: patient?.health_insurance_number ?? '',
     next_of_kin_name: patient?.next_of_kin_name ?? '',
   };

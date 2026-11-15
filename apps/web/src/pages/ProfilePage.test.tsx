@@ -59,6 +59,20 @@ describe('ProfilePage', () => {
     expect(screen.queryByText('Lần khám đầu tiên')).not.toBeInTheDocument();
   });
 
+  it('hồ sơ bệnh nhân: không còn ô Nơi làm việc; giới hạn độ dài theo cột; giới tính chỉ Nam/Nữ', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(PATIENT_PROFILE)));
+    renderPage();
+    expect(await screen.findByLabelText('Dân tộc')).toHaveAttribute('maxlength', '50');
+    expect(screen.queryByLabelText('Nơi làm việc')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Họ và tên')).toHaveAttribute('maxlength', '150');
+    expect(screen.getByLabelText('Số thẻ BHYT')).toHaveAttribute('maxlength', '30');
+    expect(screen.getByLabelText('Thôn/Xóm')).toHaveAttribute('maxlength', '255');
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText('Giới tính'));
+    expect(await screen.findAllByTitle('Nữ')).not.toHaveLength(0);
+    expect(screen.queryAllByTitle('Khác')).toHaveLength(0);
+  });
+
   it('bệnh nhân thấy đủ các trường, kể cả lần khám đầu tiên (chỉ đọc)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(PATIENT_PROFILE)));
     renderPage();

@@ -1,4 +1,5 @@
 import {
+  FIELD_LIMITS,
   GENDER_OPTIONS,
   describeError,
   isPatientProfile,
@@ -69,10 +70,13 @@ function ProfileForm({ profile }: { profile: ProfileData }) {
         name="full_name"
         rules={[
           { required: true, whitespace: true, message: 'Vui lòng nhập họ và tên' },
-          { max: 255, message: 'Họ và tên tối đa 255 ký tự' },
+          {
+            max: FIELD_LIMITS.full_name,
+            message: `Họ và tên tối đa ${FIELD_LIMITS.full_name} ký tự`,
+          },
         ]}
       >
-        <Input />
+        <Input maxLength={FIELD_LIMITS.full_name} />
       </Form.Item>
       <Form.Item label="Số điện thoại" htmlFor="profile-phone">
         <Input id="profile-phone" value={profile.phone} disabled />

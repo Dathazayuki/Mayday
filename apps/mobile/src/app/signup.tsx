@@ -1,4 +1,5 @@
 import {
+  FIELD_LIMITS,
   GENDER_OPTIONS,
   PASSWORD_MIN_LENGTH,
   describeError,
@@ -63,7 +64,7 @@ function SignupForm() {
         onChangeText={setValue('fullName')}
         error={errors.fullName}
         autoComplete="name"
-        maxLength={255}
+        maxLength={FIELD_LIMITS.full_name}
       />
       <FormField
         label="Số điện thoại"

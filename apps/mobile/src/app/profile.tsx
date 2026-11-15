@@ -1,5 +1,6 @@
 import {
   CAREER_OPTIONS,
+  FIELD_LIMITS,
   GENDER_OPTIONS,
   describeError,
   isPatientProfile,
@@ -109,7 +110,7 @@ function ProfileForm() {
         value={values.full_name}
         onChangeText={setText('full_name')}
         error={errors.full_name}
-        maxLength={255}
+        maxLength={FIELD_LIMITS.full_name}
       />
       <FormField label="Số điện thoại" value={profile.phone} editable={false} />
       <OptionPicker
@@ -135,8 +136,14 @@ function ProfileForm() {
             value={values.career}
             onChange={(career) => setValues((current) => current && { ...current, career })}
           />
-          {PROFILE_TEXT_FIELDS.map(({ key, label }) => (
-            <FormField key={key} label={label} value={values[key]} onChangeText={setText(key)} />
+          {PROFILE_TEXT_FIELDS.map(({ key, label, maxLength }) => (
+            <FormField
+              key={key}
+              label={label}
+              value={values[key]}
+              onChangeText={setText(key)}
+              maxLength={maxLength}
+            />
           ))}
           <FormField
             label="Hạn thẻ BHYT"

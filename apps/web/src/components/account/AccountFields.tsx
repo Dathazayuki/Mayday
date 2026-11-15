@@ -1,4 +1,5 @@
 import {
+  FIELD_LIMITS,
   GENDER_OPTIONS,
   PASSWORD_MIN_LENGTH,
   isValidVietnamPhone,
@@ -23,10 +24,13 @@ export function AccountFields({ withCredentials }: { withCredentials: boolean })
         name="full_name"
         rules={[
           { required: true, whitespace: true, message: 'Vui lòng nhập họ và tên' },
-          { max: 255, message: 'Họ và tên tối đa 255 ký tự' },
+          {
+            max: FIELD_LIMITS.full_name,
+            message: `Họ và tên tối đa ${FIELD_LIMITS.full_name} ký tự`,
+          },
         ]}
       >
-        <Input />
+        <Input maxLength={FIELD_LIMITS.full_name} />
       </Form.Item>
       {withCredentials && (
         <>

@@ -1,5 +1,6 @@
 import {
   CAREER_OPTIONS,
+  FIELD_LIMITS,
   isValidIsoDate,
   isValidVietnamPhone,
   isValidYearOfBirth,
@@ -12,21 +13,42 @@ import { PATIENT_FIELD_LABELS } from './profile-form';
 const PATIENT_TEXT_FIELDS: {
   name: Exclude<PatientEditableField, 'year_of_birth' | 'career'>;
   label: string;
+  maxLength?: number;
   validate?: (value: string) => boolean;
   invalidMessage?: string;
 }[] = [
-  { name: 'ethnic', label: PATIENT_FIELD_LABELS.ethnic },
-  { name: 'hamlet_address', label: PATIENT_FIELD_LABELS.hamlet_address },
-  { name: 'commune_address', label: PATIENT_FIELD_LABELS.commune_address },
-  { name: 'city_address', label: PATIENT_FIELD_LABELS.city_address },
-  { name: 'health_insurance_number', label: PATIENT_FIELD_LABELS.health_insurance_number },
+  { name: 'ethnic', label: PATIENT_FIELD_LABELS.ethnic, maxLength: FIELD_LIMITS.ethnic },
+  {
+    name: 'hamlet_address',
+    label: PATIENT_FIELD_LABELS.hamlet_address,
+    maxLength: FIELD_LIMITS.hamlet_address,
+  },
+  {
+    name: 'commune_address',
+    label: PATIENT_FIELD_LABELS.commune_address,
+    maxLength: FIELD_LIMITS.commune_address,
+  },
+  {
+    name: 'city_address',
+    label: PATIENT_FIELD_LABELS.city_address,
+    maxLength: FIELD_LIMITS.city_address,
+  },
+  {
+    name: 'health_insurance_number',
+    label: PATIENT_FIELD_LABELS.health_insurance_number,
+    maxLength: FIELD_LIMITS.health_insurance_number,
+  },
   {
     name: 'health_insurance_validate',
     label: PATIENT_FIELD_LABELS.health_insurance_validate,
     validate: isValidIsoDate,
     invalidMessage: 'Ngày không đúng định dạng YYYY-MM-DD',
   },
-  { name: 'next_of_kin_name', label: PATIENT_FIELD_LABELS.next_of_kin_name },
+  {
+    name: 'next_of_kin_name',
+    label: PATIENT_FIELD_LABELS.next_of_kin_name,
+    maxLength: FIELD_LIMITS.next_of_kin_name,
+  },
   {
     name: 'next_of_kin_phone',
     label: PATIENT_FIELD_LABELS.next_of_kin_phone,
@@ -56,7 +78,7 @@ export function PatientEditableFields() {
       <Form.Item label={PATIENT_FIELD_LABELS.career} name="career">
         <Select allowClear options={[...CAREER_OPTIONS]} />
       </Form.Item>
-      {PATIENT_TEXT_FIELDS.map(({ name, label, validate, invalidMessage }) => (
+      {PATIENT_TEXT_FIELDS.map(({ name, label, maxLength, validate, invalidMessage }) => (
         <Form.Item
           key={name}
           label={label}
@@ -74,7 +96,7 @@ export function PatientEditableFields() {
               : undefined
           }
         >
-          <Input />
+          <Input maxLength={maxLength} />
         </Form.Item>
       ))}
     </>
