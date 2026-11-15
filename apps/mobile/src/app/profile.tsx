@@ -6,6 +6,7 @@ import {
   type ProfileData,
   type UpdateProfileRequest,
 } from '@drmayday/shared';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { useAuth } from '@/auth/auth-context';
@@ -26,6 +27,7 @@ import {
 } from '@/lib/profile-form';
 
 function ProfileForm() {
+  const router = useRouter();
   const { updateUser } = useAuth();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [values, setValues] = useState<ProfileFormValues | null>(null);
@@ -155,6 +157,11 @@ function ProfileForm() {
         </>
       )}
       <PrimaryButton title="Lưu" onPress={() => void handleSubmit()} loading={submitting} />
+      <PrimaryButton
+        title="Kho ảnh của tôi"
+        variant="secondary"
+        onPress={() => router.push('/media')}
+      />
     </FormScreen>
   );
 }

@@ -33,7 +33,15 @@
           "imageWidth": 76
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "DrMayDay cần quyền truy cập thư viện ảnh để bạn chọn ảnh tổn thương da và ảnh đính kèm phiếu khám.",
+          "cameraPermission": "DrMayDay cần quyền dùng máy ảnh để bạn chụp ảnh tổn thương da.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": true

@@ -66,3 +66,12 @@ export function resolveMediaUrl(baseUrl: string, fileUrl: string): string {
   const path = fileUrl.startsWith('/') ? fileUrl : `/${fileUrl}`;
   return `${baseUrl.replace(/\/+$/, '')}${path}`;
 }
+
+/**
+ * Tên tệp gửi lên: giữ phần tên, đổi đuôi theo MIME đã xác định (ảnh HEIC đã chuyển JPEG thì đuôi
+ * thành .jpg). Tên rỗng thì dùng `anh`.
+ */
+export function uploadFileName(fileName: string, mime: AllowedImageMime): string {
+  const base = fileName.trim().replace(/\.[^./\\]*$/, '');
+  return `${base === '' ? 'anh' : base}.${imageExtension(mime)}`;
+}

@@ -1,15 +1,26 @@
 import {
   buildQuestionTree,
+  imageTriggerOptionValues,
   isPatientSection,
   isQuestionVisible,
+  questionAcceptsImages,
   type AnswerValue,
   type FormState,
+  type QuestionData,
   type QuestionNode,
   type TemplateDetailData,
 } from '@drmayday/shared';
+import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { QuestionField } from './question-field';
 import { ReadonlyAnswer } from './readonly-answer';
+
+/** Một ô ảnh của câu hỏi: cấp câu hỏi, hoặc cấp lựa chọn có trigger_image_upload. */
+export interface ImageSlotTarget {
+  question: QuestionData;
+  optionValue?: string;
+  title: string;
+}
 
 interface DynamicFormProps {
   template: TemplateDetailData;
@@ -18,6 +29,8 @@ interface DynamicFormProps {
   readOnly?: boolean;
   errors?: Record<string, string>;
   onChange?: (questionId: string, value: AnswerValue) => void;
+  /** Vẽ ô ảnh của các câu hỏi nhận ảnh; không truyền thì không hiện ô ảnh. */
+  renderImages?: (target: ImageSlotTarget) => ReactNode;
 }
 
 /**
@@ -30,10 +43,23 @@ export function DynamicForm({
   readOnly = false,
   errors,
   onChange,
+  renderImages,
 }: DynamicFormProps) {
   const sections = [...template.sections]
     .filter((section) => readOnly || isPatientSection(section))
     .sort((a, b) => Number(a.order) - Number(b.order));
+
+  const renderImageSlots = (question: QuestionData, value: AnswerValue) => {
+    if (!renderImages || !questionAcceptsImages(question)) return null;
+    const optionTargets = imageTriggerOptionValues(question, value).map((optionValue) => {
+      const label = question.options.find((o) => o.option_value === optionValue)?.option_text;
+      return { question, optionValue, title: `Ảnh cho "${label ?? optionValue}"` };
+    });
+    const targets: ImageSlotTarget[] = [{ question, title: 'Ảnh đính kèm' }, ...optionTargets];
+    return targets.map((target) => (
+      <View key={target.optionValue ?? ''}>{renderImages(target)}</View>
+    ));
+  };
 
   const renderNodes = (nodes: QuestionNode[]) =>
     nodes.map(({ question, children }) => {
@@ -52,6 +78,7 @@ export function DynamicForm({
               onChange={(next) => onChange?.(question.question_id, next)}
             />
           )}
+          {renderImageSlots(question, value)}
           {children.length > 0 && <View style={styles.children}>{renderNodes(children)}</View>}
         </View>
       );

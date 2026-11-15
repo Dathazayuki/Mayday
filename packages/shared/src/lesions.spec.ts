@@ -9,6 +9,7 @@ import {
 import {
   checkSymptomScore,
   describeMedication,
+  formatDisplayLesionDateTime,
   formatLesionDateTime,
   groupPhotosByMilestone,
   isLesionMilestone,
@@ -199,5 +200,15 @@ describe('hằng số tổn thương', () => {
   it('ghép đường dẫn theo id', () => {
     expect(LESION_PATHS.photoMilestone(9)).toBe('/lesion-photos/9/milestone');
     expect(LESION_PATHS.episodesByRecord('12')).toBe('/lesion-episodes/record/12');
+  });
+});
+
+describe('formatDisplayLesionDateTime', () => {
+  it('đổi sang dd/MM/yyyy HH:mm', () => {
+    expect(formatDisplayLesionDateTime('2026-11-15 08:30:45')).toBe('15/11/2026 08:30');
+  });
+
+  it('chỉ có ngày thì không để thừa khoảng trắng', () => {
+    expect(formatDisplayLesionDateTime('2026-11-15')).toBe('15/11/2026');
   });
 });

@@ -1,23 +1,33 @@
 import {
   classifyAnswersFromState,
+  collectImageSlots,
+  countImagesByQuestion,
   describeError,
+  imageAnswerPlaceholders,
+  imageSlotKey,
   stateToAnswerInputs,
   validateFormState,
+  validateImageQuestions,
   type AnswerValue,
   type ClassifyQuestion,
   type FormState,
+  type PickedImages,
   type TemplateDetailData,
 } from '@drmayday/shared';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, BackHandler, StyleSheet, Text } from 'react-native';
+import { useCurrentUserId } from '@/auth/auth-context';
 import { AuthGate } from '@/components/auth-gate';
 import { Banner } from '@/components/banner';
+import { AnswerImagesField } from '@/components/dynamic-form/answer-images-field';
 import { DynamicForm } from '@/components/dynamic-form/dynamic-form';
 import { QuestionField } from '@/components/dynamic-form/question-field';
 import { FormScreen } from '@/components/form-screen';
 import { PrimaryButton } from '@/components/primary-button';
 import { classifyToQuestion, visiblePatientQuestions } from '@/lib/dynamic-form';
+import type { PickedImage } from '@/lib/image-picker';
+import { uploadRecordImages } from '@/lib/record-images';
 import {
   classify,
   createMedicalRecord,
@@ -107,9 +117,19 @@ function ClassifyStep({ state, onStateChange, onClassified }: ClassifyStepProps)
 }
 
 /** Bước 2: điền các section dành cho bệnh nhân rồi gửi bệnh án. */
-function TemplateStep({ template, onBack }: { template: TemplateDetailData; onBack: () => void }) {
+interface TemplateStepProps {
+  template: TemplateDetailData;
+  onBack: () => void;
+  /** Báo màn cha khoá nút Back trong lúc đang gửi và tải ảnh. */
+  onLockedChange: (locked: boolean) => void;
+}
+
+function TemplateStep({ template, onBack, onLockedChange }: TemplateStepProps) {
   const router = useRouter();
+  const userId = useCurrentUserId();
   const [state, setState] = useState<FormState>({});
+  const [picked, setPicked] = useState<PickedImages<PickedImage>>({});
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -119,25 +139,53 @@ function TemplateStep({ template, onBack }: { template: TemplateDetailData; onBa
 
   async function handleSubmit() {
     const visible = visiblePatientQuestions(template, state);
-    const nextErrors = validateFormState(visible, state);
+    const slots = collectImageSlots(visible, state, picked);
+    const nextErrors = {
+      ...validateFormState(visible, state),
+      ...validateImageQuestions(visible, countImagesByQuestion(slots)),
+    };
     setErrors(nextErrors);
     setFormError(null);
     if (Object.keys(nextErrors).length > 0) return;
 
+    if (!userId) {
+      setFormError('Không xác định được tài khoản. Vui lòng đăng nhập lại.');
+      return;
+    }
+
     setSubmitting(true);
+    onLockedChange(true);
     try {
+      // Câu có ảnh cần một bản ghi câu trả lời để có answer_id gắn ảnh (MT-93).
+      const answers = stateToAnswerInputs(visible, state);
+      const placeholders = imageAnswerPlaceholders(
+        [...new Set(slots.map((slot) => slot.questionId))],
+        answers,
+      );
       const created = await createMedicalRecord({
         template_id: template.code_template,
-        answers: stateToAnswerInputs(visible, state),
+        answers: [...answers, ...placeholders],
       });
+      const recordId = String(created.medical_record_id);
+      // Bệnh án đã tạo; ảnh lỗi thì vẫn mở chi tiết và báo ở đó.
+      const imagesUploaded =
+        slots.length === 0 ||
+        (await uploadRecordImages({
+          medicalRecordId: recordId,
+          userId,
+          slots,
+          onProgress: (done, total) => setProgress({ done, total }),
+        }));
       router.replace({
         pathname: '/records/[id]',
-        params: { id: String(created.medical_record_id) },
+        params: imagesUploaded ? { id: recordId } : { id: recordId, imagesFailed: '1' },
       });
     } catch (error) {
       setFormError(describeError(error));
     } finally {
       setSubmitting(false);
+      setProgress(null);
+      onLockedChange(false);
     }
   }
 
@@ -145,9 +193,28 @@ function TemplateStep({ template, onBack }: { template: TemplateDetailData; onBa
     <>
       <Text style={styles.templateName}>{template.name}</Text>
       {formError && <Banner tone="error" message={formError} />}
-      <DynamicForm template={template} state={state} errors={errors} onChange={setAnswer} />
+      <DynamicForm
+        template={template}
+        state={state}
+        errors={errors}
+        onChange={setAnswer}
+        renderImages={({ question, optionValue, title }) => {
+          const key = imageSlotKey(question.question_id, optionValue);
+          return (
+            <AnswerImagesField
+              mode="local"
+              title={title}
+              images={picked[key] ?? []}
+              onChange={(images) => setPicked((current) => ({ ...current, [key]: images }))}
+            />
+          );
+        }}
+      />
+      {progress && (
+        <Banner tone="success" message={`Đang tải ảnh ${progress.done}/${progress.total}...`} />
+      )}
       <PrimaryButton title="Gửi bệnh án" onPress={() => void handleSubmit()} loading={submitting} />
-      <PrimaryButton title="Quay lại" variant="secondary" onPress={onBack} />
+      <PrimaryButton title="Quay lại" variant="secondary" onPress={onBack} disabled={submitting} />
     </>
   );
 }
@@ -155,21 +222,27 @@ function TemplateStep({ template, onBack }: { template: TemplateDetailData; onBa
 function NewRecordFlow() {
   const [template, setTemplate] = useState<TemplateDetailData | null>(null);
   const [classifyState, setClassifyState] = useState<FormState>({});
+  const [locked, setLocked] = useState(false);
 
-  // Nút Back của Android ở bước 2 quay về bước 1 thay vì thoát khỏi màn hình.
+  // Nút Back của Android ở bước 2 quay về bước 1 thay vì thoát khỏi màn hình; đang gửi thì bị chặn.
   useEffect(() => {
     if (!template) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      setTemplate(null);
+      if (!locked) setTemplate(null);
       return true;
     });
     return () => subscription.remove();
-  }, [template]);
+  }, [template, locked]);
 
   return (
     <FormScreen>
+      <Stack.Screen options={{ headerBackVisible: !locked, gestureEnabled: !locked }} />
       {template ? (
-        <TemplateStep template={template} onBack={() => setTemplate(null)} />
+        <TemplateStep
+          template={template}
+          onBack={() => setTemplate(null)}
+          onLockedChange={setLocked}
+        />
       ) : (
         <ClassifyStep
           state={classifyState}

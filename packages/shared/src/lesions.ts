@@ -113,3 +113,10 @@ export function describeMedication(fields: {
   }
   return parts.length > 0 ? parts.join(', ') : null;
 }
+
+/** Đổi "YYYY-MM-DD HH:mm:ss" (occurred_at, taken_at) thành "dd/MM/yyyy HH:mm" để hiển thị. */
+export function formatDisplayLesionDateTime(value: string): string {
+  const [date, time = ''] = value.split(' ');
+  const [year, month, day] = date.split('-');
+  return `${day}/${month}/${year} ${time.slice(0, 5)}`.trim();
+}

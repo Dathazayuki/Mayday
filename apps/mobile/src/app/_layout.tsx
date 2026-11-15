@@ -25,6 +25,23 @@ export default function RootLayout() {
           name="records/[id]"
           options={{ ...formScreenOptions, title: 'Chi tiết bệnh án' }}
         />
+        <Stack.Screen name="media" options={{ ...formScreenOptions, title: 'Kho ảnh của tôi' }} />
+        <Stack.Screen
+          name="lesions/new"
+          options={{ ...formScreenOptions, title: 'Đợt tổn thương' }}
+        />
+        <Stack.Screen
+          name="lesions/[id]"
+          options={{ ...formScreenOptions, title: 'Chi tiết đợt tổn thương' }}
+        />
+        <Stack.Screen
+          name="lesions/location"
+          options={{ ...formScreenOptions, title: 'Vị trí tổn thương' }}
+        />
+        <Stack.Screen
+          name="lesions/photo"
+          options={{ ...formScreenOptions, title: 'Ảnh tổn thương' }}
+        />
       </Stack>
     </AuthProvider>
   );
