@@ -1,5 +1,7 @@
 # Thiết kế giai đoạn 1: Xác thực, tài khoản, hồ sơ
 
+> Các phần về CSDL dev, bảng và hành vi phụ thuộc bảng đã được thay bởi [spec A](2026-11-15-csdl-that-a-nen-tang-design.md).
+
 - **Ngày:** 2026-11-15
 - **Trạng thái triển khai:** đã triển khai; xem [docs/05 mục F](../../05-mau-thuan-can-chot.md) cho các quyết định bổ sung.
 - **Trạng thái:** đã được duyệt theo uỷ quyền chung của người dùng ("tôi đồng ý với mọi quyết định của bạn miễn là nó bám sát với tài liệu gốc"; "trong thời gian đó bạn cứ phát triển dự án thôi"). Nhóm DB chưa trả lời (MT-57).

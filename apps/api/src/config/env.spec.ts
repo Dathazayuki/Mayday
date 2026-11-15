@@ -34,7 +34,7 @@ describe('validateEnv', () => {
   });
 
   it.each(['development', 'test', 'production'])('đọc APP_ENV = %s', (appEnv) => {
-    const raw = { ...base, APP_ENV: appEnv, DATABASE_URL: 'mysql://u:p@db:3306/drmayday' };
+    const raw = { ...base, APP_ENV: appEnv, DATABASE_URL: 'postgresql://u:p@db:5432/drmayday' };
     expect(validateEnv(raw).APP_ENV).toBe(appEnv);
   });
 
@@ -62,7 +62,7 @@ describe('validateEnv', () => {
     });
 
     it('production có DATABASE_URL thì hợp lệ', () => {
-      const url = 'mysql://u:p@db:3306/drmayday';
+      const url = 'postgresql://u:p@db:5432/drmayday';
       expect(validateEnv({ ...base, APP_ENV: 'production', DATABASE_URL: url }).DATABASE_URL).toBe(
         url,
       );

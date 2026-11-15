@@ -15,7 +15,7 @@ export default defineConfig({
     include: ['test/db/**/*.db-spec.ts'],
     // Các file dùng chung một CSDL test nên chạy lần lượt.
     fileParallelism: false,
-    // Mỗi test (và hook beforeEach của resetData) chạy DB thật cộng bcrypt, nên gặp lúc máy hoặc MySQL
+    // Mỗi test (và hook beforeEach của resetData) chạy DB thật cộng bcrypt, nên gặp lúc máy hoặc PostgreSQL
     // dùng chung đang tải thì vượt mặc định 5 s/10 s (đã thấy "Hook timed out in 10000ms" khi lặp
     // test:db --retry=0). Nới rộng để không báo đỏ giả; test hỏng thật vẫn hỏng nhanh vì lỗi assert.
     testTimeout: 30_000,

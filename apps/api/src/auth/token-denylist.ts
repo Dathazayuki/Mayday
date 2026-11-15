@@ -5,7 +5,7 @@ const SWEEP_INTERVAL_MS = 10 * 60 * 1000;
 
 /**
  * jti bị chặn tới lúc token hết hạn (đăng xuất, đổi mật khẩu), giữ trong bộ nhớ của tiến trình (spec A,
- * mục 6.3), thay bảng token_blacklist không có trong CSDL thật. Giới hạn (MT-102): mất khi khởi động
+ * mục 6.3), thay cho bảng chặn token mà CSDL thật không có. Giới hạn (MT-102): mất khi khởi động
  * lại và không chia sẻ giữa nhiều tiến trình; khi đó token đã đăng xuất dùng lại được tới khi hết hạn.
  */
 @Injectable()

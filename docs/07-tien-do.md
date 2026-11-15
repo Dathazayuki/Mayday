@@ -111,10 +111,21 @@ Spec: [2026-11-15-giao-dien-cendo-design.md](superpowers/specs/2026-11-15-giao-d
 - [ ] Đợt 2: tab trạng thái có số đếm và chế độ xem cột kiểu Trello (làm sau khi chuyển sang CSDL thật)
 - [ ] Mobile dùng chung bộ màu
 
+## Tiểu dự án A — Chuyển API sang CSDL thật (nền tảng, giai đoạn 1–2)
+
+> Spec: [superpowers/specs/2026-11-15-csdl-that-a-nen-tang-design.md](superpowers/specs/2026-11-15-csdl-that-a-nen-tang-design.md). Kế hoạch: [superpowers/plans/2026-11-15-csdl-that-a-nen-tang.md](superpowers/plans/2026-11-15-csdl-that-a-nen-tang.md).
+
+- [x] A0: spec A và `docs/08-csdl-that/`
+- [x] A1: bản sao file SQL của nhóm DB, container PostgreSQL 17 (cổng 5434), `load-schema.mjs`, `patch-schema.mjs`
+- [x] A2: gỡ API và trang mẫu phiếu; quyền khai báo trong code; denylist `jti` trong bộ nhớ; OTP không lưu trữ
+- [x] A3: Prisma trên lược đồ thật (adapter-pg), tầng dữ liệu bản ghi miền, thu hồi token theo `thoi_diem_cap_nhat`, contract mới, Web và Mobile, seed và test tích hợp trên PostgreSQL
+- [x] A4: gỡ MySQL, cập nhật tài liệu
+- [ ] A5: `POST /auth/reset-password` và màn đặt lại mật khẩu (chờ chốt MT-16)
+
 ## Việc tiếp theo
 
 1. **API còn thiếu, theo thứ tự phụ thuộc:** G4-2 (bệnh nhân, bệnh án; thêm kiểm tra 4105 khi xoá mẫu phiếu đang được dùng) → G6-2 (UAS7) và G7-2 (đơn thuốc, xét nghiệm, thông báo) → G5-2/G5-3 (kho ảnh, tổn thương da). Các API sau phụ thuộc bệnh án của G4-2.
-2. **Đối chiếu schema thật** của nhóm DB (MT-57) bằng `prisma db pull`, rồi sửa tầng truy cập dữ liệu và các mục MT-59, 62, 63, 67, 70, 80, 81... trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md).
+2. **Tiểu dự án B và C** (hồ sơ/phiên khám CAP–MAN, giai đoạn 5–8 trên CSDL thật): viết spec sau khi nhóm DB trả lời MT-99, MT-100, MT-110, MT-111, MT-112.
 3. **Thử app trên máy thật** (Expo Go: camera, chọn ảnh, bàn phím, `router.replace('/login')`).
 4. **Duyệt mục E và F** trong [05-mau-thuan-can-chot.md](05-mau-thuan-can-chot.md); cần chốt riêng `gender: ''` (2001 hay 2003), `reset-password` (MT-16), và các mục từ review tổng thể: đổi mật khẩu chưa thu hồi phiên trên thiết bị khác (MT-95), chưa giới hạn tần suất đăng nhập/quên mật khẩu (MT-96), giới hạn tối đa 72 byte của mật khẩu (MT-97); từ review G3-2: toàn vẹn cây câu hỏi rẽ nhánh (MT-98).
 5. **Các mục Minor còn mở** (rút gọn từ sổ theo dõi review và review tổng thể trước khi gộp vào `main`):

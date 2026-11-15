@@ -1,5 +1,7 @@
 # Thiết kế giai đoạn 3: Mẫu phiếu khám động (Form Builder)
 
+> Các phần về CSDL dev, bảng và hành vi phụ thuộc bảng đã được thay bởi [spec A](2026-11-15-csdl-that-a-nen-tang-design.md).
+
 - **Ngày:** 2026-11-15
 - **Trạng thái:** đã được duyệt theo uỷ quyền chung của người dùng ("cứ làm đầy đủ các task của dự án… cứ mạnh dạn triển khai tôi luôn đồng ý").
 - **Nguồn:**
