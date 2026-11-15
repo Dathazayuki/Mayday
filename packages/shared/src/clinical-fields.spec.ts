@@ -6,6 +6,7 @@ import {
   RECORD_CHRONIC_FIELDS,
   RECORD_CORE_FIELDS,
   SELF_REPORT_FIELDS,
+  selfReportFieldsFor,
   TEMPERATURE_MAX,
   TEMPERATURE_MIN,
   VISIT_ACUTE_FIELDS,
@@ -167,5 +168,14 @@ describe('bộ mô tả trường lâm sàng (D-B13, spec B mục 5.7)', () => {
     expect(new Set(RECORD_ACUTE_FIELDS.map((item) => item.group))).toEqual(new Set(['acute']));
     expect(new Set(VISIT_ACUTE_FIELDS.map((item) => item.group))).toEqual(new Set(['acute']));
     expect(field(RECORD_ACUTE_FIELDS, 'secondary_disease').source).toBe(23);
+  });
+
+  it('selfReportFieldsFor: hồ sơ CAP không có biểu hiện bệnh (#29), hồ sơ MAN đủ 4 trường (D-B31)', () => {
+    expect(selfReportFieldsFor('CAP').map((item) => item.key)).toEqual([
+      'referral_diagnosis',
+      'initial_clinic_diagnosis',
+      'onset_weeks',
+    ]);
+    expect(selfReportFieldsFor('MAN')).toBe(SELF_REPORT_FIELDS);
   });
 });

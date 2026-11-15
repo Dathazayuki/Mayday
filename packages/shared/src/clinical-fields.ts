@@ -7,6 +7,7 @@ import {
   type AcuteRecordFields,
   type ChronicRecordFields,
   type RecordCoreFields,
+  type RecordType,
   type SelfReportFields,
 } from './contracts/medical-records.js';
 import type { AcuteVisitFields, ChronicVisitFields, VisitCoreFields } from './contracts/visits.js';
@@ -219,6 +220,13 @@ export const SELF_REPORT_FIELDS = block<SelfReportFields>({
     }),
   },
 });
+
+/** Ô tự khai theo loại hồ sơ: biểu hiện bệnh (#29) chỉ có ở hồ sơ MAN (CAP gửi → 2003, D-B31). */
+export function selfReportFieldsFor(type: RecordType): typeof SELF_REPORT_FIELDS {
+  return type === 'MAN'
+    ? SELF_REPORT_FIELDS
+    : SELF_REPORT_FIELDS.filter((item) => item.key !== 'disease_manifestation');
+}
 
 /** Trường lõi của bệnh án (mục 3.2): `first_visit_at` (cấp cao nhất của request) và lõi trong `details`. */
 export type RecordCoreFormFields = RecordCoreFields & { first_visit_at: string | null };
