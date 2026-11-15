@@ -1,18 +1,22 @@
-import { Card, Tabs } from 'antd';
+import { Tabs } from 'antd';
 import { BranchesTab } from './facilities/BranchesTab';
 import { DepartmentsTab } from './facilities/DepartmentsTab';
 import { RoomsTab } from './facilities/RoomsTab';
+import { Page } from '../../layout/Page';
+import { Panel } from '../../layout/Panel';
 
 export function FacilitiesPage() {
   return (
-    <Card title="Cơ sở vật chất">
-      <Tabs
-        items={[
-          { key: 'branches', label: 'Chi nhánh', children: <BranchesTab /> },
-          { key: 'departments', label: 'Khoa', children: <DepartmentsTab /> },
-          { key: 'rooms', label: 'Phòng', children: <RoomsTab /> },
-        ]}
-      />
-    </Card>
+    <Page title="Cơ sở vật chất">
+      <Panel>
+        <Tabs
+          items={[
+            { key: 'branches', label: 'Chi nhánh', children: <BranchesTab /> },
+            { key: 'departments', label: 'Khoa', children: <DepartmentsTab /> },
+            { key: 'rooms', label: 'Phòng', children: <RoomsTab /> },
+          ]}
+        />
+      </Panel>
+    </Page>
   );
 }

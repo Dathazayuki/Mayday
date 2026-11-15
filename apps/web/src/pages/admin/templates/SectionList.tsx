@@ -4,9 +4,10 @@ import {
   type QuestionNode,
   type TemplateSectionDetail,
 } from '@drmayday/shared';
-import { Button, Collapse, Empty, Space, Tag } from 'antd';
+import { Button, Collapse, Empty, Space } from 'antd';
 import { useState } from 'react';
 import { RowActions } from '../../../admin/RowActions';
+import { StatusBadge } from '../../../theme/StatusBadge';
 import { FILLED_BY_LABELS, QUESTION_TYPE_LABELS } from './template-labels';
 
 interface SectionListProps {
@@ -50,14 +51,17 @@ function QuestionTree({
             justifyContent: 'space-between',
             gap: 12,
             padding: '8px 0',
-            borderBottom: '1px solid rgba(128, 128, 128, 0.2)',
+            borderBottom: '1px solid var(--dm-line)',
           }}
         >
           <div>
             <div>
-              <strong>{question.question_text}</strong> <Tag>{question.question_id}</Tag>
-              <Tag color="blue">{QUESTION_TYPE_LABELS[question.type_question]}</Tag>
-              {question.is_required === '1' && <Tag color="red">Bắt buộc</Tag>}
+              <strong>{question.question_text}</strong>{' '}
+              <StatusBadge tone="neutral">{question.question_id}</StatusBadge>
+              <StatusBadge tone="primary">
+                {QUESTION_TYPE_LABELS[question.type_question]}
+              </StatusBadge>
+              {question.is_required === '1' && <StatusBadge tone="red">Bắt buộc</StatusBadge>}
             </div>
             {condition && <div style={{ opacity: 0.65 }}>{condition}</div>}
           </div>
@@ -71,7 +75,7 @@ function QuestionTree({
             style={{
               marginLeft: 24,
               paddingLeft: 12,
-              borderLeft: '2px solid rgba(128, 128, 128, 0.3)',
+              borderLeft: '2px solid var(--dm-line)',
             }}
           >
             <QuestionTree
@@ -115,8 +119,10 @@ export function SectionList({
         label: (
           <Space wrap>
             <span>{section.title}</span>
-            {section.is_required === '1' && <Tag color="red">Bắt buộc</Tag>}
-            {section.filled_by && <Tag>{FILLED_BY_LABELS[section.filled_by]}</Tag>}
+            {section.is_required === '1' && <StatusBadge tone="red">Bắt buộc</StatusBadge>}
+            {section.filled_by && (
+              <StatusBadge tone="neutral">{FILLED_BY_LABELS[section.filled_by]}</StatusBadge>
+            )}
           </Space>
         ),
         extra: (

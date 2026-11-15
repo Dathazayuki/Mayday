@@ -1,12 +1,14 @@
 import type { TemplateSectionDetail } from '@drmayday/shared';
-import { Button, Card, Spin } from 'antd';
+import { Button, Spin } from 'antd';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { useDeleteQuestion, useDeleteSection } from '../../admin/templates-api';
 import { useTemplateDetail } from '../../templates/template-detail-api';
 import { useEntityModal } from '../../components/crud/use-entity-modal';
 import { useDeleteAction } from '../../components/crud/use-run-action';
+import { Page } from '../../layout/Page';
+import { Panel } from '../../layout/Panel';
 import { FormPreview } from './templates/FormPreview';
 import { nextOrder } from './templates/mapping';
 import { QuestionDrawer } from './templates/QuestionDrawer';
@@ -31,22 +33,36 @@ export function TemplateBuilderPage() {
   );
   const questionDrawer = useQuestionDrawerState();
 
-  if (isPending) return <Spin size="large" style={{ display: 'block', margin: '64px auto' }} />;
+  const back = { to: '/admin/templates', label: 'Mẫu phiếu khám' };
+
+  // Mọi nhánh đều qua Page để không mất thanh trên cùng; chưa có mẫu thì lấy mã từ URL làm tiêu đề.
+  if (isPending) {
+    return (
+      <Page title={code} back={back}>
+        <Spin size="large" style={{ display: 'block', margin: '64px auto' }} />
+      </Page>
+    );
+  }
 
   return (
-    <Card
-      title={template ? `${template.name} (${template.code_template})` : 'Thiết kế mẫu phiếu'}
-      extra={<Link to="/admin/templates">Quay lại danh sách</Link>}
-    >
-      <QueryErrorAlert error={error} />
-      {template && (
-        <>
-          <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+    <Page
+      title={template?.name ?? code}
+      subtitle={<span className="num">{template?.code_template ?? code}</span>}
+      back={back}
+      actions={
+        template && (
+          <>
             <Button type="primary" onClick={sectionModal.openCreate}>
               Thêm section
             </Button>
             <Button onClick={() => setPreviewing(true)}>Xem trước</Button>
-          </div>
+          </>
+        )
+      }
+    >
+      <QueryErrorAlert error={error} />
+      {template && (
+        <Panel>
           <SectionList
             sections={sections}
             onEditSection={sectionModal.openEdit}
@@ -62,8 +78,8 @@ export function TemplateBuilderPage() {
           <SectionFormModal modal={sectionModal} templateCode={template.code_template} />
           <QuestionDrawer drawer={questionDrawer} sections={sections} />
           <FormPreview template={template} open={previewing} onClose={() => setPreviewing(false)} />
-        </>
+        </Panel>
       )}
-    </Card>
+    </Page>
   );
 }

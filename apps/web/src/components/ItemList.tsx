@@ -29,14 +29,14 @@ export function ItemList<T>({
               alignItems: 'center',
               gap: 8,
               padding: '8px 0',
-              borderBottom: '1px solid rgba(5, 5, 5, 0.06)',
+              borderBottom: '1px solid var(--dm-line2)',
             }}
           >
             {renderItem(item)}
           </li>
         ))}
         {items.length === 0 && !loading && (
-          <li style={{ padding: '8px 0', textAlign: 'center', color: 'rgba(0, 0, 0, 0.45)' }}>
+          <li style={{ padding: '8px 0', textAlign: 'center', color: 'var(--dm-ink3)' }}>
             {emptyText}
           </li>
         )}

@@ -5,8 +5,10 @@ import {
   type PatientProfileData,
   type ProfileData,
 } from '@drmayday/shared';
-import { Alert, Button, Card, Form, Input, Select, Skeleton, Typography } from 'antd';
+import { Alert, Button, Form, Input, Select, Skeleton, Typography } from 'antd';
 import { useState } from 'react';
+import { Page } from '../layout/Page';
+import { Panel } from '../layout/Panel';
 import { formatDateTime } from '../lib/format-date';
 import { PatientEditableFields } from '../profile/PatientEditableFields';
 import { useProfile, useUpdateProfile } from '../profile/profile-api';
@@ -90,10 +92,12 @@ export function ProfilePage() {
   const { data, error, isPending } = useProfile();
 
   return (
-    <Card title="Hồ sơ cá nhân" style={{ maxWidth: 640 }}>
-      {isPending && <Skeleton active />}
-      {error && <Alert type="error" showIcon title={describeError(error)} />}
-      {data && <ProfileForm profile={data} />}
-    </Card>
+    <Page title="Hồ sơ cá nhân">
+      <Panel style={{ maxWidth: 640 }}>
+        {isPending && <Skeleton active />}
+        {error && <Alert type="error" showIcon title={describeError(error)} />}
+        {data && <ProfileForm profile={data} />}
+      </Panel>
+    </Page>
   );
 }
