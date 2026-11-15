@@ -3,7 +3,9 @@
  * mục 4.6). Tên cột tiếng Việt không có ở đây: chỉ có kiểu giá trị.
  */
 
-/** Cột DATE → `YYYY-MM-DD` (Prisma trả nửa đêm UTC). */
+/** Cột DATE → `YYYY-MM-DD` (Prisma trả nửa đêm UTC); cột NOT NULL (vd. phienkham.ngay_kham) trả chuỗi. */
+export function isoDate(date: Date): string;
+export function isoDate(date: Date | null): string | null;
 export function isoDate(date: Date | null): string | null {
   return date === null ? null : date.toISOString().slice(0, 10);
 }

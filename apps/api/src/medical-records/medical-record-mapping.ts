@@ -209,8 +209,11 @@ export type ChronicColumns = Omit<
 
 // ---- (a) Hằng ánh xạ giá trị ----
 
-/** Cột TEXT + CHECK IN (…) → giá trị của tập. Ngoài tập không thể xảy ra (có CHECK) nên là lỗi. */
-function oneOf<T extends string>(values: readonly T[], value: string, column: string): T {
+/**
+ * Cột TEXT + CHECK IN (…) → giá trị của tập. Ngoài tập không thể xảy ra (có CHECK) nên là lỗi. Dùng chung
+ * với visit-mapping.ts (loai_benh_an của phienkham).
+ */
+export function oneOf<T extends string>(values: readonly T[], value: string, column: string): T {
   const found = values.find((item) => item === value);
   if (found === undefined) throw new Error(`Cột ${column} có giá trị ngoài CHECK: ${value}`);
   return found;
