@@ -74,6 +74,13 @@ describe('PatientDetailPage (spec B, mục 8.3)', () => {
     expect(screen.getByText('31/12/2027')).toBeInTheDocument();
     expect(screen.getByText('Chưa có')).toBeInTheDocument();
     expect(screen.getByText('Có')).toBeInTheDocument();
+    // Ngày tạo chỉ hiện ngày dd/MM/yyyy theo giờ máy (không phụ thuộc múi giờ của môi trường test).
+    const createdDate = new Date(PATIENT.created_at).toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+    expect(screen.getByText(createdDate)).toBeInTheDocument();
     expect(detailGets(calls)).toHaveLength(1);
   });
 

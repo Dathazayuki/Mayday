@@ -7,7 +7,7 @@ import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { useEntityModal } from '../../components/crud/use-entity-modal';
 import { Page } from '../../layout/Page';
 import { Panel } from '../../layout/Panel';
-import { formatDateTime } from '../../lib/format-date';
+import { formatInstantDate } from '../../lib/format-date';
 import { genderLabel, patientFieldItems } from '../../profile/patient-field-items';
 import { toFormValues, type ProfileFormValues } from '../../profile/profile-form';
 import { AccountBadge } from './patients/AccountBadge';
@@ -23,7 +23,7 @@ function AdministrativePanel({ patient }: { patient: PatientData }) {
     { label: 'Giới tính', value: genderLabel(patient.gender) },
     ...patientFieldItems(patient),
     { label: 'Tài khoản đăng nhập', value: <AccountBadge hasAccount={patient.has_account} /> },
-    { label: 'Ngày tạo', value: formatDateTime(patient.created_at) },
+    { label: 'Ngày tạo', value: formatInstantDate(patient.created_at) },
   ];
   return (
     <Panel title="Thông tin hành chính">

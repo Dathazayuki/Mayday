@@ -1,4 +1,4 @@
-import { formatDate, formatDateTime } from './format-date';
+import { formatDate, formatDateTime, formatInstantDate } from './format-date';
 
 describe('format-date', () => {
   it('formatDate đổi YYYY-MM-DD sang dd/MM/yyyy mà không lệch múi giờ', () => {
@@ -13,5 +13,16 @@ describe('format-date', () => {
   it('formatDateTime dùng định dạng vi-VN', () => {
     const iso = '2026-11-15T08:00:00.000Z';
     expect(formatDateTime(iso)).toBe(new Date(iso).toLocaleString('vi-VN'));
+  });
+
+  it('formatInstantDate chỉ lấy ngày dd/MM/yyyy theo giờ máy', () => {
+    const iso = '2026-11-15T08:00:00.000Z';
+    const expected = new Date(iso).toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+    expect(formatInstantDate(iso)).toBe(expected);
+    expect(formatInstantDate(iso)).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
   });
 });
