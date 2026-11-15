@@ -32,3 +32,6 @@ apps/api/src/generated/
 
 # Git worktree cho các luồng làm song song
 .worktrees/
+
+# Mockup, ledger và báo cáo tạm của quy trình superpowers
+.superpowers/
