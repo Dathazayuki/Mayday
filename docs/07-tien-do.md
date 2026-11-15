@@ -135,7 +135,8 @@ Spec: [2026-11-15-giao-dien-cendo-design.md](superpowers/specs/2026-11-15-giao-d
 
 Việc còn mở của B (mang sang các bước sau):
 
-- Câu hỏi chưa chốt (từ B3): huỷ hồ sơ đang khám qua `PATCH /medical_records/:id/status` theo spec B mục 6.1, 7.2 (`manage_medical_records` + bác sĩ phụ trách) và qua `PUT /medical_records/:id` theo medrec11 (`bac_si` + `examine_medical_records` + bác sĩ phụ trách) vẫn khác luật; `allowed_actions` theo `PUT`. B3 làm đúng chữ của spec, không tự thống nhất. Cần người dùng chốt.
+- Câu hỏi chưa chốt (từ B3): huỷ hồ sơ đang khám qua `PATCH /medical_records/:id/status` theo spec B mục 6.1, 7.2 (`manage_medical_records` + bác sĩ phụ trách) và qua `PUT /medical_records/:id` theo medrec11 (`bac_si` + `examine_medical_records` + bác sĩ phụ trách) vẫn khác luật; `allowed_actions` theo `PUT`. B3 làm đúng chữ của spec, không tự thống nhất. Cần người dùng chốt. Với quyền mặc định không thể lệch; cần chốt trước khi cấp quyền trên CSDL dùng chung (MT-122) hoặc có luồng đổi vai trò.
+- Hồ sơ `in_progress` không có phiên (chỉ có thể do dữ liệu ghi ngoài API) bị kẹt: tiếp nhận 4005, ghi khác 3105 — báo nhóm DB/tiểu dự án C.
 - B5: Mobile hiển thị "Chờ bác sĩ tiếp nhận" cho hồ sơ huỷ/nháp chưa có phiên; sửa khi làm danh sách Mobile.
 - B5 (cập nhật docs/05): ghi lệch đã chấp nhận: `GET /medical_records/classify-questions` trả 400/2002 thay vì 404/2003 (MT-58, MT-118); tạo hồ sơ với `first_visit_at: null` tường minh được coi là "bây giờ" (MT-116).
 - Tìm kiếm chưa chuẩn hoá Unicode NFC cho từ khoá và họ tên (câu hỏi mở từ B1).

@@ -424,8 +424,8 @@ function shiftDays(now: Date, days: number): Date {
 }
 
 /**
- * ma_nguoi của tài khoản mẫu; phải có dòng benhnhan (bệnh nhân) hoặc nhanvien (bác sĩ, FK
- * fk_phienkham_bacsi), không thì báo lỗi trước khi ghi hồ sơ nào.
+ * ma_nguoi của tài khoản mẫu; phải đúng vai trò (benh_nhan / bac_si) và có dòng benhnhan (bệnh nhân)
+ * hoặc nhanvien (bác sĩ, FK fk_phienkham_bacsi), không thì báo lỗi trước khi ghi hồ sơ nào.
  */
 async function sampleUserId(
   prisma: PrismaClient,
@@ -440,6 +440,7 @@ async function sampleUserId(
     where: { ma_tai_khoan: accountId },
     select: {
       ma_nguoi: true,
+      vaitro: { select: { ten_vai_tro: true } },
       nguoi: {
         select: {
           benhnhan: { select: { ma_benh_nhan: true } },
@@ -448,6 +449,13 @@ async function sampleUserId(
       },
     },
   });
+  const roleName: SystemRoleName = kind === 'patient' ? 'benh_nhan' : 'bac_si';
+  if (account.vaitro.ten_vai_tro !== roleName) {
+    throw new Error(
+      `Tài khoản mẫu ${phone} không có vai trò ${roleName} (đang là ${account.vaitro.ten_vai_tro}): ` +
+        'seed lâm sàng dừng, chưa ghi hồ sơ nào.',
+    );
+  }
   const subtype = kind === 'patient' ? account.nguoi.benhnhan : account.nguoi.nhanvien;
   if (subtype === null) {
     throw new Error(
@@ -502,7 +510,7 @@ function sampleVisit(
  * tài khoản mẫu trước khi ghi; mỗi bệnh nhân ghi trong một transaction; bệnh nhân đã có hồ sơ thì bỏ qua cả
  * người đó (idempotent, mục 10.3). Chỉ gọi từ seedDevData (APP_ENV, D2), sau tài khoản mẫu và 2 phòng dev.
  */
-export async function seedDevClinical(
+async function seedDevClinical(
   prisma: PrismaClient,
   roomIds: readonly number[],
   now: Date = new Date(),

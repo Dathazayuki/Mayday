@@ -67,10 +67,7 @@ export function assertOwnRecord(caller: Caller, patientId: number): void {
 }
 
 /** Thao tác chỉ bác sĩ phụ trách làm (bảng 6.1): thêm/sửa phiên, hoàn tất, huỷ khi đang khám bằng PUT. */
-export type AssignedTransition = Extract<
-  RecordTransition,
-  'visit' | 'complete' | 'cancel_in_progress'
->;
+type AssignedTransition = Extract<RecordTransition, 'visit' | 'complete' | 'cancel_in_progress'>;
 
 /** Ô của bảng 6.1 cho `transition` (null = ✓); có mã thì ném. Ô trạng thái xét trước người làm (mục 6.3). */
 function assertOpen(

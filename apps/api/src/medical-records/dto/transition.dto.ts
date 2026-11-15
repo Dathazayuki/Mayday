@@ -8,7 +8,7 @@ import { IsStatusTarget } from '../../common/is-status-target.decorator.js';
 import { ClinicalText, OptionalRoomId } from './clinical-field.decorators.js';
 
 /** Trạng thái đích của PUT /medical_records/:id (medrec11). */
-export const CLOSE_STATUSES = ['completed', 'cancelled'] as const;
+const CLOSE_STATUSES = ['completed', 'cancelled'] as const;
 
 /** POST /medical_records/:id/accept (medrec07): body tuỳ chọn, chỉ có phòng của phiên đầu (MT-115). */
 export class AcceptMedicalRecordDto implements AcceptMedicalRecordRequest {

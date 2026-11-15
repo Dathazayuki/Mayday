@@ -251,12 +251,32 @@ describe('seed lâm sàng dev (spec B, mục 10; PostgreSQL thật)', () => {
           create: {
             ten_dang_nhap: '0900000104',
             mat_khau_ma_hoa: 'hash-cu',
-            ma_vai_tro: BigInt(seed.roles.bac_si),
+            ma_vai_tro: BigInt(seed.roles.benh_nhan),
           },
         },
       },
     });
     await expect(seedDevData(prisma, SAMPLE)).rejects.toThrow(/0900000104 không có dòng benhnhan/);
     expect(await prisma.hosobenhan.count()).toBe(0);
+  });
+
+  it('số của bác sĩ mẫu đã là tài khoản điều dưỡng (có nhanvien) → báo lỗi vai trò trước khi ghi hồ sơ nào', async () => {
+    await prisma.nguoi.create({
+      data: {
+        ho_ten: 'ĐIỀU DƯỠNG TRÙNG SỐ',
+        so_dien_thoai: '0900000002',
+        nhanvien: { create: { ma_chi_nhanh: BigInt(seed.branchId) } },
+        taikhoan: {
+          create: {
+            ten_dang_nhap: '0900000002',
+            mat_khau_ma_hoa: 'hash-cu',
+            ma_vai_tro: BigInt(seed.roles.dieu_duong),
+          },
+        },
+      },
+    });
+    await expect(seedDevData(prisma, SAMPLE)).rejects.toThrow(/0900000002 không có vai trò bac_si/);
+    expect(await prisma.hosobenhan.count()).toBe(0);
+    expect(await prisma.phienkham.count()).toBe(0);
   });
 });

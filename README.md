@@ -57,7 +57,7 @@ pnpm dev:shared              # biên dịch lại packages/shared khi sửa (API
 
 Sau khi gộp một thay đổi của `packages/shared` (vd. B2): chạy `pnpm --filter @drmayday/shared build` (hoặc giữ `pnpm dev:shared`), khởi động lại API dev khi có module mới (B2: `/medical_records`), rồi tải lại Web và Expo.
 
-**Sau khi gộp B3:** chạy lại `pnpm --filter @drmayday/api db:seed` trên CSDL dev để có dữ liệu lâm sàng mẫu (hồ sơ ở đủ 5 trạng thái và phiên khám, xem "Ghi chú vận hành"), rồi khởi động lại API dev (route tiếp nhận, phiên khám mới; seed ghi thẳng vào CSDL nên cache quyền cần nạp lại).
+**Sau khi gộp B3:** chạy `pnpm --filter @drmayday/shared build`, rồi chạy lại `pnpm --filter @drmayday/api db:seed` trên CSDL dev để có dữ liệu lâm sàng mẫu (hồ sơ ở đủ 5 trạng thái và phiên khám, xem "Ghi chú vận hành"), rồi khởi động lại API dev (route tiếp nhận, phiên khám mới; seed ghi thẳng vào CSDL nên cache quyền cần nạp lại).
 
 Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXPO_PUBLIC_API_BASE_URL=http://<IP-LAN-của-máy>:3000`.
 

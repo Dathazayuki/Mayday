@@ -193,6 +193,7 @@ export class VisitsRepository {
           select: { ma_ho_so: true },
         });
         if (!owner) return null;
+        // `ma_ho_so` của phiên không bao giờ đổi, và phiên được đọc lại sau `lockRecord`, nên đọc chủ hồ sơ trước khi khoá là an toàn.
         const lock = await lockRecord(tx, fromDbId(owner.ma_ho_so));
         if (!lock) return null;
         const current = await readVisit(tx, visitId);
