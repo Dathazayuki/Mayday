@@ -84,7 +84,11 @@ describe('RolesGuard', () => {
     ['admin', SampleController.prototype.adminOnly, 'admin'],
     ['bac_si', SampleController.prototype.doctorOnly, 'bac_si'],
     ['benh_nhan', SampleController.prototype.patientOnly, 'benh_nhan'],
-    ['doctor hoặc nurse, token là nurse', SampleController.prototype.doctorOrNurse, 'dieu_duong'],
+    [
+      'bac_si hoặc dieu_duong, token là dieu_duong',
+      SampleController.prototype.doctorOrNurse,
+      'dieu_duong',
+    ],
   ])('đúng vai trò (%s) → cho qua', async (_name, handler, role) => {
     const { guard, findById } = setup();
     await expect(guard.canActivate(contextFor(handler, ROLE_IDS[role]))).resolves.toBe(true);
@@ -103,8 +107,8 @@ describe('RolesGuard', () => {
 
   it.each<[string, (...args: never[]) => unknown, RoleName, string]>([
     ['chỉ admin', SampleController.prototype.adminOnly, 'benh_nhan', '3102'],
-    ['chỉ doctor', SampleController.prototype.doctorOnly, 'admin', '3103'],
-    ['chỉ patient', SampleController.prototype.patientOnly, 'bac_si', '3104'],
+    ['chỉ bac_si', SampleController.prototype.doctorOnly, 'admin', '3103'],
+    ['chỉ benh_nhan', SampleController.prototype.patientOnly, 'bac_si', '3104'],
     ['nhiều vai trò', SampleController.prototype.doctorOrNurse, 'benh_nhan', '3101'],
     ['một vai trò không có mã riêng', SampleController.prototype.nurseOnly, 'bac_si', '3101'],
   ])('sai vai trò, route %s → %s', async (_name, handler, role, code) => {
