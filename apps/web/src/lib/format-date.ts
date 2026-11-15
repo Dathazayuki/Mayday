@@ -20,3 +20,10 @@ export function formatInstantDate(iso: string): string {
     year: 'numeric',
   });
 }
+
+/** Thời điểm ISO → "dd/MM HH:mm" theo giờ máy của người xem (chân thẻ bệnh án, spec B mục 8.6). */
+export function formatShortDateTime(iso: string): string {
+  const date = new Date(iso);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}

@@ -1,4 +1,4 @@
-import { formatDate, formatDateTime, formatInstantDate } from './format-date';
+import { formatDate, formatDateTime, formatInstantDate, formatShortDateTime } from './format-date';
 
 describe('format-date', () => {
   it('formatDate đổi YYYY-MM-DD sang dd/MM/yyyy mà không lệch múi giờ', () => {
@@ -24,5 +24,11 @@ describe('format-date', () => {
     });
     expect(formatInstantDate(iso)).toBe(expected);
     expect(formatInstantDate(iso)).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
+  });
+
+  it('formatShortDateTime: "dd/MM HH:mm" theo giờ máy (thẻ bệnh án)', () => {
+    // Dựng từ giờ địa phương nên kết quả không phụ thuộc múi giờ của môi trường test.
+    expect(formatShortDateTime(new Date(2026, 10, 5, 8, 7).toISOString())).toBe('05/11 08:07');
+    expect(formatShortDateTime(new Date(2026, 0, 31, 23, 59).toISOString())).toBe('31/01 23:59');
   });
 });
