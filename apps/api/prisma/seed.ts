@@ -11,9 +11,10 @@ import { fromDbId, toDbId } from '../src/prisma/db-id.js';
 import { findAccountIdByLogin } from '../src/users/users.repository.js';
 
 /**
- * Seed (spec A, mục 3.6). Dữ liệu tham chiếu (quyền) chạy ở mọi môi trường trên máy này; dữ liệu dev
- * (cơ sở vật chất, admin, tài khoản mẫu) chỉ khi APP_ENV là development/test. Không seed vai trò: 4 vai
- * trò do file SQL của nhóm DB seed.
+ * Seed (spec A, mục 3.6; spec B, mục 7.4). Dữ liệu tham chiếu (quyền) chạy ở mọi môi trường trên máy
+ * này; dữ liệu dev (cơ sở vật chất, quyền mặc định của bac_si/dieu_duong, admin, tài khoản mẫu) chỉ khi
+ * APP_ENV là development/test. Không seed vai trò: 4 vai trò do file SQL của nhóm DB seed. db:seed chỉ
+ * chạy với CSDL trên máy (D2): CSDL dùng chung không bao giờ được seed (MT-99, MT-100, MT-122).
  */
 
 export type RoleIds = Record<SystemRoleName, number>;
@@ -42,7 +43,41 @@ export interface DevSeedResult extends DevFacilities {
   adminId: number | null;
   /** Số điện thoại của các tài khoản mẫu vừa tạo. */
   sampleAccounts: string[];
+  /** Số dòng quyền mặc định vừa cấp (D-B19); 0 khi đã cấp đủ. */
+  grantsCreated: number;
 }
+
+/** Quyền mặc định của một vai trò trên CSDL dev/test (spec B, D-B19). */
+export interface DevRoleGrant {
+  role: SystemRoleName;
+  permissions: readonly AppPermissionName[];
+}
+
+/**
+ * Quyền mặc định dev/test (spec B, mục 7.4): bac_si có cả 5 quyền lâm sàng; dieu_duong đóng vai "Lễ tân"
+ * của Sheet (MT-128) nên không tiếp nhận, không khám. admin không cần (luôn qua), benh_nhan không có.
+ */
+export const DEV_ROLE_GRANTS: readonly DevRoleGrant[] = [
+  {
+    role: 'bac_si',
+    permissions: [
+      'view_patients',
+      'manage_patients',
+      'view_medical_records',
+      'manage_medical_records',
+      'examine_medical_records',
+    ],
+  },
+  {
+    role: 'dieu_duong',
+    permissions: [
+      'view_patients',
+      'manage_patients',
+      'view_medical_records',
+      'manage_medical_records',
+    ],
+  },
+];
 
 const BRANCH = { ten_chi_nhanh: 'Cơ sở chính (dữ liệu dev)', dia_chi: 'Địa chỉ dữ liệu dev' };
 const ROOM_NAMES = ['Phòng khám 1 (dữ liệu dev)', 'Phòng khám 2 (dữ liệu dev)'];
@@ -72,7 +107,8 @@ async function systemRoleIds(prisma: PrismaClient): Promise<RoleIds> {
 
 /**
  * Kiểm 4 vai trò của file SQL; tạo dòng quyền của APP_PERMISSIONS khi chưa có tên đó, không ghi đè
- * mô tả/nhóm đã có. Không tạo dòng vaitroquyenhan (D12): admin luôn qua PermissionsGuard.
+ * mô tả/nhóm đã có. Không tạo dòng vaitroquyenhan (D12): admin luôn qua PermissionsGuard; quyền mặc
+ * định dev/test do seedDevGrants cấp (D-B19).
  */
 export async function seedReferenceData(prisma: PrismaClient): Promise<ReferenceSeedResult> {
   const roles = await systemRoleIds(prisma);
@@ -87,6 +123,29 @@ export async function seedReferenceData(prisma: PrismaClient): Promise<Reference
     permissions[name] = fromDbId(row.ma_quyen_han);
   }
   return { roles, permissions };
+}
+
+/**
+ * Cấp quyền mặc định của DEV_ROLE_GRANTS (D-B19), `ma_nguoi_gan` NULL ("NULL khi hệ thống khởi tạo",
+ * SQL:1455). `skipDuplicates`: quyền đã cấp giữ nguyên, quyền đã bị thu hồi thì được cấp lại. Chạy sau
+ * seedReferenceData: thiếu dòng quyền thì báo lỗi trước khi ghi. Trả số dòng vừa cấp.
+ */
+export async function seedDevGrants(prisma: PrismaClient): Promise<number> {
+  const roles = await systemRoleIds(prisma);
+  const names = [...new Set(DEV_ROLE_GRANTS.flatMap((grant) => grant.permissions))];
+  const rows = await prisma.quyenhan.findMany({ where: { ten_quyen_han: { in: names } } });
+  const ids = new Map(rows.map((row) => [row.ten_quyen_han, row.ma_quyen_han]));
+  const data = DEV_ROLE_GRANTS.flatMap(({ role, permissions }) =>
+    permissions.map((name) => {
+      const permissionId = ids.get(name);
+      if (permissionId === undefined) {
+        throw new Error(`Thiếu dòng quyền "${name}": chạy seedReferenceData trước seedDevGrants.`);
+      }
+      return { ma_vai_tro: toDbId(roles[role]), ma_quyen_han: permissionId, ma_nguoi_gan: null };
+    }),
+  );
+  const { count } = await prisma.vaitroquyenhan.createMany({ data, skipDuplicates: true });
+  return count;
 }
 
 /** Chi nhánh dev (dia_chi bắt buộc) và 2 phòng; cặp chi nhánh + tên phòng là unique nên seed lại không trùng. */
@@ -188,8 +247,8 @@ async function seedSampleAccounts(
 }
 
 /**
- * Dữ liệu dev, chỉ khi APP_ENV là development/test. Kiểm tra admin trước khi ghi bất cứ gì: bị từ chối
- * thì CSDL không đổi.
+ * Dữ liệu dev, chỉ khi APP_ENV là development/test: cơ sở vật chất, quyền mặc định (D-B19), admin, tài
+ * khoản mẫu. Kiểm tra admin trước khi ghi bất cứ gì: bị từ chối thì CSDL không đổi.
  */
 export async function seedDevData(
   prisma: PrismaClient,
@@ -198,8 +257,8 @@ export async function seedDevData(
   const appEnv = opts.appEnv ?? process.env.APP_ENV;
   if (appEnv !== 'development' && appEnv !== 'test') {
     throw new Error(
-      `Không seed dữ liệu dev khi APP_ENV=${appEnv || '(chưa đặt)'}: cơ sở vật chất, admin và tài khoản ` +
-        'mẫu chỉ dành cho CSDL dev/test.',
+      `Không seed dữ liệu dev khi APP_ENV=${appEnv || '(chưa đặt)'}: cơ sở vật chất, quyền mặc định, ` +
+        'admin và tài khoản mẫu chỉ dành cho CSDL dev/test.',
     );
   }
   const admin =
@@ -211,13 +270,14 @@ export async function seedDevData(
         }
       : null;
   const facilities = await seedDevFacilities(prisma);
+  const grantsCreated = await seedDevGrants(prisma);
   const adminId = admin
     ? (admin.existing ?? (await createAdmin(prisma, admin.phone, admin.password)))
     : null;
   const sampleAccounts = opts.samplePassword
     ? await seedSampleAccounts(prisma, opts.samplePassword, facilities.branchId)
     : [];
-  return { ...facilities, adminId, sampleAccounts };
+  return { ...facilities, adminId, sampleAccounts, grantsCreated };
 }
 
 if (isEntryPoint(import.meta.url)) {

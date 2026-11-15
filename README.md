@@ -43,7 +43,7 @@ Khởi động CSDL, nạp lược đồ và dữ liệu mẫu (một lần, và
 ```bash
 docker compose up -d postgres minio             # PostgreSQL cổng 5434, MinIO cổng 9100 (console: http://localhost:9101), chỉ mở trên 127.0.0.1
 pnpm --filter @drmayday/api db:reset            # nạp lược đồ thật từ file SQL của nhóm DB (xoá toàn bộ dữ liệu dev)
-pnpm --filter @drmayday/api db:seed             # quyền, cơ sở vật chất, admin, tài khoản mẫu (cần đủ .env)
+pnpm --filter @drmayday/api db:seed             # quyền và quyền mặc định, cơ sở vật chất, admin, tài khoản mẫu (cần đủ .env)
 ```
 
 Chạy các ứng dụng:
@@ -65,6 +65,7 @@ Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXP
 - Danh sách token đã đăng xuất, bộ đếm OTP và cache vai trò/quyền nằm trong bộ nhớ của từng tiến trình: khởi động lại API thì token đã đăng xuất dùng lại được cho tới khi hết hạn, và nhiều tiến trình không chia sẻ các dữ liệu này.
 - Đồng hồ của server API và server CSDL cần đồng bộ (NTP): token bị thu hồi khi `iat` sớm hơn `taikhoan.thoi_diem_cap_nhat` do CSDL ghi.
 - Cache vai trò/quyền giữ trong bộ nhớ của từng tiến trình API. `db:seed` ghi thẳng vào CSDL nên chạy seed khi API đang chạy thì phải **khởi động lại mọi tiến trình API**. Gán quyền qua API quản trị thì tiến trình nhận request xoá cache ngay; tiến trình khác vẫn giữ cache cũ.
+- `db:seed` cấp **quyền mặc định dev/test** (spec B, D-B19): `bac_si` có 5 quyền lâm sàng, `dieu_duong` có 4 (trừ `examine_medical_records`), `ma_nguoi_gan` để trống. Chạy lại seed thì **cấp lại** cả quyền đã bị thu hồi trên CSDL dev. CSDL dùng chung không bao giờ được seed: 5 dòng quyền và quyền mặc định đang chờ nhóm DB (MT-122); thiếu chúng thì chỉ admin dùng được các route bệnh nhân.
 - Swagger (`/api/v1/docs`) chỉ mở khi `APP_ENV` là `development` hoặc `test`; `APP_ENV=production` (hoặc để trống) thì tắt.
 - `APP_ENV=production` bắt buộc có `DATABASE_URL` và nên đặt `CORS_ORIGINS` cho domain của Web (để trống thì trình duyệt ở origin khác bị chặn). App mobile không bị CORS chặn.
 - `.env` gốc dùng chung với Vite: **không** đặt `NODE_ENV` trong đó (API dùng `APP_ENV`).

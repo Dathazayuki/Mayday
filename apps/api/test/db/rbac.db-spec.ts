@@ -1,8 +1,10 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
+import { DEV_ROLE_GRANTS } from '../../prisma/seed.js';
 import { MAX_ID } from '../../src/common/id.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
+import { APP_PERMISSION_NAMES } from '../../src/permissions/app-permissions.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { createTestApp, PermissionProbeController, resetData, type SeedResult } from './helpers.js';
 
@@ -31,6 +33,12 @@ describe('Vai trò, quyền, gán quyền (PostgreSQL thật)', () => {
     ).map((row) => Number(row.ma_quyen_han));
   const grant = (roleId: number, permissions: unknown[], token = adminToken) =>
     call('post', '/role_permissions', token).send({ role_id: roleId, permissions });
+
+  /** Quyền mặc định dev/test của bac_si (D-B19): resetData đã cấp sẵn; id tăng dần như grantedTo. */
+  const doctorDefaults = () =>
+    (DEV_ROLE_GRANTS.find((entry) => entry.role === 'bac_si')?.permissions ?? [])
+      .map((name) => seed.permissions[name])
+      .sort((a, b) => a - b);
 
   /** Đăng ký bệnh nhân PATIENT (lần đầu) rồi đăng nhập, trả token mới. */
   async function patientToken(): Promise<string> {
@@ -154,7 +162,7 @@ describe('Vai trò, quyền, gán quyền (PostgreSQL thật)', () => {
       ['name dài quá 100 ký tự', 400, '2003', { name: 'a'.repeat(101) }],
     ])('POST %s → %s / %s', async (_name, status, code, body) => {
       expect((await call('post', '/permissions').send(body).expect(status)).body.code).toBe(code);
-      expect(await prisma.quyenhan.count()).toBe(4);
+      expect(await prisma.quyenhan.count()).toBe(APP_PERMISSION_NAMES.length);
     });
 
     it('GET theo id tăng dần, created_at/updated_at ISO 8601', async () => {
@@ -201,7 +209,7 @@ describe('Vai trò, quyền, gán quyền (PostgreSQL thật)', () => {
         message: 'OK',
         data: {},
       });
-      expect(await prisma.vaitroquyenhan.count()).toBe(0);
+      expect(await prisma.vaitroquyenhan.count({ where: { ma_quyen_han: BigInt(id) } })).toBe(0);
       expect((await call('delete', `/permissions/${id}`).expect(404)).body.code).toBe('2003');
     });
   });
@@ -220,7 +228,9 @@ describe('Vai trò, quyền, gán quyền (PostgreSQL thật)', () => {
       });
       expect(first.ma_nguoi_gan).toBe(BigInt(seed.adminId!));
       await grant(bac_si, [manage_users, manage_roles]).expect(200);
-      expect(await grantedTo(bac_si)).toEqual([manage_users, manage_roles].sort((a, b) => a - b));
+      expect(await grantedTo(bac_si)).toEqual(
+        [...doctorDefaults(), manage_users, manage_roles].sort((a, b) => a - b),
+      );
       const again = await prisma.vaitroquyenhan.findFirstOrThrow({
         where: { ma_quyen_han: BigInt(manage_users) },
       });
@@ -259,22 +269,22 @@ describe('Vai trò, quyền, gán quyền (PostgreSQL thật)', () => {
       expect((await call('post', '/role_permissions').send(body()).expect(400)).body).toMatchObject(
         { code, data: { field } },
       );
-      expect(await grantedTo(seed.roles.bac_si)).toEqual([]);
+      expect(await grantedTo(seed.roles.bac_si)).toEqual(doctorDefaults());
     });
 
     it('GET role/:role_id → role_permission_id null (MT-64), assigned_at = thoi_diem_gan; vai trò không tồn tại → 404', async () => {
       await grant(seed.roles.bac_si, [seed.permissions.manage_users]).expect(200);
-      expect(
-        (await call('get', `/role_permissions/role/${seed.roles.bac_si}`).expect(200)).body.data,
-      ).toEqual([
-        {
-          role_permission_id: null,
-          permission_id: seed.permissions.manage_users,
-          name: 'manage_users',
-          description: 'Quản lý người dùng',
-          assigned_at: expect.stringMatching(ISO_DATE),
-        },
-      ]);
+      const granted = (await call('get', `/role_permissions/role/${seed.roles.bac_si}`).expect(200))
+        .body.data;
+      // bac_si còn có quyền mặc định dev/test (D-B19).
+      expect(granted).toHaveLength(doctorDefaults().length + 1);
+      expect(granted).toContainEqual({
+        role_permission_id: null,
+        permission_id: seed.permissions.manage_users,
+        name: 'manage_users',
+        description: 'Quản lý người dùng',
+        assigned_at: expect.stringMatching(ISO_DATE),
+      });
       expect((await call('get', '/role_permissions/role/999999').expect(404)).body.code).toBe(
         '2003',
       );
@@ -284,7 +294,7 @@ describe('Vai trò, quyền, gán quyền (PostgreSQL thật)', () => {
       await grant(seed.roles.bac_si, [seed.permissions.manage_users]).expect(200);
       const path = `/role_permissions/${seed.roles.bac_si}/${seed.permissions.manage_users}`;
       await call('delete', path).expect(200);
-      expect(await grantedTo(seed.roles.bac_si)).toEqual([]);
+      expect(await grantedTo(seed.roles.bac_si)).toEqual(doctorDefaults());
       expect((await call('delete', path).expect(404)).body.code).toBe('2003');
     });
   });
@@ -304,7 +314,7 @@ describe('Vai trò, quyền, gán quyền (PostgreSQL thật)', () => {
         code,
         data: { field },
       });
-      expect(await prisma.quyenhan.count()).toBe(4);
+      expect(await prisma.quyenhan.count()).toBe(APP_PERMISSION_NAMES.length);
     });
   });
 

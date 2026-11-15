@@ -2,9 +2,15 @@ import { Logger, type ArgumentsHost, type INestApplication } from '@nestjs/commo
 import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
-import { seedDevData, seedDevFacilities, seedReferenceData } from '../../prisma/seed.js';
+import {
+  seedDevData,
+  seedDevFacilities,
+  seedDevGrants,
+  seedReferenceData,
+} from '../../prisma/seed.js';
 import { AllExceptionsFilter } from '../../src/common/all-exceptions.filter.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
+import { APP_PERMISSION_NAMES } from '../../src/permissions/app-permissions.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { createTestApp, findAccount, resetData } from './helpers.js';
 
@@ -65,14 +71,21 @@ describe('CSDL thật: schema, seed và làm sạch dữ liệu (PostgreSQL th�
   });
 
   describe('seedReferenceData', () => {
-    it('tạo 4 quyền của APP_PERMISSIONS (nhóm quan_tri), không gán quyền cho vai trò nào (D12)', async () => {
-      const rows = await prisma.quyenhan.findMany({ orderBy: { ten_quyen_han: 'asc' } });
+    it('tạo 9 quyền của APP_PERMISSIONS (quan_tri, lam_sang); bản thân hàm không gán quyền (D12, D-B19)', async () => {
+      const rows = await prisma.quyenhan.findMany({ orderBy: { ma_quyen_han: 'asc' } });
       expect(rows.map((row) => [row.ten_quyen_han, row.nhom_quyen])).toEqual([
-        ['manage_facilities', 'quan_tri'],
-        ['manage_permissions', 'quan_tri'],
-        ['manage_roles', 'quan_tri'],
         ['manage_users', 'quan_tri'],
+        ['manage_roles', 'quan_tri'],
+        ['manage_permissions', 'quan_tri'],
+        ['manage_facilities', 'quan_tri'],
+        ['view_patients', 'lam_sang'],
+        ['manage_patients', 'lam_sang'],
+        ['view_medical_records', 'lam_sang'],
+        ['manage_medical_records', 'lam_sang'],
+        ['examine_medical_records', 'lam_sang'],
       ]);
+      await prisma.vaitroquyenhan.deleteMany();
+      await seedReferenceData(prisma);
       expect(await prisma.vaitroquyenhan.count()).toBe(0);
     });
 
@@ -83,7 +96,7 @@ describe('CSDL thật: schema, seed và làm sạch dữ liệu (PostgreSQL th�
         data: { mo_ta: 'Mô tả do admin sửa' },
       });
       await expect(seedReferenceData(prisma)).resolves.toEqual(first);
-      expect(await prisma.quyenhan.count()).toBe(4);
+      expect(await prisma.quyenhan.count()).toBe(APP_PERMISSION_NAMES.length);
       await expect(
         prisma.quyenhan.findUniqueOrThrow({ where: { ten_quyen_han: 'manage_users' } }),
       ).resolves.toMatchObject({ mo_ta: 'Mô tả do admin sửa' });
@@ -93,6 +106,60 @@ describe('CSDL thật: schema, seed và làm sạch dữ liệu (PostgreSQL th�
     it('CSDL thiếu vai trò của file SQL → báo "CSDL chưa nạp schema"', async () => {
       const empty = { vaitro: { findMany: async () => [] } } as unknown as PrismaClient;
       await expect(seedReferenceData(empty)).rejects.toThrow(/CSDL chưa nạp schema.*db:reset/);
+    });
+  });
+
+  describe('quyền mặc định dev/test (spec B, D-B19, mục 7.4)', () => {
+    const grantedNames = async (roleId: number) =>
+      (
+        await prisma.vaitroquyenhan.findMany({
+          where: { ma_vai_tro: BigInt(roleId) },
+          include: { quyenhan: true },
+          orderBy: { ma_quyen_han: 'asc' },
+        })
+      ).map((row) => row.quyenhan.ten_quyen_han);
+
+    it('resetData cấp 5 quyền lâm sàng cho bac_si, 4 cho dieu_duong; ma_nguoi_gan NULL; admin, benh_nhan không có dòng', async () => {
+      const seed = await resetData(app);
+      expect(await grantedNames(seed.roles.bac_si)).toEqual([
+        'view_patients',
+        'manage_patients',
+        'view_medical_records',
+        'manage_medical_records',
+        'examine_medical_records',
+      ]);
+      expect(await grantedNames(seed.roles.dieu_duong)).toEqual([
+        'view_patients',
+        'manage_patients',
+        'view_medical_records',
+        'manage_medical_records',
+      ]);
+      expect(await grantedNames(seed.roles.admin)).toEqual([]);
+      expect(await grantedNames(seed.roles.benh_nhan)).toEqual([]);
+      expect(await prisma.vaitroquyenhan.count({ where: { ma_nguoi_gan: { not: null } } })).toBe(0);
+    });
+
+    it('seedDevGrants chạy lại không nhân đôi; cấp lại quyền đã bị thu hồi', async () => {
+      const total = await prisma.vaitroquyenhan.count();
+      expect(await seedDevGrants(prisma)).toBe(0);
+      await prisma.vaitroquyenhan.deleteMany({
+        where: { quyenhan: { ten_quyen_han: 'examine_medical_records' } },
+      });
+      expect(await seedDevGrants(prisma)).toBe(1);
+      expect(await prisma.vaitroquyenhan.count()).toBe(total);
+    });
+
+    it('thiếu dòng quyền (chưa chạy seedReferenceData) → báo lỗi, không gán gì', async () => {
+      await prisma.vaitroquyenhan.deleteMany();
+      await prisma.quyenhan.deleteMany({ where: { ten_quyen_han: 'view_patients' } });
+      await expect(seedDevGrants(prisma)).rejects.toThrow(/view_patients.*seedReferenceData/);
+      expect(await prisma.vaitroquyenhan.count()).toBe(0);
+    });
+
+    it('seedDevData trả số dòng vừa cấp (0 khi đã đủ)', async () => {
+      await expect(seedDevData(prisma, { appEnv: 'test' })).resolves.toMatchObject({
+        grantsCreated: 0,
+      });
     });
   });
 

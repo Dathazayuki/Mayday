@@ -110,8 +110,12 @@ describe('Repository (PostgreSQL thật)', () => {
         permissions.grant(seed.roles.bac_si, ids, assigner.userId),
         permissions.grant(seed.roles.bac_si, ids, assigner.userId),
       ]);
+      // bac_si còn có quyền mặc định dev/test (D-B19, ma_nguoi_gan NULL): chỉ xét hai quyền vừa gán.
       const rows = await prisma.vaitroquyenhan.findMany({
-        where: { ma_vai_tro: BigInt(seed.roles.bac_si) },
+        where: {
+          ma_vai_tro: BigInt(seed.roles.bac_si),
+          ma_quyen_han: { in: ids.map((id) => BigInt(id)) },
+        },
       });
       expect(rows).toHaveLength(2);
       expect(rows.every((row) => row.ma_nguoi_gan === BigInt(assigner.userId))).toBe(true);

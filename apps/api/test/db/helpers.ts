@@ -5,6 +5,7 @@ import type { App } from 'supertest/types.js';
 import {
   seedDevAdmin,
   seedDevFacilities,
+  seedDevGrants,
   seedReferenceData,
   type DevFacilities,
   type ReferenceSeedResult,
@@ -55,8 +56,9 @@ export async function createTestApp({ controllers = [] }: { controllers?: Type[]
 /**
  * Làm sạch giữa các test (spec A, mục 3.5): TRUNCATE mọi bảng của schema public trừ vaitro và
  * loainghiemphap (dữ liệu của file SQL), kèm RESTART IDENTITY CASCADE; xoá vai trò test tự tạo; seed
- * lại dữ liệu tham chiếu, cơ sở vật chất dev và (nếu có `opts`) admin; xoá cache trong bộ nhớ.
- * Danh sách bảng đọc từ pg_tables nên bảng mới của nhóm DB tự được làm sạch.
+ * lại dữ liệu tham chiếu, cơ sở vật chất dev, quyền mặc định dev/test (spec B, D-B19) và (nếu có
+ * `opts`) admin; xoá cache trong bộ nhớ. Danh sách bảng đọc từ pg_tables nên bảng mới của nhóm DB tự
+ * được làm sạch.
  */
 export async function resetData(
   app: INestApplication,
@@ -76,6 +78,7 @@ export async function resetData(
   await prisma.vaitro.deleteMany({ where: { ten_vai_tro: { notIn: [...SYSTEM_ROLE_NAMES] } } });
   const reference = await seedReferenceData(prisma);
   const facilities = await seedDevFacilities(prisma);
+  await seedDevGrants(prisma);
   const adminId =
     opts.adminPhone && opts.adminPassword
       ? await seedDevAdmin(prisma, opts.adminPhone, opts.adminPassword)
