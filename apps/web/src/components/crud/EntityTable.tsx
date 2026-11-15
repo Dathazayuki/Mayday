@@ -7,6 +7,7 @@ export function EntityTable<T extends object>({
   columns,
   pagination = false,
   onRowClick,
+  emptyText,
   rowKey = 'id' as keyof T & string,
 }: {
   data: T[] | undefined;
@@ -16,8 +17,10 @@ export function EntityTable<T extends object>({
   rowKey?: keyof T & string;
   /** Phân trang phía server do trang tự quản (current/pageSize/total/onChange). */
   pagination?: TableProps<T>['pagination'];
-  /** Bấm vào dòng; nút trong ô thao tác phải tự chặn nổi bọt sự kiện. */
+  /** Bấm hoặc Enter vào dòng; nút trong ô thao tác phải tự chặn nổi bọt sự kiện. */
   onRowClick?: (row: T) => void;
+  /** Chữ khi không có dòng; mặc định của antd nếu bỏ trống. */
+  emptyText?: string;
 }) {
   return (
     <Table<T>
@@ -26,9 +29,19 @@ export function EntityTable<T extends object>({
       dataSource={data ?? []}
       pagination={pagination}
       columns={columns}
+      locale={emptyText ? { emptyText } : undefined}
       onRow={
         onRowClick
-          ? (row) => ({ onClick: () => onRowClick(row), style: { cursor: 'pointer' } })
+          ? (row) => ({
+              onClick: () => onRowClick(row),
+              // Dòng bấm được cũng phải mở được bằng bàn phím.
+              tabIndex: 0,
+              role: 'link',
+              onKeyDown: (event) => {
+                if (event.key === 'Enter' && event.target === event.currentTarget) onRowClick(row);
+              },
+              style: { cursor: 'pointer' },
+            })
           : undefined
       }
     />

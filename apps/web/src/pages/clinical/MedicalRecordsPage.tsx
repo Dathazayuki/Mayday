@@ -2,7 +2,7 @@ import { RECORD_TYPES, type RecordType } from '@drmayday/shared';
 import { Button, Checkbox, Segmented, Select, Switch } from 'antd';
 import { useState } from 'react';
 import { useAuth } from '../../auth/useAuth';
-import { RECORD_TYPE_SHORT_LABELS } from '../../clinical/record-type';
+import { RECORD_TYPE_SHORT_LABELS } from '../../clinical/record-type-labels';
 import { recordsFilter, useRecordsView, type RecordsMode } from '../../clinical/records-view';
 import { Page } from '../../layout/Page';
 import { Panel, PanelToolbar } from '../../layout/Panel';

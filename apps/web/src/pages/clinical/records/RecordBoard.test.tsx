@@ -105,7 +105,7 @@ function LocationProbe() {
 
 function renderBoard(showCancelled = false) {
   seedSession();
-  renderApp(
+  return renderApp(
     // Tắt hiệu ứng để hộp gỡ khỏi DOM ngay khi đóng (jsdom không chạy transitionend).
     <ConfigProvider theme={{ token: { motion: false } }}>
       <App>
@@ -141,7 +141,9 @@ describe('RecordBoard: chế độ cột (spec B, mục 8.5–8.6)', () => {
     expect(await cardIn('Đang khám', 12)).toBeInTheDocument();
     expect(await cardIn('Hoàn tất', 9)).toBeInTheDocument();
     await waitFor(() => expect(countOf('Chờ tiếp nhận')).toHaveTextContent('1'));
-    expect(within(column('Nháp')).getByRole('button', { name: 'Mở cột Nháp' })).toBeInTheDocument();
+    expect(
+      within(column('Nháp')).getByRole('button', { name: 'Mở cột Nháp (1)' }),
+    ).toBeInTheDocument();
     expect(countOf('Nháp')).toHaveTextContent('1');
     expect(within(column('Nháp')).queryByRole('article')).not.toBeInTheDocument();
     expect(columnCalls(calls, 'draft')).toHaveLength(0);
@@ -156,7 +158,7 @@ describe('RecordBoard: chế độ cột (spec B, mục 8.5–8.6)', () => {
     const calls = stubBoardApi(sampleBoard());
     renderBoard();
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Mở cột Nháp' }));
+    await user.click(await screen.findByRole('button', { name: 'Mở cột Nháp (1)' }));
     expect(await cardIn('Nháp', 201)).toBeInTheDocument();
     expect(columnCalls(calls, 'draft')).toHaveLength(1);
 
@@ -168,7 +170,7 @@ describe('RecordBoard: chế độ cột (spec B, mục 8.5–8.6)', () => {
     stubBoardApi(sampleBoard());
     renderBoard(true);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Mở cột Đã huỷ' }));
+    await user.click(await screen.findByRole('button', { name: 'Mở cột Đã huỷ (1)' }));
     expect(await cardIn('Đã huỷ', 5)).toBeInTheDocument();
   });
 
@@ -189,6 +191,28 @@ describe('RecordBoard: chế độ cột (spec B, mục 8.5–8.6)', () => {
     expect(
       within(column('Chờ tiếp nhận')).queryByRole('button', { name: 'Xem thêm' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('trang sau trùng thẻ trang trước (hồ sơ dịch cột) → mỗi mã chỉ hiện một thẻ', async () => {
+    const board = sampleBoard();
+    board.pending = Array.from({ length: 25 }, (_, i) => card(300 - i, 'pending', []));
+    stubBoardApi(board, (call) =>
+      call.url.includes('status=pending&page=2')
+        ? jsonResponse(200, {
+            code: '1000',
+            message: 'OK',
+            data: [card(281, 'pending', []), card(276, 'pending', [])],
+            total: 25,
+          })
+        : undefined,
+    );
+    renderBoard();
+    const user = userEvent.setup();
+    await cardIn('Chờ tiếp nhận', 300);
+    await user.click(within(column('Chờ tiếp nhận')).getByRole('button', { name: 'Xem thêm' }));
+
+    expect(await cardIn('Chờ tiếp nhận', 276)).toBeInTheDocument();
+    expect(within(column('Chờ tiếp nhận')).getAllByRole('article')).toHaveLength(21);
   });
 
   it('nút "Tiếp nhận" trên thẻ → hộp xác nhận → POST; tải lại thì thẻ sang Đang khám, số đếm đổi', async () => {
@@ -246,6 +270,18 @@ async function dragCard(id: number, from: string, to: string) {
 const writes = (calls: Call[]) => calls.filter((call) => call.method !== 'GET');
 
 describe('RecordBoard: kéo thả (spec B, mục 8.6, D-B25)', () => {
+  it('chỉ kéo được khi có cột đích đang hiện: chỉ còn đường Huỷ mà cột Đã huỷ ẩn thì không kéo', async () => {
+    const board = sampleBoard();
+    board.pending = [card(101, 'pending', ['cancel'])];
+    stubBoardApi(board);
+    const hidden = renderBoard(false);
+    expect(await cardIn('Chờ tiếp nhận', 101)).toHaveAttribute('draggable', 'false');
+    hidden.unmount();
+
+    renderBoard(true);
+    expect(await cardIn('Chờ tiếp nhận', 101)).toHaveAttribute('draggable', 'true');
+  });
+
   it('khi kéo: cột đích hợp lệ sáng (target), cột khác mờ (muted); dragend thì hết', async () => {
     stubBoardApi(sampleBoard());
     renderBoard();
@@ -298,6 +334,20 @@ describe('RecordBoard: kéo thả (spec B, mục 8.6, D-B25)', () => {
         body: '{"status":"completed"}',
       },
     ]);
+  });
+
+  it('cột Đã huỷ thu gọn thành đích thả: có gợi ý "Thả để huỷ", hết khi thả xong hoặc dragend', async () => {
+    stubBoardApi(sampleBoard());
+    renderBoard(true);
+    const source = await cardIn('Chờ tiếp nhận', 101);
+    expect(within(column('Đã huỷ')).queryByText('Thả để huỷ')).not.toBeInTheDocument();
+
+    fireEvent.dragStart(source, { dataTransfer: { setData: vi.fn() } });
+    expect(column('Đã huỷ')).toHaveClass('dm-board__col--target');
+    expect(within(column('Đã huỷ')).getByText('Thả để huỷ')).toBeInTheDocument();
+
+    fireEvent.dragEnd(source);
+    expect(within(column('Đã huỷ')).queryByText('Thả để huỷ')).not.toBeInTheDocument();
   });
 
   it('thả vào cột Đã huỷ (đang hiện, kể cả khi thu gọn) → hộp Huỷ → PATCH /:id/status', async () => {

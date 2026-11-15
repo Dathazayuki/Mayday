@@ -317,6 +317,15 @@
 .dm-board__col--collapsed {
   flex-basis: 52px;
 }
+/* Cột thu gọn làm đích thả (Đã huỷ): rộng ra và cao bằng hàng để dễ thả. */
+.dm-board__col--collapsed.dm-board__col--target {
+  flex-basis: 300px;
+  align-self: stretch;
+}
+.dm-board__drop-hint {
+  font-size: 12px;
+  color: var(--dm-ink2);
+}
 .dm-board__col-head {
   display: flex;
   align-items: center;

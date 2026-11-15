@@ -45,6 +45,10 @@ export function RecordBoard({
   const moveTo = (status: MedicalRecordStatus) =>
     dragged && boardMove(dragged.status, status, dragged.allowed_actions);
 
+  const visibleStatuses = COLUMNS.map(({ status }) => status).filter(
+    (status) => status !== 'cancelled' || showCancelled,
+  );
+
   function toggle(status: MedicalRecordStatus) {
     setExpanded((current) => {
       const next = new Set(current);
@@ -72,7 +76,7 @@ export function RecordBoard({
     <>
       <QueryErrorAlert error={counts.error} />
       <div className="dm-board">
-        {COLUMNS.filter(({ status }) => status !== 'cancelled' || showCancelled).map(
+        {COLUMNS.filter(({ status }) => visibleStatuses.includes(status)).map(
           ({ status, collapsible }) => (
             <BoardColumn
               key={status}
@@ -88,6 +92,9 @@ export function RecordBoard({
                   key={record.medical_record_id}
                   record={record}
                   busy={transitions.pendingId === record.medical_record_id}
+                  draggable={visibleStatuses.some(
+                    (to) => boardMove(record.status, to, record.allowed_actions) !== null,
+                  )}
                   onAction={handleAction}
                   onDragStart={setDragged}
                   onDragEnd={() => setDragged(null)}

@@ -1,4 +1,5 @@
 import { FIELD_LIMITS, type MedicalRecordListItem } from '@drmayday/shared';
+import { useEffect } from 'react';
 import { Form, Input, Modal, Select, Skeleton, type FormInstance } from 'antd';
 import { toNumericId, useBranches, useRooms } from '../../../admin/facilities-api';
 import { useMedicalRecord } from '../../../clinical/medical-records-api';
@@ -54,7 +55,7 @@ export function AcceptModal({
   const [form] = Form.useForm<AcceptValues>();
   return (
     <Modal
-      title="Tiếp nhận bệnh án"
+      title={record && `Tiếp nhận bệnh án #${record.medical_record_id}`}
       open={record !== null}
       onCancel={onCancel}
       onOk={() => form.submit()}
@@ -86,40 +87,53 @@ export function AcceptModal({
 function CompleteForm({
   form,
   record,
+  current,
+  loading,
+  error,
   onSubmit,
 }: {
   form: FormInstance<CompleteValues>;
   record: TransitionRecord;
+  /** Dặn dò hiện có; undefined khi chưa tải được. */
+  current: string | undefined;
+  loading: boolean;
+  error: Error | null;
   onSubmit: (record: TransitionRecord, instructions: string | undefined) => void;
 }) {
-  const { data, error, isPending } = useMedicalRecord(record.medical_record_id);
-  if (error) return <QueryErrorAlert error={error} />;
-  if (isPending) return <Skeleton active paragraph={{ rows: 2 }} />;
-  const current = data.instructions ?? '';
+  // Ô chỉ hiện khi dặn dò hiện có đã về tới nơi, lúc đó mới điền sẵn.
+  useEffect(() => {
+    if (current !== undefined) form.setFieldsValue({ instructions: current });
+  }, [form, current]);
   return (
     <Form<CompleteValues>
       form={form}
       name="complete-record"
       layout="vertical"
       preserve={false}
-      initialValues={{ instructions: current }}
       onFinish={(values) => {
         const next = values.instructions ?? '';
         // Không đổi thì không gửi: API giữ dặn dò hiện có khi vắng trường (D-B8).
         onSubmit(record, next === current ? undefined : next);
       }}
     >
-      <Form.Item name="instructions" label="Dặn dò" extra="Hiển thị cho bệnh nhân">
-        <Input.TextArea
-          autoSize={{ minRows: 3, maxRows: 8 }}
-          maxLength={FIELD_LIMITS.clinical_text}
-        />
-      </Form.Item>
+      <QueryErrorAlert error={error} />
+      {loading && <Skeleton active paragraph={{ rows: 2 }} />}
+      {current !== undefined && (
+        <Form.Item name="instructions" label="Dặn dò" extra="Hiển thị cho bệnh nhân">
+          <Input.TextArea
+            autoSize={{ minRows: 3, maxRows: 8 }}
+            maxLength={FIELD_LIMITS.clinical_text}
+          />
+        </Form.Item>
+      )}
     </Form>
   );
 }
 
-/** Hộp Hoàn tất: ô "Dặn dò" → PUT /:id `{status: 'completed', instructions}`. */
+/**
+ * Hộp Hoàn tất: ô "Dặn dò" → PUT /:id `{status: 'completed', instructions}`. Chỉ xác nhận được khi đã có
+ * dặn dò hiện có để so (đang tải hoặc tải lỗi thì khoá nút), tránh ghi đè dặn dò chưa thấy.
+ */
 export function CompleteModal({
   record,
   saving,
@@ -132,6 +146,7 @@ export function CompleteModal({
   onSubmit: (record: TransitionRecord, instructions: string | undefined) => void;
 }) {
   const [form] = Form.useForm<CompleteValues>();
+  const { data, error, isPending } = useMedicalRecord(record?.medical_record_id);
   return (
     <Modal
       title={record && `Hoàn tất bệnh án #${record.medical_record_id}`}
@@ -139,11 +154,21 @@ export function CompleteModal({
       onCancel={onCancel}
       onOk={() => form.submit()}
       okText="Hoàn tất"
+      okButtonProps={{ disabled: data === undefined }}
       cancelText="Huỷ"
       confirmLoading={saving}
       destroyOnHidden
     >
-      {record && <CompleteForm form={form} record={record} onSubmit={onSubmit} />}
+      {record && (
+        <CompleteForm
+          form={form}
+          record={record}
+          current={data && (data.instructions ?? '')}
+          loading={isPending}
+          error={error}
+          onSubmit={onSubmit}
+        />
+      )}
     </Modal>
   );
 }

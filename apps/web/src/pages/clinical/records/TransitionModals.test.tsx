@@ -173,6 +173,40 @@ describe('TransitionModals (spec B, mục 8.6)', () => {
     ]);
   });
 
+  it('Hoàn tất: nút "Hoàn tất" khoá khi dặn dò hiện có chưa tải xong, mở khi tải xong', async () => {
+    let release: (response: Response) => void = () => undefined;
+    const calls = setup('complete', IN_PROGRESS, {
+      'GET /medical_records/12': () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }) as unknown as Response,
+    });
+    const user = userEvent.setup();
+    const dialog = await openDialog(user);
+    expect(within(dialog).getByRole('button', { name: 'Hoàn tất' })).toBeDisabled();
+
+    release(okResponse(medicalRecord({ medical_record_id: 12, instructions: 'Uống thuốc đều' })));
+    expect(await within(dialog).findByLabelText('Dặn dò')).toHaveValue('Uống thuốc đều');
+    expect(within(dialog).getByRole('button', { name: 'Hoàn tất' })).toBeEnabled();
+    expect(writes(calls)).toEqual([]);
+  });
+
+  it('Hoàn tất: tải dặn dò lỗi → hiện lỗi trong hộp và không cho xác nhận', async () => {
+    setup('complete', IN_PROGRESS, {
+      'GET /medical_records/12': () => errorResponse(500, '9999'),
+    });
+    const user = userEvent.setup();
+    const dialog = await openDialog(user);
+    expect(await within(dialog).findByRole('alert')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Hoàn tất' })).toBeDisabled();
+  });
+
+  it('Tiếp nhận: hộp có tên theo tiêu đề kèm mã bệnh án (như hộp Hoàn tất)', async () => {
+    setup('accept', PENDING);
+    const dialog = await openDialog(userEvent.setup());
+    expect(dialog).toHaveAccessibleName('Tiếp nhận bệnh án #101');
+  });
+
   it('Hoàn tất mà không đổi dặn dò → chỉ gửi status (API giữ dặn dò, D-B8)', async () => {
     const calls = setup('complete', IN_PROGRESS, {
       'GET /medical_records/12': () =>

@@ -23,7 +23,7 @@ const IN_PROGRESS = medicalRecordListItem({
   allowed_actions: ['edit', 'add_visit', 'edit_visits', 'complete', 'cancel'],
 });
 
-function renderCard(record: MedicalRecordListItem, busy = false) {
+function renderCard(record: MedicalRecordListItem, busy = false, draggable = true) {
   const onAction = vi.fn();
   const onDragStart = vi.fn();
   const onDragEnd = vi.fn();
@@ -31,6 +31,7 @@ function renderCard(record: MedicalRecordListItem, busy = false) {
     <RecordCard
       record={record}
       busy={busy}
+      draggable={draggable}
       onAction={onAction}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -120,7 +121,7 @@ describe('RecordCard (spec B, mục 8.6)', () => {
     expect(onAction).not.toHaveBeenCalled();
   });
 
-  it('kéo được khi có cột đích (board-rules); dragstart ghi mã hồ sơ vào dataTransfer rồi báo bảng; dragend báo kết thúc', () => {
+  it('kéo được khi bảng báo có cột đích đang hiện; dragstart ghi mã hồ sơ vào dataTransfer rồi báo bảng; dragend báo kết thúc', () => {
     const { card, onDragStart, onDragEnd } = renderCard(PENDING);
     expect(card).toHaveAttribute('draggable', 'true');
     const dataTransfer = { setData: vi.fn(), effectAllowed: 'all' };
@@ -132,10 +133,8 @@ describe('RecordCard (spec B, mục 8.6)', () => {
     expect(onDragEnd).toHaveBeenCalled();
   });
 
-  it('không có cột đích (hoàn tất, không có thao tác) hoặc đang xử lý → không kéo được', () => {
-    expect(
-      renderCard({ ...IN_PROGRESS, status: 'completed', allowed_actions: [] }).card,
-    ).toHaveAttribute('draggable', 'false');
+  it('bảng báo không có cột đích hoặc thẻ đang xử lý → không kéo được', () => {
+    expect(renderCard(IN_PROGRESS, false, false).card).toHaveAttribute('draggable', 'false');
     expect(renderCard({ ...PENDING, medical_record_id: 102 }, true).card).toHaveAttribute(
       'draggable',
       'false',

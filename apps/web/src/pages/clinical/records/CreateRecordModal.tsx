@@ -11,7 +11,11 @@ import { useNavigate } from 'react-router';
 import { useCreateMedicalRecord } from '../../../clinical/medical-records-api';
 import { usePatientSearch } from '../../../clinical/patients-api';
 import { useRunAction } from '../../../components/crud/use-run-action';
+import { useDebouncedValue } from '../../../lib/use-debounced-value';
 import { toCreateRecordRequest, type CreateRecordFormValues } from './create-record-request';
+
+/** Thời gian chờ sau phím cuối trước khi gọi API tìm bệnh nhân. */
+const SEARCH_DEBOUNCE_MS = 300;
 
 /** Bệnh nhân cố định khi mở từ trang bệnh nhân (spec B, mục 8.3). */
 export interface FixedPatient {
@@ -34,8 +38,9 @@ function PatientSearchSelect(props: {
   onChange?: (value: number) => void;
 }) {
   const [keyword, setKeyword] = useState('');
+  const debouncedKeyword = useDebouncedValue(keyword.trim(), SEARCH_DEBOUNCE_MS);
   const { data, isFetching } = usePatientSearch({
-    keyword: keyword.trim() || undefined,
+    keyword: debouncedKeyword || undefined,
     page: PAGE_DEFAULT,
     limit: LIMIT_DEFAULT,
   });

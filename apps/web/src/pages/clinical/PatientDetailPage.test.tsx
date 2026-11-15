@@ -175,6 +175,11 @@ describe('PatientDetailPage (spec B, mục 8.3)', () => {
     expect(await screen.findByText('Màn chi tiết bệnh án')).toBeInTheDocument();
   });
 
+  it('bệnh nhân chưa có bệnh án → "Chưa có bệnh án"', async () => {
+    setup({ 'GET /medical_records/patients/7/history': () => okResponse([]) });
+    expect(await screen.findByText('Chưa có bệnh án')).toBeInTheDocument();
+  });
+
   it('"Tạo bệnh án": hộp có bệnh nhân điền sẵn; tạo xong mở màn chi tiết bệnh án mới', async () => {
     const calls = setup();
     const user = userEvent.setup();

@@ -2,7 +2,7 @@ import { App } from 'antd';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes, useLocation } from 'react-router';
-import { okResponse, renderApp, seedSession } from '../test/helpers';
+import { errorResponse, okResponse, renderApp, seedSession } from '../test/helpers';
 import { dashboardSummary } from '../test/dashboard-fixture';
 import { DashboardPage } from './DashboardPage';
 
@@ -15,13 +15,15 @@ function LocationProbe() {
   return <div>Đang ở {location.pathname + location.search}</div>;
 }
 
-function setup(summary = dashboardSummary(), profile: object = STAFF_PROFILE) {
+function setup(summary = dashboardSummary(), profile: object | Response = STAFF_PROFILE) {
   const urls: string[] = [];
   vi.stubGlobal(
     'fetch',
     vi.fn((url: string) => {
       urls.push(url);
-      if (url.endsWith('/profile')) return Promise.resolve(okResponse(profile));
+      if (url.endsWith('/profile')) {
+        return Promise.resolve(profile instanceof Response ? profile : okResponse(profile));
+      }
       if (url.endsWith('/dashboard/summary')) return Promise.resolve(okResponse(summary));
       return Promise.resolve(okResponse({}));
     }),
@@ -49,11 +51,11 @@ describe('DashboardPage: Tổng quan tối thiểu (spec B, mục 8.8; MT-123)',
   it('ô Chờ tiếp nhận, Đang khám, Hoàn tất (số .num) + dòng phụ Nháp, Đã huỷ; bấm ô → bảng lọc trạng thái', async () => {
     setup();
     const user = userEvent.setup();
-    const pending = await screen.findByRole('link', { name: /Chờ tiếp nhận/ });
+    const pending = await screen.findByRole('link', { name: /^Chờ tiếp nhận/ });
     expect(pending).toHaveAttribute('href', '/medical-records?view=table&status=pending');
     expect(within(pending).getByText('2')).toHaveClass('num');
-    expect(screen.getByRole('link', { name: /Đang khám/ })).toHaveTextContent('3');
-    expect(screen.getByRole('link', { name: /Hoàn tất/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /^Đang khám/ })).toHaveTextContent('3');
+    expect(screen.getByRole('link', { name: /^Hoàn tất/ })).toHaveAttribute(
       'href',
       '/medical-records?view=table&status=completed',
     );
@@ -105,5 +107,17 @@ describe('DashboardPage: Tổng quan tối thiểu (spec B, mục 8.8; MT-123)',
       ),
     ).toBeInTheDocument();
     expect(urls.some((url) => url.includes('/dashboard/summary'))).toBe(false);
+  });
+
+  it('lỗi tải hồ sơ người dùng → hiện lỗi, không treo ở khung chờ', async () => {
+    const urls = setup(dashboardSummary(), errorResponse(500, '9999'));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(document.querySelector('.ant-skeleton')).not.toBeInTheDocument();
+    expect(urls.some((url) => url.includes('/dashboard/summary'))).toBe(false);
+  });
+
+  it('chưa có phiên khám hôm nay → "Chưa có phiên khám hôm nay"', async () => {
+    setup(dashboardSummary({ visits_today: { total: 0, items: [] } }));
+    expect(await screen.findByText('Chưa có phiên khám hôm nay')).toBeInTheDocument();
   });
 });

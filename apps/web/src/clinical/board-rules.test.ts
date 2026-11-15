@@ -1,5 +1,5 @@
 import { MEDICAL_RECORD_ACTIONS, MEDICAL_RECORD_STATUSES } from '@drmayday/shared';
-import { boardMove, canDrag, type TransitionKind } from './board-rules';
+import { boardMove, type TransitionKind } from './board-rules';
 
 /** Mọi cặp cột hợp lệ của bảng đích kéo thả (spec B, mục 8.6); cặp khác không phải đích. */
 const MOVES: Record<string, TransitionKind> = {
@@ -27,16 +27,5 @@ describe('board-rules: bảng đích kéo thả (spec B, mục 8.6, D-B25)', () 
       expect(boardMove(from, to, others)).toBeNull();
       expect(boardMove(from, to, [expected])).toBe(expected);
     }
-  });
-
-  it('canDrag: kéo được khi có ít nhất một đích hợp lệ', () => {
-    expect(canDrag('pending', ['accept'])).toBe(true);
-    expect(canDrag('pending', ['cancel'])).toBe(true);
-    expect(canDrag('draft', ['edit', 'cancel', 'delete'])).toBe(true);
-    expect(canDrag('in_progress', ['complete'])).toBe(true);
-    expect(canDrag('pending', ['edit', 'delete'])).toBe(false);
-    expect(canDrag('in_progress', ['accept'])).toBe(false);
-    expect(canDrag('completed', MEDICAL_RECORD_ACTIONS)).toBe(false);
-    expect(canDrag('cancelled', MEDICAL_RECORD_ACTIONS)).toBe(false);
   });
 });

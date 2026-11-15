@@ -25,7 +25,8 @@ function LocationProbe() {
   return <output aria-label="URL">{useLocation().search}</output>;
 }
 
-function setup(path = '/medical-records') {
+/** `listTotal`: tổng số dòng API báo cho danh sách (mặc định bằng số dòng trả về, một trang). */
+function setup(path = '/medical-records', listTotal?: number) {
   const calls: Call[] = [];
   vi.stubGlobal(
     'fetch',
@@ -49,7 +50,7 @@ function setup(path = '/medical-records') {
               }),
             );
         return Promise.resolve(
-          jsonResponse(200, { code: '1000', message: 'OK', data, total: data.length }),
+          jsonResponse(200, { code: '1000', message: 'OK', data, total: listTotal ?? data.length }),
         );
       }
       if (pathname.endsWith('/doctor/patients/search')) {
@@ -95,7 +96,7 @@ describe('MedicalRecordsPage: hai chế độ, bộ lọc trên URL (spec B, m�
     ).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Cột Đang khám' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Cột Hoàn tất' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Mở cột Nháp' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mở cột Nháp (0)' })).toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
   });
 
@@ -148,6 +149,27 @@ describe('MedicalRecordsPage: hai chế độ, bộ lọc trên URL (spec B, m�
     );
     expect(urlsOf(calls, 'status=pending').at(-1)).toContain(
       'record_type=CAP&doctor_id=1&status=pending',
+    );
+  });
+
+  it('chế độ bảng: đang ở trang 2 mà đổi bộ lọc loại → lời gọi danh sách kế tiếp về page=1', async () => {
+    const calls = setup('/medical-records?view=table', 45);
+    const user = userEvent.setup();
+    await screen.findByRole('tab', { name: 'Tất cả (3)' });
+    await user.click(await screen.findByText('2', { selector: '.ant-pagination-item a' }));
+    await waitFor(() => expect(urlsOf(calls, '/medical_records/all').at(-1)).toContain('page=2'));
+
+    const before = urlsOf(calls, '/medical_records/all').length;
+    await user.click(screen.getByLabelText('Lọc theo loại bệnh án'));
+    await user.click(await screen.findByTitle('Cấp'));
+
+    await waitFor(() =>
+      expect(urlsOf(calls, '/medical_records/all').slice(before)).toContain(
+        `${BASE}/medical_records/all?record_type=CAP&page=1&limit=20`,
+      ),
+    );
+    expect(urlsOf(calls, '/medical_records/all').slice(before)).not.toContainEqual(
+      expect.stringContaining('record_type=CAP&page=2'),
     );
   });
 

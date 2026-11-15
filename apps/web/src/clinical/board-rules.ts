@@ -1,8 +1,4 @@
-import {
-  MEDICAL_RECORD_STATUSES,
-  type MedicalRecordAction,
-  type MedicalRecordStatus,
-} from '@drmayday/shared';
+import type { MedicalRecordAction, MedicalRecordStatus } from '@drmayday/shared';
 
 /** Thao tác chuyển trạng thái có hộp xác nhận (spec B, mục 8.6): dùng chung cho nút trên thẻ, kéo thả, màn chi tiết. */
 export type TransitionKind = 'accept' | 'complete' | 'cancel';
@@ -28,12 +24,4 @@ export function boardMove(
           ? 'cancel'
           : null;
   return kind && actions.includes(kind) ? kind : null;
-}
-
-/** Thẻ kéo được khi có ít nhất một cột đích hợp lệ (spec B, mục 8.6). */
-export function canDrag(
-  status: MedicalRecordStatus,
-  actions: readonly MedicalRecordAction[],
-): boolean {
-  return MEDICAL_RECORD_STATUSES.some((to) => boardMove(status, to, actions) !== null);
 }

@@ -1,6 +1,7 @@
 import { RECORD_TYPES } from '@drmayday/shared';
 import { render, screen } from '@testing-library/react';
-import { RECORD_TYPE_SHORT_LABELS, RecordTypeBadge } from './record-type';
+import { RecordTypeBadge } from './record-type';
+import { RECORD_TYPE_SHORT_LABELS } from './record-type-labels';
 
 describe('RecordTypeBadge (spec B, mục 8)', () => {
   it('chữ "Cấp"/"Mạn"', () => {

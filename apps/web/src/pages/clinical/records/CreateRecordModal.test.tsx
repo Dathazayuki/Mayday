@@ -119,6 +119,22 @@ describe('CreateRecordModal (spec B, mục 8.4)', () => {
     ]);
   });
 
+  it('gõ tìm bệnh nhân: chỉ gọi API với từ khoá cuối sau khi ngừng gõ, không gọi theo từng phím', async () => {
+    const calls = setup();
+    const { user, dialog } = await openModal();
+    await user.type(within(dialog).getByLabelText('Bệnh nhân'), 'mai');
+    await waitFor(() =>
+      expect(calls.some((call) => call.url.includes('/doctor/patients/search?keyword=mai'))).toBe(
+        true,
+      ),
+    );
+    const keywords = calls
+      .filter((call) => call.url.includes('/doctor/patients/search'))
+      .map((call) => new URL(call.url).searchParams.get('keyword'));
+    expect(keywords).not.toContain('m');
+    expect(keywords).not.toContain('ma');
+  });
+
   it('thiếu bệnh nhân hoặc loại → báo ngay trên form, không gọi API', async () => {
     const calls = setup();
     const { user, dialog } = await openModal();

@@ -73,10 +73,12 @@ export function useColumnRecords(
   });
 }
 
-export function useMedicalRecord(id: number) {
+/** Chi tiết một bệnh án; chưa có mã (hộp chưa mở) thì không gọi API. */
+export function useMedicalRecord(id: number | undefined) {
   return useQuery({
     queryKey: [...RECORDS_KEY, 'detail', id],
     queryFn: () => apiClient.get<MedicalRecordData>(`/medical_records/${id}`),
+    enabled: id !== undefined,
   });
 }
 

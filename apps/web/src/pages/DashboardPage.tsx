@@ -16,6 +16,7 @@ import { QueryErrorAlert } from '../components/crud/QueryErrorAlert';
 import { Page } from '../layout/Page';
 import { Panel } from '../layout/Panel';
 import { formatDate } from '../lib/format-date';
+import { useProfile } from '../profile/profile-api';
 import { useIsPatient } from '../profile/use-is-patient';
 import { RecordCardSummary } from './clinical/records/RecordCard';
 
@@ -66,6 +67,7 @@ function VisitsTodayPanel({ visits }: { visits: DashboardList<TodayVisitItem> })
         rowKey="visit_id"
         data={visits.items}
         loading={false}
+        emptyText="Chưa có phiên khám hôm nay"
         onRowClick={(row) => navigate(`/medical-records/${row.medical_record_id}`)}
         columns={[
           {
@@ -135,7 +137,10 @@ function MyQueuePanel({ queue }: { queue: DashboardList<MedicalRecordListItem> }
  */
 export function DashboardPage() {
   const isPatient = useIsPatient();
-  const { data, error } = useDashboardSummary(isPatient === false);
+  // Hồ sơ lỗi thì không biết là nhân viên hay bệnh nhân: hiện lỗi thay vì chờ mãi.
+  const profileError = useProfile().error;
+  const { data, error: summaryError } = useDashboardSummary(isPatient === false);
+  const error = profileError ?? summaryError;
   const subtitle = `Hôm nay ${formatDate(data?.today ?? vietnamDate())}`;
 
   if (isPatient === true) {

@@ -58,6 +58,7 @@ function RecordsPanel({ patientId }: { patientId: number }) {
         rowKey="medical_record_id"
         data={data}
         loading={isPending}
+        emptyText="Chưa có bệnh án"
         onRowClick={(row) => navigate(`/medical-records/${row.medical_record_id}`)}
         columns={[
           {

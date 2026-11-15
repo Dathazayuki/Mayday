@@ -70,17 +70,25 @@ export function BoardColumn({
         <button
           type="button"
           className="dm-board__expand"
-          aria-label={`Mở cột ${label}`}
+          aria-label={count === undefined ? `Mở cột ${label}` : `Mở cột ${label} (${count})`}
           onClick={onToggle}
         >
           <span className="dm-board__col-title">{label}</span>
           {countText}
+          {drop === 'target' && <span className="dm-board__drop-hint">Thả để huỷ</span>}
         </button>
       </section>
     );
   }
 
-  const records = data?.pages.flatMap((page) => page.items) ?? [];
+  // Hồ sơ đổi cột giữa hai lần tải trang có thể lặp lại ở trang sau: giữ một thẻ cho mỗi mã.
+  const records = [
+    ...new Map(
+      (data?.pages ?? []).flatMap((page) =>
+        page.items.map((record) => [record.medical_record_id, record] as const),
+      ),
+    ).values(),
+  ];
   return (
     <section {...columnProps}>
       <header className="dm-board__col-head">
