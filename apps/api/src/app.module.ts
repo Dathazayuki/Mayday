@@ -9,6 +9,7 @@ import { createValidationPipe } from './common/validation.js';
 import { validateEnv } from './config/env.js';
 import { FacilitiesModule } from './facilities/facilities.module.js';
 import { HealthController } from './health/health.controller.js';
+import { PatientsModule } from './patients/patients.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProfileModule } from './profile/profile.module.js';
 
@@ -24,6 +25,7 @@ import { ProfileModule } from './profile/profile.module.js';
     ProfileModule,
     FacilitiesModule,
     AdminUsersModule,
+    PatientsModule,
   ],
   controllers: [HealthController],
   providers: [

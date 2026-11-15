@@ -5,6 +5,8 @@ import { AdminUsersController } from '../admin-users/admin-users.controller.js';
 import { AuthController } from '../auth/auth.controller.js';
 import { BranchesController } from '../facilities/branches.controller.js';
 import { RoomsController } from '../facilities/rooms.controller.js';
+import { PatientsController } from '../patients/patients.controller.js';
+import { REQUIRED_ROLES_KEY } from '../roles/require-role.decorator.js';
 import { RolesController } from '../roles/roles.controller.js';
 import { PermissionsController } from './permissions.controller.js';
 import { RolePermissionsController } from './role-permissions.controller.js';
@@ -13,6 +15,8 @@ import { declaredPermissions } from './require-permission.decorator.js';
 const reflector = new Reflector();
 const declared = (controller: Type, handler: Function) =>
   declaredPermissions(reflector, controller, handler);
+const declaredRoles = (controller: Type, handler: Function) =>
+  reflector.getAllAndOverride<string[] | undefined>(REQUIRED_ROLES_KEY, [handler, controller]);
 
 /** Bảng khai báo quyền trên route quản trị (spec A, mục 6.5, D12). */
 describe('quyền khai báo trên route quản trị', () => {
@@ -72,6 +76,20 @@ describe('quyền khai báo trên route quản trị', () => {
     ];
     for (const [controller, handler] of reads) {
       expect(declared(controller, handler)).toEqual([]);
+    }
+  });
+});
+
+/** Route chỉ cho nhân viên của spec B (mục 7.2): chỉ khai báo quyền, không giới hạn vai trò (D-B18). */
+describe('quyền khai báo trên route bệnh nhân', () => {
+  it('view_patients: tìm, xem; manage_patients: tạo, sửa; không có @RequireRole', () => {
+    const { search, get, create, update } = PatientsController.prototype;
+    expect(declared(PatientsController, search)).toEqual(['view_patients']);
+    expect(declared(PatientsController, get)).toEqual(['view_patients']);
+    expect(declared(PatientsController, create)).toEqual(['manage_patients']);
+    expect(declared(PatientsController, update)).toEqual(['manage_patients']);
+    for (const handler of [search, get, create, update]) {
+      expect(declaredRoles(PatientsController, handler)).toBeUndefined();
     }
   });
 });
