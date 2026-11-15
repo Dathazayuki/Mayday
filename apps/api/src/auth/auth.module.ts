@@ -12,7 +12,7 @@ import { UsersModule } from '../users/users.module.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
-import { DevLogOtpSender, OTP_SENDER } from './otp-sender.js';
+import { DevLogOtpSender, OtpSender } from './otp-sender.js';
 import { PasswordService } from './password.service.js';
 import { TokenBlacklistRepository } from './token-blacklist.repository.js';
 
@@ -37,7 +37,7 @@ import { TokenBlacklistRepository } from './token-blacklist.repository.js';
     PasswordService,
     TokenBlacklistRepository,
     // Chưa có kênh gửi OTP thật (MT-16): bản dev ghi log, production trả 9903.
-    { provide: OTP_SENDER, useClass: DevLogOtpSender },
+    { provide: OtpSender, useClass: DevLogOtpSender },
     // Guard toàn cục chạy theo thứ tự khai báo: RolesGuard đọc request.user do JwtAuthGuard gắn,
     // PermissionsGuard (RBAC động) chạy sau kiểm tra vai trò tĩnh.
     { provide: APP_GUARD, useClass: JwtAuthGuard },

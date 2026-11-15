@@ -38,15 +38,24 @@ export async function runDbScript(
     process.exit(1);
   }
   const prisma = new PrismaClient({ adapter: new PrismaMariaDb(url) });
-  const app = await NestFactory.createApplicationContext(AppModule, {
-    preview: true,
-    // Bỏ cảnh báo "thiếu metadata cho DI" của từng provider: chế độ preview không khởi tạo provider.
-    logger: ['error'],
-  });
+  const app = await createPreviewApp();
   try {
     await task(prisma, app);
   } finally {
     await app.close();
     await prisma.$disconnect();
   }
+}
+
+/**
+ * App context của AppModule ở chế độ preview, như lệnh CSDL dựng. Nest vẫn duyệt tham số constructor
+ * của provider nên provider không được dùng `@Inject(token)` (xem otp-sender.ts);
+ * endpoint-sync.spec.ts chạy hàm này qua tsx để giữ điều đó.
+ */
+export function createPreviewApp(): Promise<INestApplicationContext> {
+  return NestFactory.createApplicationContext(AppModule, {
+    preview: true,
+    // Bỏ cảnh báo "thiếu metadata cho DI" của từng provider: chế độ preview không khởi tạo provider.
+    logger: ['error'],
+  });
 }

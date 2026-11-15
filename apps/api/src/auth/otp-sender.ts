@@ -3,14 +3,17 @@ import { ConfigService } from '@nestjs/config';
 import { AppException } from '../common/app.exception.js';
 import type { Env } from '../config/env.js';
 
-/** Injection token của OtpSender (kênh gửi OTP khôi phục mật khẩu). */
-export const OTP_SENDER = Symbol('OTP_SENDER');
-
-/** Kênh gửi OTP khôi phục mật khẩu tới số điện thoại; SMS hay email chưa chốt (MT-16). */
-export interface OtpSender {
+/**
+ * Kênh gửi OTP khôi phục mật khẩu tới số điện thoại; SMS hay email chưa chốt (MT-16).
+ * Lớp trừu tượng làm luôn injection token: AuthService không cần `@Inject(token)`. Lệnh CSDL chạy bằng
+ * tsx (esbuild không sinh metadata kiểu tham số) dựng AppModule ở chế độ preview, mà Nest vẫn duyệt
+ * tham số constructor: một `@Inject` lẻ để các tham số khác thành undefined và lệnh lỗi
+ * (scripts/db-script.ts).
+ */
+export abstract class OtpSender {
   /** Kênh đang dùng được: AuthService kiểm tra trước khi ghi reset_token. */
-  isAvailable(): boolean;
-  send(phone: string, otp: string): Promise<void>;
+  abstract isAvailable(): boolean;
+  abstract send(phone: string, otp: string): Promise<void>;
 }
 
 /**
@@ -19,11 +22,12 @@ export interface OtpSender {
  * không bao giờ ghi OTP ra log.
  */
 @Injectable()
-export class DevLogOtpSender implements OtpSender {
+export class DevLogOtpSender extends OtpSender {
   private readonly logger = new Logger(DevLogOtpSender.name);
   private readonly enabled: boolean;
 
   constructor(config: ConfigService<Env, true>) {
+    super();
     const appEnv = config.get('APP_ENV', { infer: true });
     this.enabled = appEnv === 'development' || appEnv === 'test';
   }

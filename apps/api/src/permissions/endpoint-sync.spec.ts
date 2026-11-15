@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
 import { Controller, Delete, Get, Injectable, Post } from '@nestjs/common';
 import { ApiOperation } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
@@ -65,4 +67,36 @@ describe('listEndpoints (DiscoveryService)', () => {
       await moduleRef.close();
     },
   );
+});
+
+describe('AppModule dựng bằng tsx ở chế độ preview (như db:seed, db:sync-endpoints)', () => {
+  // Vitest sinh metadata kiểu tham số còn tsx (esbuild) thì không, nên test trong process này không
+  // thấy lỗi DI của lệnh CSDL (VD một `@Inject(token)` lẻ). Chạy createPreviewApp thật qua tsx.
+  it('dựng được app và liệt kê route của mọi module', () => {
+    const script = [
+      "const { createPreviewApp } = await import('./scripts/db-script.ts');",
+      "const { listEndpoints } = await import('./src/permissions/endpoint-sync.ts');",
+      'const app = await createPreviewApp();',
+      'console.log(JSON.stringify(listEndpoints(app).map((e) => `${e.method} ${e.path}`)));',
+      'await app.close();',
+    ].join('\n');
+    const result = spawnSync(
+      process.execPath,
+      ['--import', 'tsx', '--input-type=module', '--eval', script],
+      { cwd: resolve(import.meta.dirname, '../..'), encoding: 'utf8' },
+    );
+
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual(
+      expect.arrayContaining([
+        'POST /api/v1/auth/admin/create-staff',
+        'GET /api/v1/profile',
+        'GET /api/v1/branches',
+        'GET /api/v1/admin/users',
+        'GET /api/v1/roles',
+        'POST /api/v1/role_permissions',
+      ]),
+    );
+  }, 60_000);
 });

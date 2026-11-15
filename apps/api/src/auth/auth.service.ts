@@ -1,5 +1,5 @@
 import { createHmac, randomInt, randomUUID } from 'node:crypto';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type {
@@ -26,7 +26,7 @@ import type { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { SignupDto } from './dto/signup.dto.js';
 import type { JwtPayload, VerifiedJwt } from './jwt-payload.js';
-import { OTP_SENDER, type OtpSender } from './otp-sender.js';
+import { OtpSender } from './otp-sender.js';
 import { PasswordService } from './password.service.js';
 import { TokenBlacklistRepository } from './token-blacklist.repository.js';
 
@@ -66,7 +66,7 @@ export class AuthService {
     private readonly passwords: PasswordService,
     private readonly blacklist: TokenBlacklistRepository,
     private readonly jwt: JwtService,
-    @Inject(OTP_SENDER) private readonly otpSender: OtpSender,
+    private readonly otpSender: OtpSender,
     private readonly config: ConfigService<Env, true>,
   ) {}
 
