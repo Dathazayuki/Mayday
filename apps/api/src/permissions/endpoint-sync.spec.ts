@@ -24,7 +24,7 @@ class SampleController {
 @Controller()
 class OpenController {
   @Public()
-  @Post('ping')
+  @Post(['ping', 'echo'])
   ping() {}
 }
 
@@ -34,7 +34,7 @@ describe('listEndpoints (DiscoveryService)', () => {
     ['app đầy đủ', false],
     ['app chế độ preview (không khởi tạo provider)', true],
   ])(
-    '%s: liệt kê mọi route (kể cả @Public), bỏ method không phải route',
+    '%s: liệt kê mọi route (kể cả @Public, mỗi đường dẫn một dòng), bỏ method không phải route',
     async (_name, preview) => {
       const moduleRef = await Test.createTestingModule({
         controllers: [SampleController, OpenController],
@@ -43,7 +43,7 @@ describe('listEndpoints (DiscoveryService)', () => {
 
       const endpoints = listEndpoints(moduleRef);
 
-      expect(endpoints).toHaveLength(3);
+      expect(endpoints).toHaveLength(4);
       expect(endpoints).toEqual(
         expect.arrayContaining([
           {
@@ -59,6 +59,7 @@ describe('listEndpoints (DiscoveryService)', () => {
             description: null,
           },
           { name: 'OpenController.ping', method: 'POST', path: '/api/v1/ping', description: null },
+          { name: 'OpenController.ping', method: 'POST', path: '/api/v1/echo', description: null },
         ]),
       );
       await moduleRef.close();

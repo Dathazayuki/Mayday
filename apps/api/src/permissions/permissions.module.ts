@@ -1,29 +1,19 @@
 import { Module } from '@nestjs/common';
-import { RolesController } from '../roles/roles.controller.js';
 import { RolesModule } from '../roles/roles.module.js';
-import { RolesService } from '../roles/roles.service.js';
-import { PermissionCache } from './permission-cache.js';
+import { PermissionCacheModule } from './permission-cache.module.js';
 import { PermissionsController } from './permissions.controller.js';
-import { PermissionsRepository } from './permissions.repository.js';
 import { PermissionsService } from './permissions.service.js';
 import { RolePermissionsController } from './role-permissions.controller.js';
 import { RolePermissionsService } from './role-permissions.service.js';
 
 /**
- * API vai trò, quyền, gán quyền (spec giai đoạn 2, mục 3.4) và PermissionCache của PermissionsGuard.
- * Gom một module vì mọi thao tác ghi của ba API đều phải xoá PermissionCache; RolesRepository vẫn ở
- * RolesModule vì AuthModule cũng dùng.
+ * API quyền và gán quyền (spec giai đoạn 2, mục 3.4). Export lại PermissionCacheModule cho
+ * PermissionsGuard (đăng ký ở AuthModule).
  */
 @Module({
-  imports: [RolesModule],
-  controllers: [RolesController, PermissionsController, RolePermissionsController],
-  providers: [
-    RolesService,
-    PermissionsService,
-    RolePermissionsService,
-    PermissionsRepository,
-    PermissionCache,
-  ],
-  exports: [PermissionCache],
+  imports: [RolesModule, PermissionCacheModule],
+  controllers: [PermissionsController, RolePermissionsController],
+  providers: [PermissionsService, RolePermissionsService],
+  exports: [PermissionCacheModule],
 })
 export class PermissionsModule {}

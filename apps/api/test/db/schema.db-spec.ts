@@ -129,12 +129,13 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
     await prisma.role_permissions.create({
       data: { role_id: roles.doctor, permission_id: extra.permission_id },
     });
-    const endpoint = await prisma.api_endpoints.create({
-      data: { name: 'Cu.route', method: 'GET', path: '/api/v1/route-cu' },
+    const health = await prisma.api_endpoints.findUniqueOrThrow({
+      where: { method_path: { method: 'GET', path: '/api/v1/health' } },
     });
     await prisma.permissions_endpoints.create({
-      data: { permission_id: extra.permission_id, endpoint_id: endpoint.api_endpoints_id },
+      data: { permission_id: extra.permission_id, endpoint_id: health.api_endpoints_id },
     });
+    const endpointCount = await prisma.api_endpoints.count();
 
     const restored = await resetData(app);
 
@@ -155,8 +156,12 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
     ]);
     expect(baseCounts).toEqual([9, 1, 1, 1]);
     expect(await prisma.permissions.count({ where: { name: 'quyen_them' } })).toBe(0);
-    expect(await prisma.api_endpoints.count({ where: { path: '/api/v1/route-cu' } })).toBe(0);
     expect(await prisma.permissions.count()).toBe(5);
+    // api_endpoints được giữ giữa các test (createTestApp đồng bộ một lần), chỉ mất gắn quyền thêm.
+    expect(await prisma.api_endpoints.count()).toBe(endpointCount);
+    expect(
+      await prisma.permissions_endpoints.count({ where: { endpoint_id: health.api_endpoints_id } }),
+    ).toBe(0);
     const rows = await prisma.roles.findMany();
     expect(restored.roles).toEqual(
       Object.fromEntries(rows.map((role) => [role.name, role.role_id])),
@@ -186,6 +191,32 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
         .filter((key) => pattern.test(key))
         .sort();
     }
+
+    it('syncEndpoints xoá dòng không còn là route nếu chưa gắn quyền; còn gắn quyền thì giữ và cảnh báo', async () => {
+      const stale = (path: string) =>
+        prisma.api_endpoints.create({ data: { name: 'Cu.route', method: 'GET', path } });
+      const unmapped = await stale('/api/v1/route-cu-chua-gan');
+      const mapped = await stale('/api/v1/route-cu-da-gan');
+      const { permission_id } = await prisma.permissions.findUniqueOrThrow({
+        where: { name: 'manage_users' },
+      });
+      await prisma.permissions_endpoints.create({
+        data: { permission_id, endpoint_id: mapped.api_endpoints_id },
+      });
+      const exists = async ({ api_endpoints_id }: { api_endpoints_id: number }) =>
+        (await prisma.api_endpoints.count({ where: { api_endpoints_id } })) > 0;
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        await syncEndpoints(app, prisma);
+        expect(await exists(unmapped)).toBe(false);
+        expect(await exists(mapped)).toBe(true);
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('GET /api/v1/route-cu-da-gan'));
+      } finally {
+        warn.mockRestore();
+        await prisma.api_endpoints.delete({ where: { api_endpoints_id: mapped.api_endpoints_id } });
+      }
+    });
 
     it('syncEndpoints ghi mọi route của app (kể cả @Public), chạy lại không nhân đôi', async () => {
       const synced = await syncEndpoints(app, prisma);
@@ -236,12 +267,32 @@ describe('CSDL dev: schema và seed (MySQL thật)', () => {
       expect(await routesOf('manage_users')).toEqual(
         await existingRoutes(/^\w+ \/api\/v1\/(admin\/users|auth\/admin\/create-staff)/),
       );
-      expect(await routesOf('view_facilities')).toEqual(
-        await existingRoutes(/^GET \/api\/v1\/(branches|departments|rooms)(\/:id)?$/),
-      );
+      // view_facilities không gắn route nào: mọi người đã đăng nhập đều xem được (spec mục 3.2).
+      expect(await routesOf('view_facilities')).toEqual([]);
       expect(await routesOf('manage_facilities')).toEqual(
         await existingRoutes(/^(POST|PUT|DELETE) \/api\/v1\/(branches|departments|rooms)(\/:id)?$/),
       );
+    });
+
+    it('seed lại không ghi đè quyết định của admin: quyền đã thu hồi, mô tả đã sửa', async () => {
+      const seeded = await seedBase(prisma);
+      const revoked = {
+        role_id: seeded.roles.patient,
+        permission_id: seeded.permissions.view_facilities,
+      };
+      await prisma.role_permissions.delete({ where: { role_id_permission_id: revoked } });
+      await prisma.permissions.update({
+        where: { permission_id: seeded.permissions.manage_users },
+        data: { description: 'Mô tả do admin sửa' },
+      });
+
+      await expect(seedBase(prisma)).resolves.toEqual(seeded);
+      expect(await prisma.role_permissions.count({ where: revoked })).toBe(0);
+      await expect(
+        prisma.permissions.findUniqueOrThrow({
+          where: { permission_id: seeded.permissions.manage_users },
+        }),
+      ).resolves.toMatchObject({ description: 'Mô tả do admin sửa' });
     });
 
     it('view_facilities cấp cho mọi vai trò; manage_* chỉ cấp cho admin', async () => {

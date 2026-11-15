@@ -20,9 +20,15 @@ const ROLE_NAMES: Record<number, string> = {
   [DOCTOR]: 'doctor',
 };
 
-/** Quyền 10 gắn với GET /api/v1/samples/:id; bác sĩ có quyền 10, bệnh nhân và admin không có. */
+/**
+ * Quyền 10 gắn với GET /api/v1/samples/:id, quyền 12 gắn với một trong hai đường dẫn của `latest`;
+ * bác sĩ có quyền 10, bệnh nhân có quyền 11, admin không có quyền nào.
+ */
 const RULES: AccessRules = {
-  endpointPermissions: [{ method: 'GET', path: '/api/v1/samples/:id', permissionId: 10 }],
+  endpointPermissions: [
+    { method: 'GET', path: '/api/v1/samples/:id', permissionId: 10 },
+    { method: 'GET', path: '/api/v1/samples/newest', permissionId: 12 },
+  ],
   rolePermissions: [
     { roleId: DOCTOR, permissionId: 10 },
     { roleId: PATIENT, permissionId: 11 },
@@ -40,6 +46,9 @@ class SampleController {
   @Public()
   @Get('open/:id')
   open() {}
+
+  @Get(['latest', 'newest'])
+  latest() {}
 }
 
 function setup(rules: AccessRules = RULES) {
@@ -96,6 +105,13 @@ describe('PermissionsGuard (RBAC động)', () => {
     await expect(
       guard.canActivate(contextFor(SampleController.prototype.detail, DOCTOR)),
     ).resolves.toBe(true);
+  });
+
+  it('handler nhiều đường dẫn: quyền gắn với đường dẫn nào cũng áp dụng', async () => {
+    const { guard } = setup();
+    await expect(
+      guard.canActivate(contextFor(SampleController.prototype.latest, PATIENT)),
+    ).rejects.toMatchObject({ code: '3101' });
   });
 
   it('vai trò không có quyền nào gắn với endpoint → 3101', async () => {

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PermissionsRepository, type AccessRules } from './permissions.repository.js';
-import type { RouteKey } from './route-key.js';
+import { endpointKey, type RouteKey } from './route-key.js';
 
 /** endpoint (`METHOD path`) → id quyền, và role_id → id quyền. */
 interface AccessMatrix {
@@ -9,8 +9,6 @@ interface AccessMatrix {
 }
 
 const NONE: ReadonlySet<number> = new Set();
-
-const endpointKey = ({ method, path }: RouteKey) => `${method} ${path}`;
 
 function addTo<K>(map: Map<K, Set<number>>, key: K, permissionId: number): void {
   const ids = map.get(key) ?? new Set<number>();
@@ -39,9 +37,13 @@ export class PermissionCache {
 
   constructor(private readonly permissions: PermissionsRepository) {}
 
-  /** Quyền gắn với endpoint; tập rỗng nghĩa là endpoint không cần quyền nào. */
-  async endpointPermissions(route: RouteKey): Promise<ReadonlySet<number>> {
-    return (await this.load()).endpoints.get(endpointKey(route)) ?? NONE;
+  /**
+   * Quyền gắn với các endpoint của một handler (handler có thể có nhiều đường dẫn: lấy hợp các quyền).
+   * Tập rỗng nghĩa là handler không cần quyền nào.
+   */
+  async endpointPermissions(routes: readonly RouteKey[]): Promise<ReadonlySet<number>> {
+    const { endpoints } = await this.load();
+    return new Set(routes.flatMap((route) => [...(endpoints.get(endpointKey(route)) ?? NONE)]));
   }
 
   async rolePermissions(roleId: number): Promise<ReadonlySet<number>> {

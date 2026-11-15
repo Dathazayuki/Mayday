@@ -1,7 +1,7 @@
 /* oxlint-disable typescript/unbound-method -- method chỉ được dùng làm khoá metadata, không được gọi */
 import { Controller, Delete, Get, Post, RequestMethod } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { routeKey, routeOf } from './route-key.js';
+import { routeKey, routesOf } from './route-key.js';
 
 describe('routeKey', () => {
   it.each<[string, RequestMethod, string, string, string]>([
@@ -45,6 +45,9 @@ class SampleController {
   @Delete()
   clear() {}
 
+  @Get(['latest', 'newest'])
+  latest() {}
+
   helper() {}
 }
 
@@ -54,7 +57,13 @@ class RootController {
   ping() {}
 }
 
-describe('routeOf (đọc metadata của Nest)', () => {
+@Controller(['v1-alias', 'v2-alias'])
+class AliasController {
+  @Get(['a', 'b'])
+  both() {}
+}
+
+describe('routesOf (đọc metadata của Nest)', () => {
   const reflector = new Reflector();
 
   it.each<[string, (...args: never[]) => unknown, string, string]>([
@@ -63,17 +72,32 @@ describe('routeOf (đọc metadata của Nest)', () => {
     ['@Post(":id/items")', SampleController.prototype.addItem, 'POST', '/api/v1/samples/:id/items'],
     ['@Delete()', SampleController.prototype.clear, 'DELETE', '/api/v1/samples'],
   ])('%s → đường dẫn mẫu, không phải URL thật', (_name, handler, method, path) => {
-    expect(routeOf(reflector, SampleController, handler)).toEqual({ method, path });
+    expect(routesOf(reflector, SampleController, handler)).toEqual([{ method, path }]);
   });
 
   it('@Controller() không có đường dẫn', () => {
-    expect(routeOf(reflector, RootController, RootController.prototype.ping)).toEqual({
-      method: 'GET',
-      path: '/api/v1/ping',
-    });
+    expect(routesOf(reflector, RootController, RootController.prototype.ping)).toEqual([
+      { method: 'GET', path: '/api/v1/ping' },
+    ]);
   });
 
-  it('method không phải route → null', () => {
-    expect(routeOf(reflector, SampleController, SampleController.prototype.helper)).toBeNull();
+  it('route nhiều đường dẫn → mỗi đường dẫn một route', () => {
+    expect(routesOf(reflector, SampleController, SampleController.prototype.latest)).toEqual([
+      { method: 'GET', path: '/api/v1/samples/latest' },
+      { method: 'GET', path: '/api/v1/samples/newest' },
+    ]);
+  });
+
+  it('controller và route đều nhiều đường dẫn → mọi tổ hợp', () => {
+    expect(routesOf(reflector, AliasController, AliasController.prototype.both)).toEqual(
+      ['/v1-alias/a', '/v1-alias/b', '/v2-alias/a', '/v2-alias/b'].map((path) => ({
+        method: 'GET',
+        path: `/api/v1${path}`,
+      })),
+    );
+  });
+
+  it('method không phải route → mảng rỗng', () => {
+    expect(routesOf(reflector, SampleController, SampleController.prototype.helper)).toEqual([]);
   });
 });

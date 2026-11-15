@@ -19,8 +19,14 @@ export function isEntryPoint(moduleUrl: string): boolean {
 
 /**
  * Khung của lệnh CSDL (db:seed, db:sync-endpoints): PrismaClient theo DATABASE_URL và app context
- * của AppModule ở chế độ preview. App chỉ dùng để đọc metadata route: lệnh chạy bằng tsx (esbuild
- * không sinh metadata cho DI) nên không khởi tạo provider, cũng không mở kết nối CSDL của app.
+ * của AppModule.
+ *
+ * Vì sao nạp AppModule: danh sách route của API (để đồng bộ `api_endpoints`) chỉ có khi Nest quét
+ * đúng các module/controller mà app thật đăng ký; tự liệt kê controller sẽ lệch khi thêm module.
+ * Vì sao chế độ preview: lệnh chạy bằng tsx, mà esbuild không sinh metadata kiểu tham số cho DI, nên
+ * khởi tạo provider sẽ lỗi. Preview chỉ quét module, không khởi tạo provider và không mở kết nối CSDL
+ * của app. Lưu ý: ConfigModule của AppModule kiểm tra biến môi trường lúc import, nên lệnh cần .env
+ * đầy đủ như khi chạy API (VD JWT_SECRET).
  */
 export async function runDbScript(
   task: (prisma: PrismaClient, app: INestApplicationContext) => Promise<void>,

@@ -68,7 +68,11 @@ export class PermissionsRepository {
     return this.prisma.db.permissions.count({ where: { permission_id: { in: permissionIds } } });
   }
 
-  /** Gán quyền cho vai trò; quyền đã gán thì bỏ qua (test case slide 38). */
+  /**
+   * Gán quyền cho vai trò; quyền đã gán thì bỏ qua (test case slide 38). skipDuplicates trên MySQL là
+   * INSERT IGNORE, nên dòng vi phạm khoá ngoại (vai trò/quyền bị xoá sau khi service kiểm tra) cũng
+   * bị bỏ qua thay vì ném P2003; dữ liệu vẫn nhất quán.
+   */
   async grant(roleId: number, permissionIds: number[]): Promise<void> {
     await this.prisma.db.role_permissions.createMany({
       data: permissionIds.map((permissionId) => ({ role_id: roleId, permission_id: permissionId })),

@@ -6,14 +6,15 @@ import { AppException } from '../common/app.exception.js';
 import type { RoleName } from '../roles/role-names.js';
 import { RolesRepository } from '../roles/roles.repository.js';
 import { PermissionCache } from './permission-cache.js';
-import { routeOf } from './route-key.js';
+import { routesOf } from './route-key.js';
 
 const ADMIN_ROLE: RoleName = 'admin';
 
 /**
  * Guard toàn cục của RBAC động (spec giai đoạn 2, mục 4), chạy sau JwtAuthGuard và RolesGuard.
- * Tra endpoint theo method + đường dẫn mẫu của route trong `permissions_endpoints`: endpoint không
- * gắn quyền nào → qua; admin → qua; vai trò có ít nhất một quyền gắn với endpoint → qua; còn lại → 3101.
+ * Tra endpoint theo method + đường dẫn mẫu của route trong `permissions_endpoints` (handler nhiều
+ * đường dẫn: quyền gắn với đường dẫn nào cũng áp dụng): endpoint không gắn quyền nào → qua; admin →
+ * qua; vai trò có ít nhất một quyền gắn với endpoint → qua; còn lại → 3101.
  * Lỗi CSDL được ném tiếp → AllExceptionsFilter trả 9902.
  */
 @Injectable()
@@ -29,11 +30,9 @@ export class PermissionsGuard implements CanActivate {
     const handler = context.getHandler();
     const targets = [handler, controller];
     if (this.reflector.getAllAndOverride<boolean | undefined>(IS_PUBLIC_KEY, targets)) return true;
-    // Handler không có metadata route (không phải route HTTP) thì không thuộc api_endpoints.
-    const route = routeOf(this.reflector, controller, handler);
-    if (!route) return true;
     // Tra endpoint trước: phần lớn route không gắn quyền nên không cần tra vai trò.
-    const required = await this.cache.endpointPermissions(route);
+    const routes = routesOf(this.reflector, controller, handler);
+    const required = await this.cache.endpointPermissions(routes);
     if (required.size === 0) return true;
 
     const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();

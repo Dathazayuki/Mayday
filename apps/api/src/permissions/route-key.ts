@@ -9,6 +9,9 @@ export interface RouteKey {
   path: string;
 }
 
+/** Khoá chuỗi `METHOD path` của route, dùng để so khớp route trong bộ nhớ. */
+export const endpointKey = ({ method, path }: RouteKey): string => `${method} ${path}`;
+
 /** Ghép tiền tố API, đường dẫn controller và route; bỏ dấu `/` thừa ở đầu, cuối và giữa. */
 export function routeKey(
   method: RequestMethod,
@@ -21,14 +24,18 @@ export function routeKey(
   return { method: RequestMethod[method], path: `/${segments.join('/')}` };
 }
 
-/** Route của `handler` lấy từ metadata của @Controller/@Get...; method không phải route → null. */
-export function routeOf(
-  reflector: Reflector,
-  controller: Type,
-  handler: Function,
-): RouteKey | null {
+/**
+ * Các route của `handler` lấy từ metadata của @Controller/@Get...: mỗi tổ hợp đường dẫn controller ×
+ * đường dẫn route (cả hai đều có thể là mảng) là một route. Method không phải route → mảng rỗng.
+ */
+export function routesOf(reflector: Reflector, controller: Type, handler: Function): RouteKey[] {
   const method = reflector.get<RequestMethod | undefined>(METHOD_METADATA, handler);
-  const handlerPath = reflector.get<string | undefined>(PATH_METADATA, handler);
-  if (method === undefined || handlerPath === undefined) return null;
-  return routeKey(method, reflector.get<string>(PATH_METADATA, controller), handlerPath);
+  const handlerPaths = reflector.get<string | string[] | undefined>(PATH_METADATA, handler);
+  if (method === undefined || handlerPaths === undefined) return [];
+  const controllerPaths = reflector.get<string | string[]>(PATH_METADATA, controller);
+  return [controllerPaths]
+    .flat()
+    .flatMap((controllerPath) =>
+      [handlerPaths].flat().map((handlerPath) => routeKey(method, controllerPath, handlerPath)),
+    );
 }

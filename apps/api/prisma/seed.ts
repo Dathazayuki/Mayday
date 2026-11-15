@@ -1,9 +1,9 @@
-import { API_PREFIX } from '@drmayday/shared';
+import { RequestMethod } from '@nestjs/common';
 import { isEntryPoint, runDbScript } from '../scripts/db-script.js';
 import { syncEndpoints } from '../scripts/sync-endpoints.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import type { PrismaClient } from '../src/generated/prisma/client.js';
-import type { RouteKey } from '../src/permissions/route-key.js';
+import { routeKey, type RouteKey } from '../src/permissions/route-key.js';
 import { ROLE_NAMES, type RoleName } from '../src/roles/role-names.js';
 
 /**
@@ -39,70 +39,67 @@ interface PermissionSeed {
   description: string;
   /** Route gắn với quyền; route chưa có trong `api_endpoints` thì bỏ qua. */
   routes: RouteKey[];
-  /** Vai trò được cấp quyền. Admin luôn qua PermissionsGuard nên `manage_*` chỉ cấp cho admin. */
+  /**
+   * Vai trò được cấp khi quyền vừa được tạo. Admin luôn qua PermissionsGuard nên `manage_*` chỉ
+   * cấp cho admin.
+   */
   grantedTo: readonly RoleName[];
 }
 
-/** Route theo dạng `api_endpoints` (đường dẫn mẫu đầy đủ). */
-const route = (method: string, path: string): RouteKey => ({
-  method,
-  path: `${API_PREFIX}${path}`,
-});
-
+const { GET, POST, PUT, DELETE } = RequestMethod;
 const FACILITY_RESOURCES = ['branches', 'departments', 'rooms'];
 
 /**
- * Quyền mặc định (spec giai đoạn 2, mục 4): hành vi mặc định vẫn khớp Sheet (mọi vai trò xem được cơ
- * sở vật chất, API quản trị chỉ cho admin). Route của module chưa có (VD cơ sở vật chất) được bỏ qua,
- * chạy lại seed sau khi module có route thì tự gắn.
+ * Quyền mặc định (spec giai đoạn 2, mục 4), giữ hành vi mặc định khớp Sheet: API quản trị chỉ cho
+ * admin. `view_facilities` được seed và cấp cho mọi vai trò nhưng KHÔNG gắn với route GET cơ sở vật
+ * chất: theo spec mục 3.2 mọi người đã đăng nhập đều xem được, vai trò tạo sau không được bị 3101.
+ * Route của module chưa có (VD cơ sở vật chất) được bỏ qua; chạy lại seed sau khi module có route
+ * thì tự gắn.
  */
 const PERMISSION_SEEDS: Record<PermissionName, PermissionSeed> = {
   manage_users: {
     description: 'Quản lý người dùng',
     routes: [
-      route('GET', '/admin/users'),
-      route('GET', '/admin/users/:id'),
-      route('POST', '/admin/users'),
-      route('PUT', '/admin/users/:id'),
-      route('DELETE', '/admin/users/:id'),
-      route('PUT', '/admin/users/:id/assign'),
-      route('POST', '/auth/admin/create-staff'),
+      routeKey(GET, 'admin/users', '/'),
+      routeKey(GET, 'admin/users', ':id'),
+      routeKey(POST, 'admin/users', '/'),
+      routeKey(PUT, 'admin/users', ':id'),
+      routeKey(DELETE, 'admin/users', ':id'),
+      routeKey(PUT, 'admin/users', ':id/assign'),
+      routeKey(POST, 'auth', 'admin/create-staff'),
     ],
     grantedTo: ['admin'],
   },
   manage_roles: {
     description: 'Quản lý vai trò',
-    routes: [route('POST', '/roles'), route('GET', '/roles')],
+    routes: [routeKey(POST, 'roles', '/'), routeKey(GET, 'roles', '/')],
     grantedTo: ['admin'],
   },
   manage_permissions: {
     description: 'Quản lý quyền và gán quyền cho vai trò',
     routes: [
-      route('POST', '/permissions'),
-      route('GET', '/permissions'),
-      route('PUT', '/permissions/:id'),
-      route('DELETE', '/permissions/:id'),
-      route('POST', '/role_permissions'),
-      route('GET', '/role_permissions/role/:role_id'),
-      route('DELETE', '/role_permissions/:role_id/:permission_id'),
+      routeKey(POST, 'permissions', '/'),
+      routeKey(GET, 'permissions', '/'),
+      routeKey(PUT, 'permissions', ':id'),
+      routeKey(DELETE, 'permissions', ':id'),
+      routeKey(POST, 'role_permissions', '/'),
+      routeKey(GET, 'role_permissions', 'role/:role_id'),
+      routeKey(DELETE, 'role_permissions', ':role_id/:permission_id'),
     ],
     grantedTo: ['admin'],
   },
   manage_facilities: {
     description: 'Quản lý chi nhánh, khoa, phòng',
     routes: FACILITY_RESOURCES.flatMap((resource) => [
-      route('POST', `/${resource}`),
-      route('PUT', `/${resource}/:id`),
-      route('DELETE', `/${resource}/:id`),
+      routeKey(POST, resource, '/'),
+      routeKey(PUT, resource, ':id'),
+      routeKey(DELETE, resource, ':id'),
     ]),
     grantedTo: ['admin'],
   },
   view_facilities: {
     description: 'Xem chi nhánh, khoa, phòng',
-    routes: FACILITY_RESOURCES.flatMap((resource) => [
-      route('GET', `/${resource}`),
-      route('GET', `/${resource}/:id`),
-    ]),
+    routes: [],
     grantedTo: ROLE_NAMES,
   },
 };
@@ -176,7 +173,11 @@ export async function seedBase(prisma: PrismaClient, opts: SeedOptions = {}): Pr
   return { roles, permissions, branchId: branch.id, departmentId: department.id, roomId: room.id };
 }
 
-/** Quyền mặc định, gắn với endpoint đang có và cấp cho vai trò (createMany bỏ qua dòng đã có). */
+/**
+ * Quyền mặc định và gắn quyền với endpoint đang có. Không ghi đè quyết định của admin: quyền đã có
+ * thì giữ nguyên mô tả, và chỉ cấp cho vai trò mặc định khi quyền vừa được tạo (admin thu hồi rồi
+ * seed lại thì không cấp lại). Gắn endpoint không có API nên seed lại luôn bổ sung route mới.
+ */
 async function seedPermissions(
   prisma: PrismaClient,
   roles: Record<RoleName, number>,
@@ -184,13 +185,17 @@ async function seedPermissions(
   const permissions = {} as Record<PermissionName, number>;
   for (const name of PERMISSION_NAMES) {
     const { description, routes, grantedTo } = PERMISSION_SEEDS[name];
-    const { permission_id } = await prisma.permissions.upsert({
-      where: { name },
-      update: { description },
-      create: { name, description },
-    });
+    const existing = await prisma.permissions.findUnique({ where: { name } });
+    const { permission_id } =
+      existing ?? (await prisma.permissions.create({ data: { name, description } }));
     permissions[name] = permission_id;
 
+    if (!existing) {
+      await prisma.role_permissions.createMany({
+        data: grantedTo.map((role) => ({ role_id: roles[role], permission_id })),
+      });
+    }
+    if (routes.length === 0) continue;
     const endpoints = await prisma.api_endpoints.findMany({
       where: { OR: routes },
       select: { api_endpoints_id: true },
@@ -200,10 +205,6 @@ async function seedPermissions(
         permission_id,
         endpoint_id: api_endpoints_id,
       })),
-      skipDuplicates: true,
-    });
-    await prisma.role_permissions.createMany({
-      data: grantedTo.map((role) => ({ role_id: roles[role], permission_id })),
       skipDuplicates: true,
     });
   }
