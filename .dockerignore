@@ -1,0 +1,27 @@
+# Bí mật và cấu hình riêng của máy (không bao giờ vào image)
+.env
+.env.*
+
+# Phụ thuộc và sản phẩm build: image tự cài và build lại
+**/node_modules
+**/dist
+**/build
+**/web-build
+**/.expo
+**/*.tsbuildinfo
+apps/mobile/ios
+apps/mobile/android
+coverage
+**/coverage
+**/*.log
+
+# Công cụ, worktree, git
+.git
+.worktrees
+.superpowers
+.idea
+.DS_Store
+
+# Tài liệu và slide không cần để build
+docs
+tai-lieu-goc

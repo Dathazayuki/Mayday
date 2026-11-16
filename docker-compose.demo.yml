@@ -1,0 +1,82 @@
+# Bộ demo DrMayDay: PostgreSQL (schema thật + dữ liệu mẫu) + API + Web, chạy bằng một lệnh:
+#   docker compose -f docker-compose.demo.yml up -d --build
+# Tách khỏi docker-compose.yml (stack dev). Chỉ dùng biến DEMO_* (xem .env.demo.example) để không
+# lẫn với .env của lập trình viên. Mọi mặc định dưới đây chỉ dành cho demo.
+name: drmayday-demo
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DEMO_POSTGRES_USER:-drmayday}
+      POSTGRES_PASSWORD: ${DEMO_POSTGRES_PASSWORD:-drmayday-demo-only}
+      POSTGRES_DB: ${DEMO_POSTGRES_DB:-drmayday_demo}
+    volumes:
+      - demo-postgres-data:/var/lib/postgresql/data
+      # File SQL của nhóm DB, dùng nguyên bản; chỉ nạp một lần khi volume được khởi tạo.
+      - ./apps/api/prisma/vendor/mayday-database/final_restructured.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Job một lần: nạp quyền, cơ sở vật chất, tài khoản và hồ sơ mẫu. Chạy lại được (idempotent).
+  # Dùng chung network của postgres để DATABASE_URL trỏ localhost, qua kiểm tra assertLocalDatabase.
+  seed:
+    build:
+      context: .
+      dockerfile: docker/demo/api.Dockerfile
+      target: build
+    network_mode: 'service:postgres'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    working_dir: /app/apps/api
+    command: ['pnpm', 'db:seed']
+    environment:
+      APP_ENV: development
+      # pnpm kiểm tra phụ thuộc trước khi chạy script và đòi `pnpm install` lại: tắt, image đã cài sẵn.
+      pnpm_config_verify_deps_before_run: 'false'
+      DATABASE_URL: postgresql://${DEMO_POSTGRES_USER:-drmayday}:${DEMO_POSTGRES_PASSWORD:-drmayday-demo-only}@localhost:5432/${DEMO_POSTGRES_DB:-drmayday_demo}
+      SEED_ADMIN_PHONE: ${DEMO_ADMIN_PHONE:-0900000001}
+      SEED_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-admin123}
+      SEED_SAMPLE_PASSWORD: ${DEMO_SAMPLE_PASSWORD:-demo1234}
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/demo/api.Dockerfile
+      target: runtime
+    restart: unless-stopped
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    environment:
+      APP_ENV: production
+      PORT: '3000'
+      DATABASE_URL: postgresql://${DEMO_POSTGRES_USER:-drmayday}:${DEMO_POSTGRES_PASSWORD:-drmayday-demo-only}@postgres:5432/${DEMO_POSTGRES_DB:-drmayday_demo}
+      JWT_SECRET: ${DEMO_JWT_SECRET:-demo-only-jwt-secret-khong-dung-that-0123456789}
+      # Web gọi API cùng origin qua nginx, app mobile gọi trực tiếp: không cần CORS_ORIGINS.
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/api/v1/health']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/demo/web.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      # Mở trên mọi giao diện mạng: điện thoại (Expo Go) gọi API qua http://<IP LAN>:cổng/api/v1.
+      - '${DEMO_WEB_PORT:-8080}:80'
+
+volumes:
+  demo-postgres-data:
