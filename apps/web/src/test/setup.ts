@@ -27,6 +27,20 @@ globalThis.ResizeObserver = class {
   disconnect() {}
 };
 
+// Node 25/26 thêm experimental globalThis.localStorage bị undefined khi không có --localstorage-file.
+// Gán lại bằng window.localStorage của jsdom nếu có.
+if (typeof window !== 'undefined' && window.localStorage) {
+  try {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: window.localStorage,
+      writable: true,
+      configurable: true,
+    });
+  } catch {
+    // ignore
+  }
+}
+
 afterEach(() => {
   cleanup();
   localStorage.clear();

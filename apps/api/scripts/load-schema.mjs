@@ -17,6 +17,9 @@ const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 
 /** Từ chối CSDL không nằm trên máy này. Thông báo chỉ nêu host, không nêu URL (có mật khẩu). */
 export function assertLocalDatabase(url) {
+  if (process.env.ALLOW_REMOTE_DB === 'true') {
+    return;
+  }
   let parsed;
   try {
     parsed = new URL(url);
