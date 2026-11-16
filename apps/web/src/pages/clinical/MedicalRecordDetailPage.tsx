@@ -2,7 +2,6 @@ import { describeError, RECORD_TYPE_LABELS, type MedicalRecordData } from '@drma
 import { Alert, Descriptions, Skeleton, Space } from 'antd';
 import { useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
-import { EMPTY_VALUE } from '../../clinical/clinical-display';
 import { useMedicalRecord, usePatientHistory } from '../../clinical/medical-records-api';
 import { RecordTypeBadge } from '../../clinical/record-type';
 import { MedicalRecordStatusTag } from '../../clinical/status';
@@ -10,7 +9,7 @@ import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { ItemList } from '../../components/ItemList';
 import { Page } from '../../layout/Page';
 import { Panel } from '../../layout/Panel';
-import { formatDate, formatDateTime } from '../../lib/format-date';
+import { EMPTY_VALUE, firstVisitText, formatDate, formatDateTime } from '../../lib/format-date';
 import { AddVisitModal } from './records/AddVisitModal';
 import { CaseFieldsPanel } from './records/CaseFieldsPanel';
 import { RecordActions } from './records/RecordActions';
@@ -19,11 +18,6 @@ import { useTransitions } from './records/TransitionModals';
 import { VisitsPanel } from './records/VisitsPanel';
 
 const BACK = { to: '/medical-records', label: 'Bệnh án' };
-
-/** "Khám lần đầu …" hoặc "Chưa đến khám" (hồ sơ chưa tiếp nhận, D-B9). */
-function firstVisitText(firstVisitAt: string | null): string {
-  return firstVisitAt ? formatDateTime(firstVisitAt) : 'Chưa đến khám';
-}
 
 /** Phụ đề: họ tên (link tới trang bệnh nhân) · loại · trạng thái (spec B, mục 8.7). */
 function RecordSubtitle({ record }: { record: MedicalRecordData }) {
@@ -81,9 +75,10 @@ function HistoryPanel({ patientId }: { patientId: number }) {
               <span>{RECORD_TYPE_LABELS[item.record_type]}</span>
               <MedicalRecordStatusTag status={item.status} />
               <span>
-                {item.first_visit_at
-                  ? `Khám lần đầu ${formatDateTime(item.first_visit_at)}`
-                  : 'Chưa đến khám'}
+                {firstVisitText(
+                  item.first_visit_at,
+                  (iso) => `Khám lần đầu ${formatDateTime(iso)}`,
+                )}
               </span>
             </Space>
             {item.instructions && <span>{item.instructions}</span>}

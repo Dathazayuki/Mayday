@@ -33,7 +33,7 @@ export function CaseFieldsPanel({
         formName="record-core"
         blocks={core}
         editable={editable}
-        toChanges={(values) => recordChanges(core, values)}
+        toChanges={recordChanges}
         onSave={save}
       />
       <ClinicalPanel
@@ -41,7 +41,7 @@ export function CaseFieldsPanel({
         formName={`record-${record.record_type === 'CAP' ? 'acute' : 'chronic'}`}
         blocks={typed}
         editable={editable}
-        toChanges={(values) => recordChanges(typed, values)}
+        toChanges={recordChanges}
         onSave={save}
       />
     </>

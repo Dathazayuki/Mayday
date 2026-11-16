@@ -1,8 +1,5 @@
 import { DURATION_UNITS, secondsToDuration, type ClinicalField } from '@drmayday/shared';
-import { formatDate, formatDateTime } from '../lib/format-date';
-
-/** Ô trống ở chế độ xem (spec B, mục 8.7). */
-export const EMPTY_VALUE = '—';
+import { EMPTY_VALUE, formatDate, formatDateTime } from '../lib/format-date';
 
 const UNIT_LABELS = Object.fromEntries(DURATION_UNITS.map((unit) => [unit.value, unit.label]));
 

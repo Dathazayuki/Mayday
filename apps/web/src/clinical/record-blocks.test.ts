@@ -61,9 +61,9 @@ describe('record-blocks: khối của màn chi tiết (spec B, mục 8.7)', () =
     const visit = chronicVisit();
     const blocks = visitBlocks(visit, 'MAN');
     const values = { ...initialFormValues(blocks), room_id: 1 };
-    expect(visitChanges(visit, blocks, values)).toEqual({});
-    expect(visitChanges(visit, blocks, { ...values, room_id: 2 })).toEqual({ room_id: 2 });
-    expect(visitChanges(visit, blocks, { ...values, room_id: undefined })).toEqual({
+    expect(visitChanges(visit.room_id, blocks, values)).toEqual({});
+    expect(visitChanges(visit.room_id, blocks, { ...values, room_id: 2 })).toEqual({ room_id: 2 });
+    expect(visitChanges(visit.room_id, blocks, { ...values, room_id: undefined })).toEqual({
       room_id: null,
     });
   });

@@ -16,7 +16,7 @@ import { QueryErrorAlert } from '../../components/crud/QueryErrorAlert';
 import { useEntityModal } from '../../components/crud/use-entity-modal';
 import { Page } from '../../layout/Page';
 import { Panel } from '../../layout/Panel';
-import { formatDate, formatDateTime, formatInstantDate } from '../../lib/format-date';
+import { EMPTY_VALUE, firstVisitText, formatDate, formatInstantDate } from '../../lib/format-date';
 import { genderLabel, patientFieldItems } from '../../profile/patient-field-items';
 import { toFormValues, type ProfileFormValues } from '../../profile/profile-form';
 import { AccountBadge } from './patients/AccountBadge';
@@ -79,17 +79,17 @@ function RecordsPanel({ patientId }: { patientId: number }) {
           {
             title: 'Khám lần đầu',
             dataIndex: 'first_visit_at',
-            render: (value: string | null) => (value ? formatDateTime(value) : 'Chưa đến khám'),
+            render: (value: string | null) => firstVisitText(value),
           },
           {
             title: 'Lần khám gần nhất',
             dataIndex: 'last_visit_date',
-            render: (value: string | null) => (value ? formatDate(value) : '—'),
+            render: (value: string | null) => (value ? formatDate(value) : EMPTY_VALUE),
           },
           {
             title: 'Dặn dò',
             dataIndex: 'instructions',
-            render: (value: string | null) => value ?? '—',
+            render: (value: string | null) => value ?? EMPTY_VALUE,
           },
         ]}
       />

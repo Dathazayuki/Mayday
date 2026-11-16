@@ -19,6 +19,7 @@ import {
   shownInView,
   toFormValue,
   type ClinicalBlock,
+  withinPlaces,
 } from './clinical-form';
 
 const field = (fields: readonly ClinicalField[], key: string): ClinicalField => {
@@ -201,5 +202,16 @@ describe('clinical-form: nhóm, ô ghi rõ, lỗi có field', () => {
     expect(fieldErrorPath(new ApiError('2003', 'x', 400))).toBeNull();
     expect(fieldErrorPath(new ApiError('3105', 'x', 403, { field: 'acute' }))).toBeNull();
     expect(fieldErrorPath(new Error('x'))).toBeNull();
+  });
+});
+
+describe('clinical-form: số chữ số thập phân', () => {
+  it('withinPlaces: không quá số chữ số cho phép, chịu được sai số số thực', () => {
+    expect(withinPlaces(1.23, 2)).toBe(true);
+    expect(withinPlaces(38.5, 1)).toBe(true);
+    expect(withinPlaces(2, 2)).toBe(true);
+    expect(withinPlaces(1.234, 2)).toBe(false);
+    expect(withinPlaces(38.55, 1)).toBe(false);
+    expect(withinPlaces(0.07, 2)).toBe(true);
   });
 });

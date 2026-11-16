@@ -1,5 +1,6 @@
 import { CLINICAL_GROUP_LABELS, type ClinicalField } from '@drmayday/shared';
 import { AutoComplete, DatePicker, Form, Input, InputNumber, Segmented, Select } from 'antd';
+import type { Rule } from 'antd/es/form';
 import type { ReactElement } from 'react';
 import {
   BOOL_CHOICES,
@@ -9,6 +10,7 @@ import {
   flagFieldOf,
   fromFormValue,
   type ClinicalBlock,
+  withinPlaces,
 } from '../../../clinical/clinical-form';
 import { DurationInput } from './DurationInput';
 
@@ -62,13 +64,27 @@ function clinicalInput(field: ClinicalField): ReactElement {
   }
 }
 
+/** Luật của ô: số thập phân không quá `places` chữ số (cột NUMERIC của CSDL). */
+function clinicalRules(field: ClinicalField): Rule[] {
+  if (field.type !== 'decimal') return [];
+  return [
+    {
+      validator: (_, value: unknown) =>
+        typeof value !== 'number' || withinPlaces(value, field.places)
+          ? Promise.resolve()
+          : Promise.reject(new Error(`Tối đa ${field.places} chữ số thập phân`)),
+    },
+  ];
+}
+
 /**
- * Một ô của khối. Ô ghi rõ (`detailOf`) chỉ hiện khi cờ bật hoặc chọn "Có"; tắt cờ thì ô bị gỡ khỏi form
- * (`preserve={false}` của ClinicalForm) nên giá trị đã gõ bị xoá ngay (D-B14).
+ * Một ô của khối. Ô ghi rõ (`detailOf`) chỉ hiện khi cờ bật hoặc chọn "Có"; khi cờ tắt ô bị gỡ khỏi form
+ * (`preserve={false}` của ClinicalForm) nên giá trị đã gõ trở về giá trị ban đầu của form, và ô ẩn không
+ * bao giờ được gửi lên (D-B14: API tự ghi null khi cờ tắt).
  */
 function ClinicalFormItem({ block, field }: { block: ClinicalBlock; field: ClinicalField }) {
   const item = (
-    <Form.Item name={fieldName(block, field.key)} label={field.label}>
+    <Form.Item name={fieldName(block, field.key)} label={field.label} rules={clinicalRules(field)}>
       {clinicalInput(field)}
     </Form.Item>
   );

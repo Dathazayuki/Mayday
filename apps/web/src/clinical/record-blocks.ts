@@ -94,13 +94,13 @@ export function visitBlocks(visit: VisitData, type: RecordType): ClinicalBlock[]
   ];
 }
 
-/** Body PATCH /visits/:id: trường đã đổi của các khối, cộng `room_id` khi đổi phòng (null = chưa phân phòng, MT-115). */
+/** Body PATCH /visits/:id: trường đã đổi của các khối, cộng `room_id` khi khác phòng lúc bắt đầu sửa (null = chưa phân phòng, MT-115). */
 export function visitChanges(
-  visit: Pick<VisitData, 'room_id'>,
+  currentRoomId: VisitData['room_id'],
   blocks: readonly ClinicalBlock[],
   values: ClinicalFormValues,
 ): UpdateVisitRequest {
   const changes = clinicalChanges(blocks, values) as UpdateVisitRequest;
   const roomId = typeof values.room_id === 'number' ? values.room_id : null;
-  return roomId === visit.room_id ? changes : { ...changes, room_id: roomId };
+  return roomId === currentRoomId ? changes : { ...changes, room_id: roomId };
 }

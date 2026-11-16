@@ -1,7 +1,7 @@
 import type { RecordType, VisitData } from '@drmayday/shared';
 import { Button } from 'antd';
 import { useState } from 'react';
-import { initialFormValues } from '../../../clinical/clinical-form';
+import { initialFormValues, type ClinicalBlock } from '../../../clinical/clinical-form';
 import { visitBlocks, visitChanges } from '../../../clinical/record-blocks';
 import { useUpdateVisit } from '../../../clinical/visits-api';
 import { ClinicalDescriptions } from './ClinicalDescriptions';
@@ -23,21 +23,27 @@ export function VisitForm({
   recordType: RecordType;
   editable: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<{ blocks: ClinicalBlock[]; roomId: number | null } | null>(
+    null,
+  );
   const update = useUpdateVisit();
   const blocks = visitBlocks(visit, recordType);
 
   if (editing && editable) {
+    // Dữ liệu chụp lúc bấm "Sửa" dùng cho cả giá trị ban đầu lẫn phép so sánh (dữ liệu tải lại giữa chừng không thành thay đổi).
     return (
       <ClinicalForm
         name={`visit-${visit.visit_id}`}
-        initialValues={{ ...initialFormValues(blocks), room_id: visit.room_id ?? undefined }}
-        toChanges={(values) => visitChanges(visit, blocks, values)}
+        initialValues={{
+          ...initialFormValues(editing.blocks),
+          room_id: editing.roomId ?? undefined,
+        }}
+        toChanges={(values) => visitChanges(editing.roomId, editing.blocks, values)}
         onSave={(body) => update.mutateAsync({ id: visit.visit_id, body })}
-        onClose={() => setEditing(false)}
+        onClose={() => setEditing(null)}
       >
         <RoomField />
-        <ClinicalFieldset blocks={blocks} />
+        <ClinicalFieldset blocks={editing.blocks} />
       </ClinicalForm>
     );
   }
@@ -48,7 +54,7 @@ export function VisitForm({
           <Button
             size="small"
             aria-label={`Sửa phiên khám lần ${visit.visit_number}`}
-            onClick={() => setEditing(true)}
+            onClick={() => setEditing({ blocks, roomId: visit.room_id })}
           >
             Sửa
           </Button>

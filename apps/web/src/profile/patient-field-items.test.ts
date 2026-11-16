@@ -32,18 +32,18 @@ describe('patientFieldItems', () => {
     ]);
   });
 
-  it('có lần khám đầu tiên → ngày giờ theo vi-VN; thiếu năm sinh, nghề nghiệp → —', () => {
+  it('có lần khám đầu tiên → dd/MM/yyyy HH:mm; thiếu năm sinh, nghề nghiệp → —', () => {
     const items = patientFieldItems({
       ...PROFILE,
       year_of_birth: null,
       career: null,
-      first_visit: '2026-11-15T01:02:03.000Z',
+      first_visit: new Date(2026, 10, 15, 8, 2, 3).toISOString(),
     });
     expect(items[0]).toEqual({ label: 'Năm sinh', value: '—' });
     expect(items[1]).toEqual({ label: 'Nghề nghiệp', value: '—' });
     expect(items.at(-1)).toEqual({
       label: 'Lần khám đầu tiên',
-      value: new Date('2026-11-15T01:02:03.000Z').toLocaleString('vi-VN'),
+      value: '15/11/2026 08:02',
     });
   });
 });

@@ -10,9 +10,11 @@ describe('format-date', () => {
     expect(formatDate('abc')).toBe('abc');
   });
 
-  it('formatDateTime dùng định dạng vi-VN', () => {
-    const iso = '2026-11-15T08:00:00.000Z';
-    expect(formatDateTime(iso)).toBe(new Date(iso).toLocaleString('vi-VN'));
+  it('formatDateTime: "dd/MM/yyyy HH:mm" 24 giờ theo giờ máy, không có giây', () => {
+    // Dựng từ giờ địa phương nên kết quả không phụ thuộc múi giờ của môi trường test.
+    expect(formatDateTime(new Date(2026, 10, 15, 8, 5, 42).toISOString())).toBe('15/11/2026 08:05');
+    expect(formatDateTime(new Date(2026, 0, 2, 0, 0).toISOString())).toBe('02/01/2026 00:00');
+    expect(formatDateTime(new Date(2026, 11, 31, 23, 59).toISOString())).toBe('31/12/2026 23:59');
   });
 
   it('formatInstantDate chỉ lấy ngày dd/MM/yyyy theo giờ máy', () => {

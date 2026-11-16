@@ -18,7 +18,7 @@ import { MedicalRecordStatusTag } from '../../../clinical/status';
 import { EntityTable } from '../../../components/crud/EntityTable';
 import { QueryErrorAlert } from '../../../components/crud/QueryErrorAlert';
 import { usePageClamp } from '../../../components/crud/use-page-clamp';
-import { formatDate, formatDateTime } from '../../../lib/format-date';
+import { EMPTY_VALUE, firstVisitText, formatDate } from '../../../lib/format-date';
 
 /** Khoá tab "Tất cả" (không lọc trạng thái). */
 const ALL = 'all';
@@ -137,12 +137,12 @@ export function RecordTable({
           {
             title: 'Bác sĩ phụ trách',
             dataIndex: 'assigned_doctor_name',
-            render: (value: string | null) => value ?? '—',
+            render: (value: string | null) => value ?? EMPTY_VALUE,
           },
           {
             title: 'Khám lần đầu',
             dataIndex: 'first_visit_at',
-            render: (value: string | null) => (value ? formatDateTime(value) : 'Chưa đến khám'),
+            render: (value: string | null) => firstVisitText(value),
           },
           {
             title: 'Lần khám gần nhất',
@@ -150,12 +150,12 @@ export function RecordTable({
             render: (_: unknown, row: MedicalRecordListItem) =>
               row.last_visit_date
                 ? `${formatDate(row.last_visit_date)} · lần ${row.visit_count}`
-                : '—',
+                : EMPTY_VALUE,
           },
           {
             title: 'Hẹn tái khám',
             dataIndex: 'next_appointment_date',
-            render: (value: string | null) => (value ? formatDate(value) : '—'),
+            render: (value: string | null) => (value ? formatDate(value) : EMPTY_VALUE),
           },
         ]}
       />

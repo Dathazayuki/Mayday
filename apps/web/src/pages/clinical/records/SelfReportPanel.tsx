@@ -17,7 +17,7 @@ export function SelfReportPanel({ record }: { record: MedicalRecordData }) {
       formName="record-self-report"
       blocks={blocks}
       editable={record.allowed_actions.includes('edit')}
-      toChanges={(values) => recordChanges(blocks, values)}
+      toChanges={recordChanges}
       onSave={(body) => update.mutateAsync({ id: record.medical_record_id, body })}
     />
   );

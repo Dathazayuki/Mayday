@@ -3,7 +3,7 @@ import { MEDICAL_RECORD_ACTION_LABELS, type MedicalRecordListItem } from '@drmay
 import { Button, Dropdown, Spin, type MenuProps } from 'antd';
 import type { TransitionKind } from '../../../clinical/board-rules';
 import { RecordTypeBadge } from '../../../clinical/record-type';
-import { formatDate, formatShortDateTime } from '../../../lib/format-date';
+import { firstVisitText, formatDate, formatShortDateTime } from '../../../lib/format-date';
 
 /** Thao tác từ thẻ: mở màn chi tiết, thêm phiên khám (mở chi tiết), hoặc một chuyển trạng thái. */
 export type RecordCardAction = 'open' | 'add_visit' | TransitionKind;
@@ -19,9 +19,7 @@ function CardFooter({ record }: { record: MedicalRecordListItem }) {
       // CSDL không lưu ai tạo hồ sơ nên thẻ không ghi "tự khai" (D-B9).
       return (
         <div className="dm-card__meta">
-          {record.first_visit_at
-            ? `Đến khám ${formatShortDateTime(record.first_visit_at)}`
-            : 'Chưa đến khám'}
+          {firstVisitText(record.first_visit_at, (iso) => `Đến khám ${formatShortDateTime(iso)}`)}
         </div>
       );
     case 'in_progress':

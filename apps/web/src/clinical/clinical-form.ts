@@ -187,6 +187,12 @@ export function clinicalSections(blocks: readonly ClinicalBlock[]): ClinicalSect
   return sections;
 }
 
+/** Số có không quá `places` chữ số thập phân (so với sai số của số thực, vd. 1,23 × 100). */
+export function withinPlaces(value: number, places: number): boolean {
+  const scaled = value * 10 ** places;
+  return Math.abs(scaled - Math.round(scaled)) < 1e-6;
+}
+
 /** Giá trị ban đầu của form cho các khối (lồng theo khoá của khối). */
 export function initialFormValues(blocks: readonly ClinicalBlock[]): ClinicalFormValues {
   const result: ClinicalFormValues = {};

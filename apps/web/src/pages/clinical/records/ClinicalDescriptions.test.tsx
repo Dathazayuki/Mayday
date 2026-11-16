@@ -18,6 +18,7 @@ describe('ClinicalDescriptions (chế độ xem, spec B mục 8.7)', () => {
     expect(screen.getByText('Không')).toBeInTheDocument();
     expect(screen.getAllByText('—')).toHaveLength(6);
     expect(screen.queryByText('Chẩn đoán xác định')).toBeNull();
+    expect(screen.queryByRole('heading', { level: 3 })).toBeNull();
   });
 
   it('ô ghi rõ chỉ hiện khi cờ đang lưu bật (D-B14)', () => {
@@ -43,14 +44,19 @@ describe('ClinicalDescriptions (chế độ xem, spec B mục 8.7)', () => {
         ]}
       />,
     );
-    for (const title of [
-      'Chẩn đoán tuyến trước và bảo hiểm',
-      'Thời gian diễn biến',
-      'Thông tin hành chính',
-      'Tiền sử gia đình',
-      'Điều trị trước đó',
-    ]) {
-      expect(screen.getAllByText(title).length).toBeGreaterThan(0);
-    }
+    // Cùng thẻ h3 với tiêu đề nhóm của form để chế độ xem và sửa trông như nhau.
+    const headings = screen.getAllByRole('heading', { level: 3 });
+    expect(
+      headings.every((heading) => heading.classList.contains('dm-clinical-group__title')),
+    ).toBe(true);
+    expect(headings.map((heading) => heading.textContent)).toEqual(
+      expect.arrayContaining([
+        'Chẩn đoán tuyến trước và bảo hiểm',
+        'Thời gian diễn biến',
+        'Thông tin hành chính',
+        'Tiền sử gia đình',
+        'Điều trị trước đó',
+      ]),
+    );
   });
 });

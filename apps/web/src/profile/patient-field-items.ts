@@ -5,11 +5,8 @@ import {
   type PatientEditableField,
   type PatientProfileFields,
 } from '@drmayday/shared';
-import { formatDate, formatDateTime } from '../lib/format-date';
+import { EMPTY_VALUE, formatDate, formatDateTime } from '../lib/format-date';
 import { PATIENT_FIELD_LABELS } from './profile-form';
-
-/** Ô trống trong bảng thông tin. */
-export const EMPTY_VALUE = '—';
 
 /** Một dòng của bảng thông tin (antd Descriptions): nhãn và giá trị đã định dạng. */
 export interface FieldItem {

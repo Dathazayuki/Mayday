@@ -3,8 +3,10 @@ import {
   RECORD_ACUTE_FIELDS,
   RECORD_CHRONIC_FIELDS,
   RECORD_CORE_FIELDS,
+  SELF_REPORT_FIELDS,
 } from '@drmayday/shared';
 import { App, ConfigProvider } from 'antd';
+import { useState } from 'react';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { clinicalChanges, type ClinicalBlock } from '../../../clinical/clinical-form';
@@ -61,7 +63,7 @@ function setup(
           formName="test-panel"
           blocks={blocks}
           editable={editable}
-          toChanges={(values) => clinicalChanges(blocks, values)}
+          toChanges={clinicalChanges}
           onSave={onSave}
         />
       </App>
@@ -192,5 +194,69 @@ describe('ClinicalPanel (spec B, mục 8.7)', () => {
       'Bác sĩ không phụ trách bệnh án này',
     );
     expect(screen.getByRole('button', { name: 'Lưu' })).toBeInTheDocument();
+  });
+
+  it('so sánh với dữ liệu lúc bấm "Sửa": dữ liệu server đổi giữa chừng không bị ghi đè bằng giá trị cũ của form', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn(() => Promise.resolve({}));
+    const stored: ClinicalBlock = { ...CORE, values: { ...CORE.values, first_visit_at: null } };
+    const refreshed: ClinicalBlock = {
+      ...CORE,
+      values: { ...CORE.values, first_visit_at: '2026-11-16T02:00:00.000Z' },
+    };
+
+    function Harness() {
+      const [blocks, setBlocks] = useState<readonly ClinicalBlock[]>([stored]);
+      return (
+        <ConfigProvider theme={{ token: { motion: false } }}>
+          <App>
+            <button type="button" onClick={() => setBlocks([refreshed])}>
+              Tải lại dữ liệu
+            </button>
+            <ClinicalPanel
+              title="Hồ sơ"
+              formName="test-panel"
+              blocks={blocks}
+              editable
+              toChanges={clinicalChanges}
+              onSave={onSave}
+            />
+          </App>
+        </ConfigProvider>
+      );
+    }
+    renderApp(<Harness />);
+
+    await user.click(screen.getByRole('button', { name: 'Sửa Hồ sơ' }));
+    await user.click(screen.getByRole('button', { name: 'Tải lại dữ liệu' }));
+    await chooseBool(user, 'Đã điều trị trước khi khám', 'Không');
+    await user.click(screen.getByRole('button', { name: 'Lưu' }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ treated_before_visit: false }));
+  });
+
+  it('số thập phân quá số chữ số của bộ mô tả bị chặn ở ô, không gọi API', async () => {
+    const user = userEvent.setup();
+    const weeks: ClinicalBlock = {
+      path: 'self_report',
+      fields: SELF_REPORT_FIELDS,
+      values: { onset_weeks: 2 },
+    };
+    const { onSave } = setup([weeks]);
+    await user.click(screen.getByRole('button', { name: 'Sửa Hồ sơ' }));
+
+    const input = screen.getByLabelText('Thời gian khởi phát bệnh (tuần)');
+    await user.clear(input);
+    await user.type(input, '1,234');
+    await user.click(screen.getByRole('button', { name: 'Lưu' }));
+    expect(await screen.findByText('Tối đa 2 chữ số thập phân')).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+
+    await user.clear(input);
+    await user.type(input, '1,23');
+    await user.click(screen.getByRole('button', { name: 'Lưu' }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({ self_report: { onset_weeks: 1.23 } }),
+    );
   });
 });

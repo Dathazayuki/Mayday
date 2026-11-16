@@ -6,8 +6,8 @@ import {
   VISIT_CORE_FIELDS,
   type ClinicalField,
 } from '@drmayday/shared';
-import { formatDateTime } from '../lib/format-date';
-import { EMPTY_VALUE, formatClinicalValue } from './clinical-display';
+import { EMPTY_VALUE, formatDateTime } from '../lib/format-date';
+import { formatClinicalValue } from './clinical-display';
 
 const field = (fields: readonly ClinicalField[], key: string): ClinicalField => {
   const found = fields.find((item) => item.key === key);

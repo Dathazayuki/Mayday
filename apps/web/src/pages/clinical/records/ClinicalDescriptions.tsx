@@ -15,20 +15,22 @@ import {
 export function ClinicalDescriptions({ blocks }: { blocks: readonly ClinicalBlock[] }) {
   const sections = clinicalSections(blocks);
   return sections.map((section) => (
-    <Descriptions
-      key={section.key}
-      className="dm-clinical-group"
-      title={sections.length > 1 ? CLINICAL_GROUP_LABELS[section.group] : undefined}
-      column={{ xs: 1, md: 2 }}
-      bordered
-      size="small"
-      items={section.fields
-        .filter((field) => shownInView(field, section.block))
-        .map((field) => ({
-          key: field.key,
-          label: field.label,
-          children: formatClinicalValue(field, blockValue(section.block, field)),
-        }))}
-    />
+    <section key={section.key} className="dm-clinical-group">
+      {sections.length > 1 && (
+        <h3 className="dm-clinical-group__title">{CLINICAL_GROUP_LABELS[section.group]}</h3>
+      )}
+      <Descriptions
+        column={{ xs: 1, md: 2 }}
+        bordered
+        size="small"
+        items={section.fields
+          .filter((field) => shownInView(field, section.block))
+          .map((field) => ({
+            key: field.key,
+            label: field.label,
+            children: formatClinicalValue(field, blockValue(section.block, field)),
+          }))}
+      />
+    </section>
   ));
 }
