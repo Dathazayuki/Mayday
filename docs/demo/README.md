@@ -16,9 +16,9 @@ Trình duyệt và điện thoại cùng gọi `http://<máy chủ>:8080/api/v1/
 ## 1. Chuẩn bị máy demo
 
 1. Cài [Docker Desktop](https://www.docker.com/products/docker-desktop/) và bật lên (đợi biểu tượng cá voi báo "running"). Cần khoảng 8 GB trống cho image và bộ nhớ đệm build; lần build đầu mất 10 đến 20 phút và cần Internet.
-2. Lấy mã nguồn, bỏ qua `.env` (chứa bí mật của lập trình viên) và `node_modules`:
-   - Trên máy dev: `git archive --format=zip -o drmayday.zip main`, chép file zip sang máy demo rồi giải nén; hoặc
-   - chép nguyên thư mục mã nguồn **không kèm** `.env`, `node_modules`, `.worktrees`.
+2. Lấy mã nguồn:
+   - từ GitHub: `git clone https://github.com/truonggiang22b/LTW-Dr-Mayday.git`, hoặc bấm **Code → Download ZIP** rồi giải nén; hoặc
+   - từ máy dev, bỏ qua `.env` (chứa bí mật của lập trình viên) và `node_modules`: `git archive --format=zip -o drmayday.zip main`, chép file zip sang máy demo rồi giải nén.
 3. Mở terminal ở thư mục gốc mã nguồn (nơi có `docker-compose.demo.yml`).
 
 ## 2. Chạy

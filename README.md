@@ -4,6 +4,22 @@ Hệ thống quản lý khám bệnh và theo dõi bệnh mề đay: API (NestJS
 
 Tài liệu chuẩn của dự án nằm ở [docs/README.md](docs/README.md). Khi gặp điểm lệch giữa các nguồn, xem [docs/05-mau-thuan-can-chot.md](docs/05-mau-thuan-can-chot.md).
 
+## Chạy thử nhanh (chỉ cần Docker)
+
+Dành cho người chỉ muốn chạy thử hoặc demo: không cần Node, `pnpm install` hay file `.env`.
+
+1. Cài [Docker Desktop](https://www.docker.com/products/docker-desktop/) và bật lên. Cần khoảng 8 GB trống.
+2. Tải mã nguồn: `git clone https://github.com/truonggiang22b/LTW-Dr-Mayday.git`, hoặc bấm **Code → Download ZIP** trên GitHub rồi giải nén.
+3. Mở terminal trong thư mục mã nguồn và chạy (lần đầu mất 10 đến 20 phút, cần Internet):
+
+   ```bash
+   docker compose -f docker-compose.demo.yml up -d --build
+   ```
+
+4. Mở http://localhost:8080 và đăng nhập Admin `0900000001` / `admin123` hoặc Bác sĩ `0900000002` / `demo1234` (mật khẩu chỉ dùng cho demo).
+
+Tài khoản đủ các vai trò, app bệnh nhân qua Expo Go, đổi cổng khi 8080 bận và xử lý sự cố: [docs/demo/README.md](docs/demo/README.md). Kịch bản demo 5 đến 10 phút: [docs/demo/kich-ban-demo.md](docs/demo/kich-ban-demo.md).
+
 ## Cấu trúc
 
 | Thư mục           | Nội dung                                                                                 |
@@ -80,16 +96,6 @@ Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXP
 - `APP_ENV=production` bắt buộc có `DATABASE_URL` và nên đặt `CORS_ORIGINS` cho domain của Web (để trống thì trình duyệt ở origin khác bị chặn). App mobile không bị CORS chặn.
 - `.env` gốc dùng chung với Vite: **không** đặt `NODE_ENV` trong đó (API dùng `APP_ENV`).
 - Hiện đã chạy: API giai đoạn 1 và 2 (xác thực, hồ sơ, cơ sở vật chất, quản trị, vai trò, quyền), API bệnh nhân, hồ sơ bệnh án, chuyển trạng thái, phiên khám và Tổng quan của giai đoạn 4 (`/doctor/patients…`, `/medical_records…`, `/visits/:id`, `/dashboard/summary`, tiểu dự án B1–B6); Web có trang bệnh án hai chế độ bảng/cột (kéo thả), trang Tổng quan và màn chi tiết bệnh án có kiểu (tự khai, hồ sơ, bệnh án cấp/mạn, phiên khám); Mobile: bệnh nhân tự khai bệnh án mới (chọn mày đay cấp/mạn, khai phần tự khai: 3 trường với mày đay cấp, 4 với mày đay mạn), sửa phần tự khai và tự huỷ khi bác sĩ chưa tiếp nhận, xem bệnh án và các lần khám. Các màn giai đoạn 5–8 trên Web, Mobile chưa có API tương ứng nên sẽ nhận 404. Xem [docs/07-tien-do.md](docs/07-tien-do.md).
-
-## Chạy demo bằng Docker
-
-Dựng cả CSDL (lược đồ thật và dữ liệu mẫu), API và Web trên máy khác chỉ với một lệnh (cần Docker Desktop):
-
-```bash
-docker compose -f docker-compose.demo.yml up -d --build   # Web ở http://localhost:8080
-```
-
-Hướng dẫn chuẩn bị máy demo, tài khoản mẫu, chạy app mobile qua Expo Go: [docs/demo/README.md](docs/demo/README.md). Kịch bản demo 5 đến 10 phút: [docs/demo/kich-ban-demo.md](docs/demo/kich-ban-demo.md).
 
 ## Kiểm tra
 
