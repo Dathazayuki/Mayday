@@ -2,7 +2,7 @@
 
 Dựng bộ demo theo [README.md](README.md) trước. Mở sẵn: Web ở `http://localhost:8080` (hai cửa sổ ẩn danh hoặc hai trình duyệt để đổi vai trò nhanh) và Expo Go trên điện thoại đã đăng nhập sẵn màn hình đăng nhập của app. Tài khoản và mật khẩu: xem bảng "Tài khoản demo" ở README. Mỗi bước dưới đây chỉ dùng các màn hình đã có trên `main`.
 
-Thời lượng gợi ý: Admin 2 phút, Bác sĩ 5 đến 6 phút, Bệnh nhân 2 phút.
+Thời lượng gợi ý: Admin 2 phút, Bác sĩ 5 đến 6 phút, Bệnh nhân 2 phút, tự khai 2 đến 3 phút. Cần gọn trong 10 phút thì bỏ bước 6 đến 8 của phần Bác sĩ.
 
 ## 1. Admin: quản trị hệ thống (khoảng 2 phút)
 
@@ -38,14 +38,16 @@ Trên điện thoại, đăng nhập `0900000004` / `demo1234` (BỆNH NHÂN M�
 3. **Tab "Bệnh án".** Danh sách bệnh án của chính bệnh nhân này (2 bệnh án mạn tính, trạng thái khác nhau): mỗi dòng có mã, loại, ngày và trạng thái. Bấm vào một bệnh án để xem chi tiết: loại bệnh án, ngày khám, bác sĩ phụ trách và dặn dò của bác sĩ (nếu đã hoàn tất).
 4. Quay lại Web, đăng nhập bác sĩ, mở cùng bệnh nhân để cho thấy cùng một dữ liệu hai phía (bác sĩ ghi, bệnh nhân xem).
 
-Lưu ý khi trình bày: màn "tạo bệnh án" trong app hiện là "Đang phát triển" (xem mục cuối); các tab UAS7, tổn thương da, thông báo chỉ cho xem lướt. Ảnh/tệp đính kèm (kể cả chụp ảnh tổn thương da) không dùng được vì bộ demo không có MinIO.
+Lưu ý khi trình bày: các tab UAS7, tổn thương da, thông báo chỉ cho xem lướt. Ảnh/tệp đính kèm (kể cả chụp ảnh tổn thương da) không dùng được vì bộ demo không có MinIO.
 
-## Sau khi lát B6 vào (chưa có, không trình diễn)
+## 4. Bệnh nhân tự khai, bác sĩ tiếp nhận (khoảng 2 đến 3 phút)
 
-Lát B6 (bệnh nhân tự khai trên mobile) **chưa có trên `main`**, nên các bước dưới đây chưa demo được. Khi B6 được gộp, thêm vào kịch bản (sau mục 3) và cập nhật lại tài liệu này:
+Vẫn trên điện thoại với `0900000004`; Web mở sẵn bằng tài khoản bác sĩ `0900000002`. Lời dẫn: "Bệnh nhân khai trước ở nhà, bác sĩ tiếp nhận khi đến khám."
 
-- Bệnh nhân **tạo phần tự khai** của bệnh án ngay trên app (nút tạo bệnh án hiện đang là "Đang phát triển");
-- Bệnh nhân **sửa phần tự khai** khi hồ sơ còn ở trạng thái cho phép;
-- Bệnh nhân **tự huỷ hồ sơ chưa tiếp nhận**;
-- Bác sĩ thấy hồ sơ vừa tự khai ở cột "Chờ tiếp nhận" và **tiếp nhận** nó (khép vòng bệnh nhân khai, bác sĩ khám);
-- Dữ liệu mẫu: bệnh nhân `0900000005` đã có sẵn một bệnh án tự khai ở trạng thái chờ tiếp nhận để minh hoạ.
+1. **Tạo bệnh án tự khai.** Tab "Bệnh án", bấm "Tạo bệnh án mới". Ở "Loại bệnh án" chọn "Mày đay cấp (dưới 6 tuần)" hoặc "Mày đay mạn (từ 6 tuần trở lên)"; chỉ ra dòng cảnh báo không đổi được loại sau khi gửi. Các ô tự khai hiện sau khi chọn loại (3 ô với mày đay cấp, 4 ô với mày đay mạn) và đều không bắt buộc: điền một hai ô rồi bấm "Gửi". App mở ngay chi tiết bệnh án mới, trạng thái chờ tiếp nhận.
+2. **Sửa phần tự khai.** Ở khối "Thông tin bạn đã khai" bấm "Sửa", đổi một ô rồi bấm "Lưu thay đổi". Lời dẫn: "Bệnh nhân sửa được tới khi bác sĩ tiếp nhận."
+3. **Bác sĩ tiếp nhận trên Web.** Tải lại `/medical-records`: thẻ vừa tạo nằm ở cột "Chờ tiếp nhận". Kéo sang "Đang khám" và bấm "Tiếp nhận" ở hộp xác nhận.
+4. **Bệnh nhân chỉ còn xem.** Quay lại điện thoại, mở lại bệnh án đó: nút "Sửa" và "Huỷ bệnh án" đã biến mất, thay bằng dòng "Bác sĩ đã tiếp nhận, thông tin chỉ xem".
+5. **Tự huỷ (tuỳ chọn).** Tạo thêm một bệnh án tự khai, bấm "Huỷ bệnh án" rồi xác nhận: bệnh án chuyển sang đã huỷ. Lời dẫn: "Khai nhầm thì bệnh nhân tự huỷ được khi bác sĩ chưa tiếp nhận."
+
+Dữ liệu mẫu có sẵn bệnh án #3 tự khai, chờ tiếp nhận, của `0900000005` (BỆNH NHÂN MẪU HAI) nếu muốn cho xem mà không tạo mới.
