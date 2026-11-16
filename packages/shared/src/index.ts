@@ -20,6 +20,7 @@ export * from './contracts/dashboard.js';
 export * from './clinical-fields.js';
 export * from './duration.js';
 export * from './vn-date.js';
+export * from './self-report.js';
 export * from './contracts/uas7.js';
 export * from './uas7.js';
 export * from './contracts/prescriptions.js';
