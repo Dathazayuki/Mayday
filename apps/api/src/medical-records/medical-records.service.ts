@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   vietnamDate,
   type AcceptMedicalRecordData,
@@ -9,8 +9,9 @@ import {
   type MedicalRecordStatusData,
   type MedicalRecordSummary,
 } from '@drmayday/shared';
-import { AppException } from '../common/app.exception.js';
+import { AppException, corruptData } from '../common/app.exception.js';
 import { pageWindow, Paginated } from '../common/paginated.js';
+import { PATIENT_ROLE_NAME } from '../roles/role-names.js';
 import type {
   CreateMedicalRecordDto,
   ListMedicalRecordsQuery,
@@ -26,6 +27,7 @@ import {
   toMedicalRecordStatusData,
   toMedicalRecordSummary,
   type MedicalRecord,
+  type NewMedicalRecord,
   type RecordFilter,
 } from './medical-record-mapping.js';
 import { MedicalRecordsRepository } from './medical-records.repository.js';
@@ -36,6 +38,7 @@ import {
   assertCanCancel,
   assertCanEdit,
   assertOwnRecord,
+  assertPatientBody,
   recordState,
   requireStaffPermission,
   requireStaffWriter,
@@ -51,6 +54,38 @@ function filterOf(query: StatusCountsQuery): Omit<RecordFilter, 'status'> {
 }
 
 /**
+ * Hồ sơ nhân viên tạo (medrec03): thiếu manage_medical_records → 3101 (trước khi đọc CSDL) → thiếu
+ * patient_id → 2001 → khối lệch loại, cặp ghi rõ, cặp ngày (2003/2001). first_visit_at vắng → bây giờ (D-B9).
+ */
+function staffRecord(caller: Caller, dto: CreateMedicalRecordDto): NewMedicalRecord {
+  requireStaffPermission(caller, 'manage_medical_records');
+  if (dto.patient_id === undefined) throw new AppException('2001', { field: 'patient_id' });
+  return {
+    patientId: dto.patient_id,
+    type: dto.record_type,
+    status: 'pending',
+    firstVisitAt: dto.first_visit_at ? new Date(dto.first_visit_at) : new Date(),
+    ...planNewRecord(dto),
+  };
+}
+
+/**
+ * Hồ sơ bệnh nhân tự khai (D-B30): chỉ record_type + self_report (khác → 3101) → biểu hiện bệnh với hồ sơ
+ * CAP (2003). Của chính người gọi: patient_id trong body bị bỏ qua (medrec03); first_visit_at để NULL tới
+ * lúc tiếp nhận (D-B9).
+ */
+function selfReportedRecord(caller: Caller, dto: CreateMedicalRecordDto): NewMedicalRecord {
+  assertPatientBody(dto);
+  return {
+    patientId: caller.userId,
+    type: dto.record_type,
+    status: 'pending',
+    firstVisitAt: null,
+    ...planNewRecord(dto),
+  };
+}
+
+/**
  * Hồ sơ bệnh án (spec B, mục 5.3): tạo, danh sách, số đếm, chi tiết, tóm tắt, lịch sử, sửa, xoá (B2); tiếp
  * nhận, hoàn tất/huỷ khi đang khám, huỷ (B3, mục 6.2). Thứ tự kiểm tra theo mục 6.3: quyền nhân viên (3101)
  * trước khi đọc CSDL; bệnh nhân chỉ hồ sơ của mình (3106); thao tác ghi khoá hồ sơ rồi mới xét trạng thái,
@@ -59,28 +94,27 @@ function filterOf(query: StatusCountsQuery): Omit<RecordFilter, 'status'> {
  */
 @Injectable()
 export class MedicalRecordsService {
+  private readonly logger = new Logger(MedicalRecordsService.name);
+
   constructor(
     private readonly records: MedicalRecordsRepository,
     private readonly transitions: RecordTransitionsRepository,
   ) {}
 
   /**
-   * medrec03: nhân viên tạo cho bệnh nhân bất kỳ. Thứ tự: 3101 → thiếu patient_id 2001 → khối lệch loại,
-   * cặp ghi rõ, cặp ngày (2003/2001) → 3007. Luôn ghi `pending` (D-B4); first_visit_at vắng → bây giờ (D-B9).
+   * medrec03, luôn ghi `pending` (D-B4): nhân viên tạo cho bệnh nhân bất kỳ (staffRecord), bệnh nhân tự
+   * khai cho chính mình (selfReportedRecord). Không có dòng benhnhan: nhân viên → 3007; bệnh nhân → 9901
+   * kèm log (tài khoản benh_nhan thiếu dòng benhnhan, MT-112).
    */
   async create(caller: Caller, dto: CreateMedicalRecordDto): Promise<MedicalRecordData> {
-    requireStaffWriter(caller, 'manage_medical_records');
-    if (dto.patient_id === undefined) throw new AppException('2001', { field: 'patient_id' });
-    const blocks = planNewRecord(dto);
-    const created = await this.records.create({
-      patientId: dto.patient_id,
-      type: dto.record_type,
-      status: 'pending',
-      firstVisitAt: dto.first_visit_at ? new Date(dto.first_visit_at) : new Date(),
-      ...blocks,
-    });
-    if (!created) throw new AppException('3007');
-    return this.toData(caller, created);
+    const record = caller.isPatient ? selfReportedRecord(caller, dto) : staffRecord(caller, dto);
+    const created = await this.records.create(record);
+    if (created) return this.toData(caller, created);
+    if (!caller.isPatient) throw new AppException('3007');
+    throw corruptData(
+      this.logger,
+      `Tài khoản của người ${caller.userId} có vai trò ${PATIENT_ROLE_NAME} nhưng không có dòng benhnhan (MT-112)`,
+    );
   }
 
   /** medrec04 (route khai báo view_medical_records): phần tử kèm allowed_actions của người gọi. */

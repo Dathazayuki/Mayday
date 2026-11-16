@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Paginated } from '../common/paginated.js';
 import {
   DOCTOR_ID,
@@ -123,14 +124,8 @@ describe('MedicalRecordsService (spec B, mục 5.3, 6.3)', () => {
       for (const [record] of records.create.mock.calls) expect(record.firstVisitAt).toEqual(NOW);
     });
 
-    it('thứ tự mã: bệnh nhân → 3101 (nhánh tự khai ở B6); thiếu manage → 3101; thiếu patient_id → 2001; khối lệch loại → 2003; không gọi repository', async () => {
+    it('thứ tự mã của nhân viên: thiếu manage → 3101; thiếu patient_id → 2001; khối lệch loại → 2003; không gọi repository', async () => {
       const { service, records } = setup();
-      await expect(
-        codeOf(service.create(patientCaller(), createDto({ patient_id: PATIENT_ID }))),
-      ).resolves.toEqual({
-        code: '3101',
-        data: undefined,
-      });
       await expect(
         codeOf(
           service.create(
@@ -162,6 +157,76 @@ describe('MedicalRecordsService (spec B, mục 5.3, 6.3)', () => {
       ).resolves.toMatchObject({
         code: '3007',
       });
+    });
+  });
+
+  describe('create: bệnh nhân tự khai (D-B30)', () => {
+    it('hồ sơ của chính người gọi (patient_id trong body bị bỏ qua), pending, first_visit_at NULL (D-B9), chỉ khối tự khai; trả dạng bệnh nhân kèm edit, cancel', async () => {
+      const { service, records } = setup();
+      const data = await service.create(
+        patientCaller(),
+        createDto({
+          patient_id: OTHER_PATIENT_ID,
+          self_report: { onset_weeks: 2, disease_manifestation: 'Chi san phu' },
+        }),
+      );
+      expect(records.create).toHaveBeenCalledWith({
+        patientId: PATIENT_ID,
+        type: 'MAN',
+        status: 'pending',
+        firstVisitAt: null,
+        selfReport: { onset_weeks: 2, disease_manifestation: 'Chi san phu' },
+        core: {},
+        acute: {},
+        chronic: {},
+      });
+      expect(data).toMatchObject({ details: null, allowed_actions: ['edit', 'cancel'] });
+    });
+
+    it.each<object>([
+      { first_visit_at: '2026-11-15T08:30:00+07:00' },
+      { first_visit_at: null },
+      { family_history: 'Co' },
+      { acute: {} },
+      { chronic: { main_diagnosis: 'CSU' } },
+    ])('gửi %j (ngoài record_type, self_report) → 3101, không gọi repository', async (body) => {
+      const { service, records } = setup();
+      await expect(
+        codeOf(service.create(patientCaller(), createDto({ self_report: {}, ...body }))),
+      ).resolves.toEqual({ code: '3101', data: undefined });
+      expect(records.create).not.toHaveBeenCalled();
+    });
+
+    it('biểu hiện bệnh với hồ sơ CAP → 2003 (field); gửi kèm trường của nhân viên thì 3101 xét trước', async () => {
+      const { service } = setup();
+      const selfReport = { disease_manifestation: 'Chi san phu' };
+      await expect(
+        codeOf(
+          service.create(
+            patientCaller(),
+            createDto({ record_type: 'CAP', self_report: selfReport }),
+          ),
+        ),
+      ).resolves.toEqual({ code: '2003', data: { field: 'self_report.disease_manifestation' } });
+      await expect(
+        codeOf(
+          service.create(
+            patientCaller(),
+            createDto({ record_type: 'CAP', self_report: selfReport, treated_before_visit: true }),
+          ),
+        ),
+      ).resolves.toMatchObject({ code: '3101' });
+    });
+
+    it('tài khoản benh_nhan không có dòng benhnhan → 9901, ghi log (MT-112)', async () => {
+      const error = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      const { service, records } = setup();
+      records.create.mockResolvedValue(null);
+      await expect(codeOf(service.create(patientCaller(), createDto({})))).resolves.toMatchObject({
+        code: '9901',
+      });
+      expect(String(error.mock.calls[0]?.[0])).toContain('không có dòng benhnhan');
+      error.mockRestore();
     });
   });
 

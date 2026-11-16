@@ -47,7 +47,7 @@ export class MedicalRecordsController {
     private readonly callers: CallerResolver,
   ) {}
 
-  /** medrec03: nhân viên tạo cho bệnh nhân; nhánh bệnh nhân tự khai (D-B30) trả 3101 tới B6. */
+  /** medrec03: nhân viên tạo cho bệnh nhân; bệnh nhân tự khai hồ sơ của mình (D-B30). */
   @Post()
   @ResponseCode('1001')
   async create(

@@ -43,7 +43,7 @@ import {
   NestedBlock,
 } from './clinical-field.decorators.js';
 
-/** Khối `self_report` (D-B31). Bệnh nhân tự khai khối này ở B6; nhân viên sửa theo luật của nhân viên. */
+/** Khối `self_report` (D-B31). Bệnh nhân tự khai khối này (D-B30); nhân viên sửa theo luật của nhân viên. */
 export class SelfReportDto implements Partial<SelfReportFields> {
   @ClinicalText()
   referral_diagnosis?: string | null;

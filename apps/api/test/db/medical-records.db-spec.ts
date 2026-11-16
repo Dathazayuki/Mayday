@@ -959,15 +959,6 @@ describe('API bệnh án /medical_records (PostgreSQL thật)', () => {
       expect(await prisma.hosobenhan.count()).toBe(0);
     });
 
-    it('bệnh nhân gọi POST → 403/3101 (nhánh tự khai làm ở B6), không ghi gì', async () => {
-      const res = await createRecord(
-        { record_type: 'MAN', self_report: { onset_weeks: 2 } },
-        patient.token,
-      ).expect(403);
-      expect(res.body).toEqual(DENIED);
-      expect(await prisma.hosobenhan.count()).toBe(0);
-    });
-
     it('vai trò tạo thêm chưa được cấp manage_medical_records → 3101; cấp xong → 1001 (không giới hạn vai trò, D-B18)', async () => {
       const roleId = (await api('post', '/roles', admin.token).send({ name: 'le_tan' }).expect(201))
         .body.data.id as number;
