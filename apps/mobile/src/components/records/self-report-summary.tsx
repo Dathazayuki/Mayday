@@ -1,5 +1,11 @@
-import { selfReportFieldsFor, type ClinicalField, type MedicalRecordData } from '@drmayday/shared';
+import {
+  formatDecimal,
+  selfReportFieldsFor,
+  type ClinicalField,
+  type MedicalRecordData,
+} from '@drmayday/shared';
 import { StyleSheet, Text, View } from 'react-native';
+import { PrimaryButton } from '@/components/primary-button';
 
 /** Giá trị đã khai để hiển thị: lựa chọn theo nhãn tiếng Việt, số dùng dấu phẩy thập phân. */
 function displayValue(field: ClinicalField, value: string | number | null): string {
@@ -7,18 +13,20 @@ function displayValue(field: ClinicalField, value: string | number | null): stri
   if (field.type === 'enum') {
     return field.options.find((option) => option.value === value)?.label ?? String(value);
   }
-  return typeof value === 'number' ? String(value).replace('.', ',') : value;
+  return typeof value === 'number' ? formatDecimal(value) : value;
 }
 
 /**
- * Khối chỉ đọc "Thông tin bạn đã khai" (khối `self_report`, D-B31, spec B mục 9.1): nhãn lấy từ bộ mô
- * tả của shared, biểu hiện bệnh chỉ ở hồ sơ mạn. Giá trị là giá trị hiện tại, kể cả khi bác sĩ đã sửa
- * (MT-126). Sửa phần tự khai thuộc lát B6.
+ * Khối "Thông tin bạn đã khai" (khối `self_report`, D-B31, spec B mục 9.1): nhãn lấy từ bộ mô tả của
+ * shared, biểu hiện bệnh chỉ ở hồ sơ mạn. Giá trị là giá trị hiện tại, kể cả khi bác sĩ đã sửa (MT-126).
+ * Có `onEdit` (hồ sơ chưa tiếp nhận, `allowed_actions` có `edit`) thì có nút "Sửa" (D-B30).
  */
 export function SelfReportSummary({
   record,
+  onEdit,
 }: {
   record: Pick<MedicalRecordData, 'record_type' | 'self_report'>;
+  onEdit?: () => void;
 }) {
   return (
     <View style={styles.section}>
@@ -29,6 +37,7 @@ export function SelfReportSummary({
           <Text style={styles.value}>{displayValue(field, record.self_report[field.key])}</Text>
         </View>
       ))}
+      {onEdit ? <PrimaryButton title="Sửa" variant="secondary" onPress={onEdit} /> : null}
     </View>
   );
 }

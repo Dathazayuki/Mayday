@@ -25,6 +25,10 @@ export default function RootLayout() {
           name="records/[id]"
           options={{ ...formScreenOptions, title: 'Chi tiết bệnh án' }}
         />
+        <Stack.Screen
+          name="records/[id]/edit"
+          options={{ ...formScreenOptions, title: 'Sửa thông tin đã khai' }}
+        />
         <Stack.Screen name="media" options={{ ...formScreenOptions, title: 'Kho ảnh của tôi' }} />
         <Stack.Screen
           name="lesions/new"
