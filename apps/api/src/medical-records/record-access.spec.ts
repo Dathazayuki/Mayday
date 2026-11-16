@@ -26,7 +26,6 @@ import {
   assertPatientBody,
   recordState,
   requireStaffPermission,
-  requireStaffWriter,
   type Caller,
   type RecordPermission,
   type RecordState,
@@ -67,21 +66,6 @@ describe('record-access: đọc, ghi (spec B, mục 6.3, 7.2)', () => {
     expect(
       codeOf(() => requireStaffPermission(patientCaller(), 'view_medical_records')),
     ).toBeNull();
-  });
-
-  it('requireStaffWriter: bệnh nhân → 3101 (nhánh tự khai làm ở B6); nhân viên theo quyền', () => {
-    expect(codeOf(() => requireStaffWriter(patientCaller(), 'manage_medical_records'))).toBe(
-      '3101',
-    );
-    expect(codeOf(() => requireStaffWriter(nurseCaller(), 'manage_medical_records'))).toBeNull();
-    expect(
-      codeOf(() =>
-        requireStaffWriter(
-          nurseCaller({ permissions: only('view_medical_records') }),
-          'manage_medical_records',
-        ),
-      ),
-    ).toBe('3101');
   });
 
   it('assertOwnRecord: bệnh nhân xem hồ sơ người khác → 3106; của mình, nhân viên → qua (D-B21)', () => {

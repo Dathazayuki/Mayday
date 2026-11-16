@@ -48,6 +48,8 @@ describe('Bệnh nhân tự khai qua /medical_records (PostgreSQL thật)', () =
   const edit = (id: number, body: Record<string, unknown>, by: TestUser = patient) =>
     api('patch', `/medical_records/${id}`, by).send(body);
   const accept = (id: number) => api('post', `/medical_records/${id}/accept`, doctor).send({});
+  const cancel = (id: number, by: TestUser = patient) =>
+    api('patch', `/medical_records/${id}/status`, by).send({ status: 'cancelled' });
   /** Dòng hosobenhan đọc thẳng (không qua API) để kiểm CSDL. */
   const rowOf = (id: number) =>
     prisma.hosobenhan.findUniqueOrThrow({ where: { ma_ho_so: BigInt(id) } });
@@ -295,6 +297,39 @@ describe('Bệnh nhân tự khai qua /medical_records (PostgreSQL thật)', () =
       expect((await edit(gone, { self_report: { onset_weeks: 2 } }).expect(400)).body.code).toBe(
         '4009',
       );
+    });
+  });
+
+  describe('PATCH /medical_records/:id/status: bệnh nhân tự huỷ (D-B32, MT-131)', () => {
+    it('chờ tiếp nhận: 200, data {id chuỗi, status} (MT-06); huỷ lại → 400/4009; nháp huỷ được (MT-113)', async () => {
+      const { medical_record_id: id } = await selfReported();
+      expect((await cancel(id).expect(200)).body).toEqual({
+        code: '1000',
+        message: 'OK',
+        data: { id: String(id), status: 'cancelled' },
+      });
+      expect((await cancel(id).expect(400)).body.code).toBe('4009');
+      const { medical_record_id: draft } = await selfReported();
+      await setRecordStatus(prisma, draft, 'draft');
+      await cancel(draft).expect(200);
+      expect((await rowOf(draft)).trang_thai).toBe('cancelled');
+    });
+
+    it('hồ sơ của người khác → 403/3106; không có → 404/4001; trạng thái giữ nguyên', async () => {
+      const { medical_record_id: id } = await selfReported({ record_type: 'MAN' }, otherPatient);
+      expect((await cancel(id).expect(403)).body.code).toBe('3106');
+      expect((await cancel(999_999).expect(404)).body.code).toBe('4001');
+      expect((await rowOf(id)).trang_thai).toBe('pending');
+    });
+
+    it('đã tiếp nhận → 403/3101; hoàn tất → 409/4003; trạng thái giữ nguyên', async () => {
+      const { medical_record_id: accepted } = await selfReported();
+      await accept(accepted).expect(200);
+      expect((await cancel(accepted).expect(403)).body).toEqual(DENIED);
+      expect((await rowOf(accepted)).trang_thai).toBe('in_progress');
+      const { medical_record_id: done } = await selfReported();
+      await setRecordStatus(prisma, done, 'completed');
+      expect((await cancel(done).expect(409)).body.code).toBe('4003');
     });
   });
 });

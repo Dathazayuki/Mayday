@@ -631,15 +631,37 @@ describe('MedicalRecordsService (spec B, mục 5.3, 6.3)', () => {
       }
     });
 
-    it('bệnh nhân → 3101 (nhánh tự huỷ D-B32 làm ở B6); nhân viên thiếu manage_medical_records → 3101; cả hai trước khi khoá', async () => {
+    it('nhân viên thiếu manage_medical_records → 3101 trước khi khoá', async () => {
       const { service, transitions } = setup();
-      await expect(codeOf(service.cancel(patientCaller(), 12))).resolves.toMatchObject({
-        code: '3101',
-      });
       await expect(
         codeOf(service.cancel(nurseCaller({ permissions: only('view_medical_records') }), 12)),
       ).resolves.toMatchObject({ code: '3101' });
       expect(transitions.transition).not.toHaveBeenCalled();
+    });
+
+    it('bệnh nhân tự huỷ hồ sơ của mình ở chờ tiếp nhận hoặc nháp → cancelled (D-B32, MT-131)', async () => {
+      for (const current of [medicalRecord(), medicalRecord({ status: 'draft' })]) {
+        const { service, changed } = setup(current, medicalRecord({ status: 'cancelled' }));
+        await expect(service.cancel(patientCaller(), 12)).resolves.toEqual({
+          id: '12',
+          status: 'cancelled',
+        });
+        expect(changed()).toEqual({ status: 'cancelled' });
+      }
+    });
+
+    it('bệnh nhân, sau khi khoá: hồ sơ người khác → 3106 (trước ô trạng thái); đã tiếp nhận → 3101; hoàn tất → 4003; đã huỷ → 4009', async () => {
+      const cases: [MedicalRecord, string][] = [
+        [inProgressRecord(DOCTOR_ID, { patientId: OTHER_PATIENT_ID, status: 'completed' }), '3106'],
+        [inProgressRecord(DOCTOR_ID), '3101'],
+        [inProgressRecord(DOCTOR_ID, { status: 'completed' }), '4003'],
+        [medicalRecord({ status: 'cancelled' }), '4009'],
+      ];
+      for (const [current, code] of cases) {
+        const { service, transitions } = setup(current);
+        await expect(codeOf(service.cancel(patientCaller(), 12))).resolves.toMatchObject({ code });
+        expect(transitions.transition).toHaveBeenCalledTimes(1);
+      }
     });
 
     it('hoàn tất → 4003; đã huỷ → 4009; không có hồ sơ → 4001', async () => {

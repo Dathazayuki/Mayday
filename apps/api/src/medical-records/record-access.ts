@@ -69,15 +69,6 @@ export function requireStaffPermission(caller: Caller, permission: RecordPermiss
   if (!caller.isPatient && !caller.permissions.has(permission)) throw new AppException('3101');
 }
 
-/**
- * Route ghi dùng chung (POST, PATCH /medical_records): bệnh nhân → 3101 cho tới B6 (nhánh tự khai,
- * D-B30), đúng hành vi cũ của route chỉ cho nhân viên (spec B, mục 13); nhân viên theo quyền.
- */
-export function requireStaffWriter(caller: Caller, permission: RecordPermission): void {
-  if (caller.isPatient) throw new AppException('3101');
-  requireStaffPermission(caller, permission);
-}
-
 /** Trạng thái chưa tiếp nhận: bệnh nhân còn sửa phần tự khai và tự huỷ được (D-B30, D-B32, MT-113). */
 const BEFORE_ACCEPT: ReadonlySet<MedicalRecordStatus> = new Set(['draft', 'pending']);
 

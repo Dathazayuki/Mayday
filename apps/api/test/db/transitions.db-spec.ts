@@ -549,9 +549,8 @@ describe('API chuyển trạng thái /medical_records (PostgreSQL thật)', () =
       expect(await statusOf(id)).toBe('pending');
     });
 
-    it('bệnh nhân → 403/3101 (nhánh tự huỷ D-B32 làm ở B6); điều dưỡng bị thu hồi manage_medical_records → 403/3101; không có → 404/4001', async () => {
+    it('điều dưỡng bị thu hồi manage_medical_records → 403/3101; không có → 404/4001 (bệnh nhân tự huỷ: self-report.db-spec.ts)', async () => {
       const id = await createRecord();
-      expect((await cancel(id, patient).expect(403)).body.code).toBe('3101');
       await api(
         'delete',
         `/role_permissions/${seed.roles.dieu_duong}/${seed.permissions.manage_medical_records}`,

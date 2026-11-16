@@ -137,7 +137,7 @@ export class MedicalRecordsController {
 
   /**
    * Tab chỉ có trong Sheet: huỷ (route dùng chung, D-B18). Body chỉ để ValidationPipe kiểm `status` (thiếu
-   * → 2001, khác `cancelled` → 4009); nhánh bệnh nhân tự huỷ (D-B32) trả 3101 tới B6.
+   * → 2001, khác `cancelled` → 4009); bệnh nhân tự huỷ hồ sơ của mình khi chưa tiếp nhận (D-B32).
    */
   @Patch(':id/status')
   async cancel(

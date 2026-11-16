@@ -41,7 +41,6 @@ import {
   assertPatientBody,
   recordState,
   requireStaffPermission,
-  requireStaffWriter,
   type Caller,
 } from './record-access.js';
 import { planNewRecord, planRecordChanges, requireRecordChanges } from './record-changes.js';
@@ -89,8 +88,8 @@ function selfReportedRecord(caller: Caller, dto: CreateMedicalRecordDto): NewMed
  * Hồ sơ bệnh án (spec B, mục 5.3): tạo, danh sách, số đếm, chi tiết, tóm tắt, lịch sử, sửa, xoá (B2); tiếp
  * nhận, hoàn tất/huỷ khi đang khám, huỷ (B3, mục 6.2). Thứ tự kiểm tra theo mục 6.3: quyền nhân viên (3101)
  * trước khi đọc CSDL; bệnh nhân chỉ hồ sơ của mình (3106); thao tác ghi khoá hồ sơ rồi mới xét trạng thái,
- * bác sĩ phụ trách và luật sau khi gộp. Phiên khám ở VisitsService; nhánh bệnh nhân tự khai, tự huỷ của
- * route ghi là của B6.
+ * bác sĩ phụ trách và luật sau khi gộp. Route ghi dùng chung có nhánh bệnh nhân: tạo hồ sơ của mình, sửa
+ * phần tự khai, tự huỷ khi hồ sơ chưa tiếp nhận (D-B30 → D-B32). Phiên khám ở VisitsService.
  */
 @Injectable()
 export class MedicalRecordsService {
@@ -243,12 +242,12 @@ export class MedicalRecordsService {
 
   /**
    * PATCH /medical_records/:id/status (route dùng chung; body đã qua ValidationPipe: chỉ `cancelled`, khác
-   * → 4009): bệnh nhân → 3101 tới B6 (D-B32); nhân viên thiếu manage_medical_records → 3101 trước khi đọc
-   * CSDL → khoá (4001) → ô trạng thái (4003/4009) → đang khám chỉ bác sĩ phụ trách (3105) → cancelled
-   * (mục 6.1, 7.2).
+   * → 4009): nhân viên thiếu manage_medical_records → 3101 trước khi đọc CSDL → khoá (4001) → bệnh nhân:
+   * hồ sơ người khác (3106) → ô trạng thái (4003/4009) → người làm (nhân viên: bác sĩ phụ trách khi đang
+   * khám, 3105; bệnh nhân: hồ sơ đã tiếp nhận, 3101) → cancelled (mục 6.1, 6.3, 7.2; D-B32).
    */
   async cancel(caller: Caller, recordId: number): Promise<MedicalRecordStatusData> {
-    requireStaffWriter(caller, 'manage_medical_records');
+    requireStaffPermission(caller, 'manage_medical_records');
     const result = await this.transitions.transition(recordId, (lock) => {
       assertCanCancel(caller, lock);
       return { status: TRANSITION_TARGETS.cancel };
