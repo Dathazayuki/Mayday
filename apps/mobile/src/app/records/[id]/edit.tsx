@@ -23,7 +23,13 @@ import { useLoader } from '@/lib/use-loader';
  * Form sửa phần tự khai, điền sẵn giá trị đang lưu; "Lưu thay đổi" chỉ gửi trường đã đổi (spec B, mục
  * 5.7). Không đổi gì thì quay lại, không gọi API.
  */
-function EditSelfReportForm({ record }: { record: MedicalRecordData }) {
+function EditSelfReportForm({
+  record,
+  onStale,
+}: {
+  record: MedicalRecordData;
+  onStale: () => void;
+}) {
   const router = useRouter();
   const [values, setValues] = useState<SelfReportFormValues>(() =>
     toSelfReportValues(record.self_report),
@@ -61,6 +67,8 @@ function EditSelfReportForm({ record }: { record: MedicalRecordData }) {
       router.back();
     } catch (error) {
       setFormError(describeError(error));
+      // Trạng thái có thể đã đổi (vd bác sĩ vừa tiếp nhận): tải lại để allowed_actions cập nhật.
+      onStale();
     } finally {
       setSubmitting(false);
     }
@@ -95,7 +103,7 @@ function EditSelfReportLoader({ id }: { id: string }) {
   return (
     <FormScreen>
       {data ? (
-        <EditSelfReportForm record={data} />
+        <EditSelfReportForm record={data} onStale={() => void reload()} />
       ) : error ? (
         <LoadError message={error} onRetry={() => void reload()} />
       ) : (

@@ -72,7 +72,11 @@ export function requireStaffPermission(caller: Caller, permission: RecordPermiss
 /** Trạng thái chưa tiếp nhận: bệnh nhân còn sửa phần tự khai và tự huỷ được (D-B30, D-B32, MT-113). */
 const BEFORE_ACCEPT: ReadonlySet<MedicalRecordStatus> = new Set(['draft', 'pending']);
 
-/** Khoá bệnh nhân được gửi: khối tự khai, loại hồ sơ khi tạo; `patient_id` bị bỏ qua (medrec03). */
+/**
+ * Khoá bệnh nhân được gửi: khối tự khai, loại hồ sơ khi tạo; `patient_id` bị bỏ qua (medrec03). Khi PATCH,
+ * `record_type`/`patient_id` không bao giờ tới đây (UpdateMedicalRecordDto không có, whitelist của
+ * ValidationPipe loại bỏ): đổi DTO thì phải xem lại tập này.
+ */
 const PATIENT_BODY_KEYS: ReadonlySet<string> = new Set([
   'record_type',
   'patient_id',

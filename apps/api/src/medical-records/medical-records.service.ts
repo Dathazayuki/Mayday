@@ -9,9 +9,9 @@ import {
   type MedicalRecordStatusData,
   type MedicalRecordSummary,
 } from '@drmayday/shared';
-import { AppException, corruptData } from '../common/app.exception.js';
+import { AppException } from '../common/app.exception.js';
 import { pageWindow, Paginated } from '../common/paginated.js';
-import { PATIENT_ROLE_NAME } from '../roles/role-names.js';
+import { missingPatientRow } from '../users/user-shape.js';
 import type {
   CreateMedicalRecordDto,
   ListMedicalRecordsQuery,
@@ -110,10 +110,7 @@ export class MedicalRecordsService {
     const created = await this.records.create(record);
     if (created) return this.toData(caller, created);
     if (!caller.isPatient) throw new AppException('3007');
-    throw corruptData(
-      this.logger,
-      `Tài khoản của người ${caller.userId} có vai trò ${PATIENT_ROLE_NAME} nhưng không có dòng benhnhan (MT-112)`,
-    );
+    throw missingPatientRow(this.logger, caller.userId);
   }
 
   /** medrec04 (route khai báo view_medical_records): phần tử kèm allowed_actions của người gọi. */

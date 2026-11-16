@@ -158,6 +158,9 @@ Việc còn mở của B (mang sang các bước sau):
    - Hạ tầng: `docker-compose` MinIO dùng `latest` chưa ghim phiên bản; `Number()` nhận `1e3`/`0x10` làm port; cache quyền nằm trong bộ nhớ từng tiến trình API: chạy nhiều tiến trình cần cơ chế xoá cache chung.
    - Web: chunk JS lớn hơn 500 kB, nên lazy-load nhóm trang quản trị và lâm sàng; bảng hàng chỉ click chuột (thiếu truy cập bàn phím); khung CRUD chung có vài cast và lặp (`useDeleteAction`).
    - Mobile: `keyboardVerticalOffset` trên iOS; bỏ các dependency của mẫu Expo chưa dùng; `records.tsx`/`uas7.tsx` còn `Number(user?.user_id)`; `mix_text_image` mới là placeholder.
-   - Shared: thống nhất hiển thị giờ tổn thương (Web nay hiển thị `HH:mm` theo shared); định dạng ngày, nhãn trường hồ sơ và đường dẫn API đang lặp giữa Web và Mobile, nên chuyển vào `packages/shared`; chuyển `FieldErrors` từ `lesion-form.ts` sang một module form dùng chung.
+   - Shared: thống nhất hiển thị giờ tổn thương (Web nay hiển thị `HH:mm` theo shared); định dạng ngày, hiển thị số thập phân (Web `toLocaleString('vi-VN')`, Mobile `formatDecimal`), nhãn trường hồ sơ và đường dẫn API đang lặp giữa Web và Mobile, nên chuyển vào `packages/shared`; chuyển `FieldErrors` từ `lesion-form.ts` sang một module form dùng chung.
    - Test: spec HTTP status chỉ kiểm 11/71 mã.
+   - Mobile (B6): `OptionPicker` thiếu nhãn trợ năng cho cả nhóm lựa chọn.
+   - Test DB (B6): test khoá của B2 (`medical-records.db-spec.ts`) và B6 (`self-report.db-spec.ts`) chờ cố định 300 ms và treo thay vì thất bại nhanh khi transaction của bác sĩ ném lỗi; sửa cả hai cùng lúc (`Promise.race`, thăm dò `pg_locks`).
+   - Sản phẩm (B6): chưa giới hạn số bệnh án tự khai đang `pending` mà một bệnh nhân tạo được (câu hỏi sản phẩm, liên quan MT-96).
 6. **Quy tắc cho route/provider mới:** không dùng `@Inject(token)` với danh sách tham số riêng lẻ, vì làm hỏng `db:seed` chạy bằng tsx (đã có test chặn).

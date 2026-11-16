@@ -57,6 +57,8 @@ function RecordDetailView({ id }: { id: string }) {
       await reload();
     } catch (e) {
       setActionError(describeError(e));
+      // Trạng thái có thể đã đổi (vd bác sĩ vừa tiếp nhận): tải lại để allowed_actions cập nhật.
+      void reload();
     } finally {
       setCancelling(false);
     }
