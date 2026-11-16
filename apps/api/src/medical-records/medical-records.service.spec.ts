@@ -184,14 +184,14 @@ describe('MedicalRecordsService (spec B, mục 5.3, 6.3)', () => {
       });
     });
 
-    it('bệnh nhân: hồ sơ của mình → self_report có, details null, allowed_actions [] (D-B21); của người khác → 3106', async () => {
+    it('bệnh nhân: hồ sơ của mình chờ tiếp nhận → self_report có, details null (D-B21), allowed_actions [edit, cancel] (D-B30, D-B32); của người khác → 3106', async () => {
       const { service } = setup(
         medicalRecord({ selfReport: { ...medicalRecord().selfReport, onset_weeks: 3 } }),
       );
       await expect(service.get(patientCaller(), 12)).resolves.toMatchObject({
         self_report: { onset_weeks: 3 },
         details: null,
-        allowed_actions: [],
+        allowed_actions: ['edit', 'cancel'],
       });
       await expect(
         codeOf(service.get(patientCaller({ userId: OTHER_PATIENT_ID }), 12)),

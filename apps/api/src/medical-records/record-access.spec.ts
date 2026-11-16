@@ -1,4 +1,8 @@
-import type { MedicalRecordAction, MedicalRecordStatus } from '@drmayday/shared';
+import {
+  MEDICAL_RECORD_STATUSES,
+  type MedicalRecordAction,
+  type MedicalRecordStatus,
+} from '@drmayday/shared';
 import {
   DOCTOR_ID,
   OTHER_DOCTOR_ID,
@@ -16,9 +20,10 @@ import {
   assertAssignedDoctor,
   assertCanAccept,
   assertCanAddVisit,
+  assertCanCancel,
+  assertCanEdit,
   assertOwnRecord,
-  assertStaffCanCancel,
-  assertStaffCanEdit,
+  assertPatientBody,
   recordState,
   requireStaffPermission,
   requireStaffWriter,
@@ -86,40 +91,30 @@ describe('record-access: đọc, ghi (spec B, mục 6.3, 7.2)', () => {
   });
 });
 
-describe('assertStaffCanEdit (bảng 6.1, hàng "Sửa hồ sơ")', () => {
+describe('assertCanEdit, nhánh nhân viên (bảng 6.1, hàng "Sửa hồ sơ")', () => {
   it.each(['draft', 'pending'] as const)(
     '%s: nhân viên có quyền sửa được (MT-113: draft cũng sửa được)',
     (status) => {
-      expect(codeOf(() => assertStaffCanEdit(nurseCaller(), state(status)))).toBeNull();
+      expect(codeOf(() => assertCanEdit(nurseCaller(), state(status)))).toBeNull();
     },
   );
 
   it('đang khám: chỉ bác sĩ phụ trách (bác sĩ của phiên đầu, D-B6); người khác → 3105', () => {
-    expect(
-      codeOf(() => assertStaffCanEdit(doctorCaller(), state('in_progress', DOCTOR_ID))),
-    ).toBeNull();
-    expect(
-      codeOf(() => assertStaffCanEdit(doctorCaller(), state('in_progress', OTHER_DOCTOR_ID))),
-    ).toBe('3105');
-    expect(codeOf(() => assertStaffCanEdit(nurseCaller(), state('in_progress', DOCTOR_ID)))).toBe(
+    expect(codeOf(() => assertCanEdit(doctorCaller(), state('in_progress', DOCTOR_ID)))).toBeNull();
+    expect(codeOf(() => assertCanEdit(doctorCaller(), state('in_progress', OTHER_DOCTOR_ID)))).toBe(
       '3105',
     );
-    expect(codeOf(() => assertStaffCanEdit(adminCaller(), state('in_progress', DOCTOR_ID)))).toBe(
+    expect(codeOf(() => assertCanEdit(nurseCaller(), state('in_progress', DOCTOR_ID)))).toBe(
       '3105',
     );
-  });
-
-  it('bệnh nhân → 3101 (hàm tự chặn, không dựa vào requireStaffWriter)', () => {
-    expect(codeOf(() => assertStaffCanEdit(patientCaller(), state('pending')))).toBe('3101');
+    expect(codeOf(() => assertCanEdit(adminCaller(), state('in_progress', DOCTOR_ID)))).toBe(
+      '3105',
+    );
   });
 
   it('completed → 4003, cancelled → 4009, kể cả với bác sĩ phụ trách (ô trạng thái trước người làm)', () => {
-    expect(codeOf(() => assertStaffCanEdit(doctorCaller(), state('completed', DOCTOR_ID)))).toBe(
-      '4003',
-    );
-    expect(codeOf(() => assertStaffCanEdit(doctorCaller(), state('cancelled', DOCTOR_ID)))).toBe(
-      '4009',
-    );
+    expect(codeOf(() => assertCanEdit(doctorCaller(), state('completed', DOCTOR_ID)))).toBe('4003');
+    expect(codeOf(() => assertCanEdit(doctorCaller(), state('cancelled', DOCTOR_ID)))).toBe('4009');
   });
 });
 
@@ -198,9 +193,29 @@ describe('allowedActions (spec B, mục 6.4, 7.5)', () => {
       ['edit'],
     ],
     [
-      'bệnh nhân, hồ sơ của mình đang chờ (B6 thêm edit, cancel)',
+      'bệnh nhân, hồ sơ của mình chờ tiếp nhận: sửa phần tự khai, tự huỷ (D-B30, D-B32)',
       patientCaller(),
       state('pending'),
+      ['edit', 'cancel'],
+    ],
+    [
+      'bệnh nhân, hồ sơ nháp của mình (MT-113)',
+      patientCaller(),
+      state('draft'),
+      ['edit', 'cancel'],
+    ],
+    [
+      'bệnh nhân, hồ sơ của mình đã tiếp nhận: chỉ đọc',
+      patientCaller(),
+      state('in_progress', DOCTOR_ID),
+      [],
+    ],
+    ['bệnh nhân, hồ sơ của mình hoàn tất', patientCaller(), state('completed', DOCTOR_ID), []],
+    ['bệnh nhân, hồ sơ của mình đã huỷ', patientCaller(), state('cancelled'), []],
+    [
+      'bệnh nhân, hồ sơ chờ tiếp nhận của người khác',
+      patientCaller(),
+      state('pending', null, OTHER_PATIENT_ID),
       [],
     ],
   ])('%s → %j', (_title, caller, record, expected) => {
@@ -277,37 +292,82 @@ describe('assertAssignedDoctor, assertCanAddVisit (thêm/sửa phiên, hoàn t�
   });
 });
 
-describe('assertStaffCanCancel (PATCH /:id/status, nhánh nhân viên; bảng 6.1, hàng "Huỷ")', () => {
+describe('assertCanCancel, nhánh nhân viên (PATCH /:id/status; bảng 6.1, hàng "Huỷ")', () => {
   it.each(['draft', 'pending'] as const)('%s: nhân viên có quyền huỷ được (MT-113)', (status) => {
-    expect(codeOf(() => assertStaffCanCancel(nurseCaller(), state(status)))).toBeNull();
+    expect(codeOf(() => assertCanCancel(nurseCaller(), state(status)))).toBeNull();
   });
 
   it('đang khám: chỉ bác sĩ phụ trách; bác sĩ khác, điều dưỡng, admin → 3105', () => {
     expect(
-      codeOf(() => assertStaffCanCancel(doctorCaller(), state('in_progress', DOCTOR_ID))),
+      codeOf(() => assertCanCancel(doctorCaller(), state('in_progress', DOCTOR_ID))),
     ).toBeNull();
     for (const caller of [
       doctorCaller({ userId: OTHER_DOCTOR_ID }),
       nurseCaller(),
       adminCaller(),
     ]) {
-      expect(codeOf(() => assertStaffCanCancel(caller, state('in_progress', DOCTOR_ID)))).toBe(
-        '3105',
-      );
+      expect(codeOf(() => assertCanCancel(caller, state('in_progress', DOCTOR_ID)))).toBe('3105');
     }
   });
 
   it('hoàn tất → 4003; đã huỷ → 4009 (kể cả với bác sĩ phụ trách)', () => {
-    expect(codeOf(() => assertStaffCanCancel(doctorCaller(), state('completed', DOCTOR_ID)))).toBe(
+    expect(codeOf(() => assertCanCancel(doctorCaller(), state('completed', DOCTOR_ID)))).toBe(
       '4003',
     );
-    expect(codeOf(() => assertStaffCanCancel(doctorCaller(), state('cancelled', DOCTOR_ID)))).toBe(
+    expect(codeOf(() => assertCanCancel(doctorCaller(), state('cancelled', DOCTOR_ID)))).toBe(
       '4009',
     );
   });
+});
 
-  it('bệnh nhân → 3101 (hàm tự chặn; nhánh tự huỷ D-B32 làm ở B6)', () => {
-    expect(codeOf(() => assertStaffCanCancel(patientCaller(), state('pending')))).toBe('3101');
+describe('nhánh bệnh nhân: sửa phần tự khai, tự huỷ (D-B30, D-B32; bảng 6.1, mục 6.3)', () => {
+  const checks = [
+    ['assertCanEdit', assertCanEdit],
+    ['assertCanCancel', assertCanCancel],
+  ] as const;
+
+  it.each(checks)(
+    '%s: hồ sơ của mình ở nháp, chờ tiếp nhận → qua; đang khám → 3101 (chỉ đọc); hoàn tất → 4003; đã huỷ → 4009',
+    (_name, check) => {
+      const run = (record: RecordState) => codeOf(() => check(patientCaller(), record));
+      expect(run(state('draft'))).toBeNull();
+      expect(run(state('pending'))).toBeNull();
+      expect(run(state('in_progress', DOCTOR_ID))).toBe('3101');
+      expect(run(state('completed', DOCTOR_ID))).toBe('4003');
+      expect(run(state('cancelled'))).toBe('4009');
+    },
+  );
+
+  it.each(checks)(
+    '%s: hồ sơ của người khác → 3106 ở mọi trạng thái, xét trước ô trạng thái (mục 6.3)',
+    (_name, check) => {
+      for (const status of MEDICAL_RECORD_STATUSES) {
+        expect(
+          codeOf(() => check(patientCaller(), state(status, DOCTOR_ID, OTHER_PATIENT_ID))),
+        ).toBe('3106');
+      }
+    },
+  );
+});
+
+describe('assertPatientBody: bệnh nhân chỉ gửi khối tự khai (D-B30, spec B mục 5.6)', () => {
+  it.each<object>([
+    {},
+    { record_type: 'CAP', self_report: { onset_weeks: 1 } },
+    { record_type: 'MAN', patient_id: OTHER_PATIENT_ID },
+    { self_report: { referral_diagnosis: null }, first_visit_at: undefined, chronic: undefined },
+  ])('%j → qua (khoá có giá trị undefined là không gửi; patient_id bị bỏ qua)', (body) => {
+    expect(codeOf(() => assertPatientBody(body))).toBeNull();
+  });
+
+  it.each<object>([
+    { first_visit_at: null },
+    { family_history: 'Co' },
+    { self_report: { onset_weeks: 1 }, treated_before_visit: false },
+    { acute: {} },
+    { chronic: { main_diagnosis: 'CSU' } },
+  ])('%j → 3101', (body) => {
+    expect(codeOf(() => assertPatientBody(body))).toBe('3101');
   });
 });
 

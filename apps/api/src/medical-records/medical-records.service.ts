@@ -33,9 +33,9 @@ import {
   allowedActions,
   assertAssignedDoctor,
   assertCanAccept,
+  assertCanCancel,
+  assertCanEdit,
   assertOwnRecord,
-  assertStaffCanCancel,
-  assertStaffCanEdit,
   recordState,
   requireStaffPermission,
   requireStaffWriter,
@@ -144,7 +144,7 @@ export class MedicalRecordsService {
     requireRecordChanges(dto);
     requireStaffWriter(caller, 'manage_medical_records');
     const updated = await this.records.update(recordId, (current) => {
-      assertStaffCanEdit(caller, recordState(current));
+      assertCanEdit(caller, recordState(current));
       return planRecordChanges(current, dto);
     });
     if (!updated) throw new AppException('4001');
@@ -212,7 +212,7 @@ export class MedicalRecordsService {
   async cancel(caller: Caller, recordId: number): Promise<MedicalRecordStatusData> {
     requireStaffWriter(caller, 'manage_medical_records');
     const result = await this.transitions.transition(recordId, (lock) => {
-      assertStaffCanCancel(caller, lock);
+      assertCanCancel(caller, lock);
       return { status: TRANSITION_TARGETS.cancel };
     });
     if (!result) throw new AppException('4001');

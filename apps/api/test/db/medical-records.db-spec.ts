@@ -990,7 +990,7 @@ describe('API bệnh án /medical_records (PostgreSQL thật)', () => {
   });
 
   describe('GET /medical_records/:id, /:id/summary (medrec05, medrec06)', () => {
-    it('bệnh nhân xem hồ sơ của mình: self_report có, details null (D-B21, MT-126), allowed_actions []', async () => {
+    it('bệnh nhân xem hồ sơ của mình chờ tiếp nhận: self_report có, details null (D-B21, MT-126), allowed_actions [edit, cancel] (D-B30, D-B32)', async () => {
       const { medical_record_id: id } = await recordOf({
         patient_id: patient.id,
         record_type: 'MAN',
@@ -1002,7 +1002,7 @@ describe('API bệnh án /medical_records (PostgreSQL thật)', () => {
         medical_record_id: id,
         self_report: { onset_weeks: 6 },
         details: null,
-        allowed_actions: [],
+        allowed_actions: ['edit', 'cancel'],
       });
     });
 

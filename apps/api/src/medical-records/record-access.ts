@@ -11,8 +11,9 @@ import { transitionError, type RecordTransition } from './record-transitions.js'
 
 /**
  * Ai đọc, ghi được hồ sơ và `allowed_actions` (spec B, mục 6.1, 6.3, 6.4, 7.2). Hàm thuần: quyền của
- * người gọi đã đọc sẵn một lần mỗi request vào `Caller` (caller.ts). B2 làm nhánh nhân viên; nhánh bệnh
- * nhân của B2 chỉ đọc hồ sơ của mình, phần tự khai (D-B30, D-B32) thêm ở B6.
+ * người gọi đã đọc sẵn một lần mỗi request vào `Caller` (caller.ts). Nhánh nhân viên theo quyền; nhánh
+ * bệnh nhân là quyền sở hữu hồ sơ: đọc hồ sơ của mình, tự khai, sửa phần tự khai và tự huỷ khi hồ sơ chưa
+ * tiếp nhận (D-B30, D-B32).
  */
 
 /** Ba quyền của bệnh án (spec B, mục 7.1). */
@@ -60,7 +61,10 @@ export function recordState(record: RecordOverview): RecordState {
   };
 }
 
-/** Nhánh nhân viên của route dùng chung: thiếu quyền → 3101, trả trước khi đọc CSDL (spec B, mục 5.3). */
+/**
+ * Nhánh nhân viên của route dùng chung: thiếu quyền → 3101, trả trước khi đọc CSDL (spec B, mục 5.3).
+ * Bệnh nhân bỏ qua: quyền của bệnh nhân là quyền sở hữu hồ sơ, không cần dòng quyền nào (mục 7.2).
+ */
 export function requireStaffPermission(caller: Caller, permission: RecordPermission): void {
   if (!caller.isPatient && !caller.permissions.has(permission)) throw new AppException('3101');
 }
@@ -72,6 +76,27 @@ export function requireStaffPermission(caller: Caller, permission: RecordPermiss
 export function requireStaffWriter(caller: Caller, permission: RecordPermission): void {
   if (caller.isPatient) throw new AppException('3101');
   requireStaffPermission(caller, permission);
+}
+
+/** Trạng thái chưa tiếp nhận: bệnh nhân còn sửa phần tự khai và tự huỷ được (D-B30, D-B32, MT-113). */
+const BEFORE_ACCEPT: ReadonlySet<MedicalRecordStatus> = new Set(['draft', 'pending']);
+
+/** Khoá bệnh nhân được gửi: khối tự khai, loại hồ sơ khi tạo; `patient_id` bị bỏ qua (medrec03). */
+const PATIENT_BODY_KEYS: ReadonlySet<string> = new Set([
+  'record_type',
+  'patient_id',
+  'self_report',
+]);
+
+/**
+ * Bệnh nhân gửi trường hay khối ngoài `self_report` (first_visit_at, trường lõi, `acute`, `chronic`) →
+ * 3101, không ghi gì (D-B30, spec B mục 5.6). Body đã qua ValidationPipe: khoá không gửi là undefined.
+ */
+export function assertPatientBody(body: object): void {
+  const other = Object.entries(body).some(
+    ([key, value]) => value !== undefined && !PATIENT_BODY_KEYS.has(key),
+  );
+  if (other) throw new AppException('3101');
 }
 
 /** Bệnh nhân chỉ thấy hồ sơ của mình (D-B21): của người khác → 3106. Nhân viên bỏ qua. */
@@ -98,24 +123,33 @@ function assertAssigned(caller: Caller, record: RecordState): void {
 }
 
 /**
- * Sửa hồ sơ, nhánh nhân viên (bảng 6.1, hàng "Sửa hồ sơ"): completed → 4003, cancelled → 4009; đang
- * khám chỉ bác sĩ phụ trách (3105). Quyền manage_medical_records đã kiểm trước khi đọc CSDL.
+ * Sửa hồ sơ (`edit`) hoặc huỷ qua PATCH /:id/status (`cancel`) (bảng 6.1, cột "Người làm"; mục 6.3).
+ * Bệnh nhân: hồ sơ của người khác → 3106, xét trước ô trạng thái → ô trạng thái (4003/4009) → đã tiếp nhận
+ * → 3101 (chỉ đọc, D-B30, D-B32). Nhân viên: ô trạng thái → đang khám chỉ bác sĩ phụ trách (3105); quyền
+ * manage_medical_records đã kiểm trước khi đọc CSDL.
  */
-export function assertStaffCanEdit(caller: Caller, record: RecordState): void {
-  if (caller.isPatient) throw new AppException('3101');
-  assertOpen('edit', record);
-  if (record.status === 'in_progress') assertAssigned(caller, record);
+function assertCanWrite(
+  caller: Caller,
+  record: RecordState,
+  transition: Extract<RecordTransition, 'edit' | 'cancel'>,
+): void {
+  assertOwnRecord(caller, record.patientId);
+  assertOpen(transition, record);
+  if (caller.isPatient) {
+    if (!BEFORE_ACCEPT.has(record.status)) throw new AppException('3101');
+  } else if (record.status === 'in_progress') {
+    assertAssigned(caller, record);
+  }
 }
 
-/**
- * Huỷ qua PATCH /:id/status, nhánh nhân viên (bảng 6.1, hàng "Huỷ"; mục 7.2): completed → 4003, cancelled
- * → 4009; đang khám chỉ bác sĩ phụ trách (3105). Quyền manage_medical_records đã kiểm trước khi đọc CSDL.
- * Bệnh nhân tự huỷ (D-B32) là của B6: tới lúc đó hàm tự chặn 3101.
- */
-export function assertStaffCanCancel(caller: Caller, record: RecordState): void {
-  if (caller.isPatient) throw new AppException('3101');
-  assertOpen('cancel', record);
-  if (record.status === 'in_progress') assertAssigned(caller, record);
+/** Sửa hồ sơ (bảng 6.1, hàng "Sửa hồ sơ"); bệnh nhân chỉ khối tự khai (assertPatientBody). */
+export function assertCanEdit(caller: Caller, record: RecordState): void {
+  assertCanWrite(caller, record, 'edit');
+}
+
+/** Huỷ qua PATCH /:id/status (bảng 6.1, hàng "Huỷ"); bệnh nhân tự huỷ hồ sơ chưa tiếp nhận (D-B32). */
+export function assertCanCancel(caller: Caller, record: RecordState): void {
+  assertCanWrite(caller, record, 'cancel');
 }
 
 /**
@@ -152,11 +186,15 @@ export function assertCanAddVisit(caller: Caller, record: RecordState): void {
 /**
  * Hành động mà ô của bảng 6.1 là ✓ và người gọi thoả cột "Người làm" (spec B, mục 6.4). `cancel` khi
  * đang khám theo luật của PUT /:id (bác sĩ phụ trách, `examine_medical_records`) vì Web huỷ hồ sơ đang
- * khám bằng route đó (mục 8.6). `delete` chỉ với admin.
+ * khám bằng route đó (mục 8.6). `delete` chỉ với admin. Bệnh nhân: `['edit', 'cancel']` với hồ sơ của
+ * mình ở `draft`/`pending` (`edit` = chỉ sửa khối tự khai), `[]` mọi trường hợp khác.
  */
 export function allowedActions(caller: Caller, record: RecordState): MedicalRecordAction[] {
-  // B6 thêm ['edit', 'cancel'] cho hồ sơ của chính bệnh nhân ở draft/pending (D-B30, D-B32).
-  if (caller.isPatient) return [];
+  if (caller.isPatient) {
+    // Sửa phần tự khai, tự huỷ hồ sơ của mình khi chưa tiếp nhận (D-B30, D-B32); mọi trường hợp khác [].
+    const own = record.patientId === caller.userId && BEFORE_ACCEPT.has(record.status);
+    return own ? ['edit', 'cancel'] : [];
+  }
   const can = (permission: RecordPermission) => caller.permissions.has(permission);
   const open = (transition: RecordTransition) =>
     transitionError(transition, record.status) === null;
