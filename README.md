@@ -79,6 +79,16 @@ Khi chạy trên điện thoại thật, tạo `apps/mobile/.env` có dòng `EXP
 - `.env` gốc dùng chung với Vite: **không** đặt `NODE_ENV` trong đó (API dùng `APP_ENV`).
 - Hiện đã chạy: API giai đoạn 1 và 2 (xác thực, hồ sơ, cơ sở vật chất, quản trị, vai trò, quyền), API bệnh nhân, hồ sơ bệnh án, chuyển trạng thái, phiên khám và Tổng quan của giai đoạn 4 (`/doctor/patients…`, `/medical_records…`, `/visits/:id`, `/dashboard/summary`, tiểu dự án B1–B5); Web có trang bệnh án hai chế độ bảng/cột (kéo thả), trang Tổng quan và màn chi tiết bệnh án có kiểu (tự khai, hồ sơ, bệnh án cấp/mạn, phiên khám); Mobile xem bệnh án và các lần khám (chỉ đọc). Bệnh nhân tự khai (B6) chưa làm; các màn giai đoạn 5–8 trên Web, Mobile chưa có API tương ứng nên sẽ nhận 404. Xem [docs/07-tien-do.md](docs/07-tien-do.md).
 
+## Chạy demo bằng Docker
+
+Dựng cả CSDL (lược đồ thật và dữ liệu mẫu), API và Web trên máy khác chỉ với một lệnh (cần Docker Desktop):
+
+```bash
+docker compose -f docker-compose.demo.yml up -d --build   # Web ở http://localhost:8080
+```
+
+Hướng dẫn chuẩn bị máy demo, tài khoản mẫu, chạy app mobile qua Expo Go: [docs/demo/README.md](docs/demo/README.md). Kịch bản demo 5 đến 10 phút: [docs/demo/kich-ban-demo.md](docs/demo/kich-ban-demo.md).
+
 ## Kiểm tra
 
 ```bash
