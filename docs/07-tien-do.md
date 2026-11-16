@@ -138,6 +138,9 @@ Việc còn mở của B (mang sang các bước sau):
 - MT-132 (docs/05): huỷ hồ sơ đang khám qua `PATCH /medical_records/:id/status` và qua `PUT /medical_records/:id` vẫn khác luật; cần người dùng chốt trước khi cấp quyền trên CSDL dùng chung (MT-122) hoặc khi có luồng đổi vai trò.
 - Hồ sơ `in_progress` không có phiên (chỉ có thể do dữ liệu ghi ngoài API) bị kẹt: tiếp nhận 4005, ghi khác 3105 — báo nhóm DB/tiểu dự án C.
 - MT-133 (docs/05): tìm kiếm chưa chuẩn hoá Unicode NFC cho từ khoá và họ tên (câu hỏi mở từ B1).
+- Gom định nghĩa cột dùng chung (Mã, Loại, Trạng thái, Khám lần đầu, Lần khám gần nhất) giữa `PatientDetailPage` và `RecordTable` (hoãn từ B4/B5 vì quy tắc export của `.tsx`).
+- Xoá bệnh án: thay danh sách khoá invalidate viết tay bằng predicate.
+- B6: trên Web, hồ sơ của bệnh nhân hiện nút Sửa/Huỷ trả 3101 cho tới B6 (Web chỉ cho nhân viên).
 
 ## Việc tiếp theo
 
