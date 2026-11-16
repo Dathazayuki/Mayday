@@ -34,8 +34,9 @@ services:
           property: url
 
   # Frontend Web (React + Vite)
-  - type: static
+  - type: web
     name: drmayday-web
+    runtime: static
     buildCommand: npm install -g pnpm@11.5.3 && pnpm install --frozen-lockfile && pnpm --filter @drmayday/shared build && pnpm --filter @drmayday/web build
     staticPublishPath: apps/web/dist
     routes:
