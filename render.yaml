@@ -28,10 +28,7 @@ services:
       - key: JWT_EXPIRES_IN
         value: 86400
       - key: CORS_ORIGINS
-        fromService:
-          type: web
-          name: drmayday-web
-          property: url
+        value: https://drmayday-web.onrender.com
 
   # Frontend Web (React + Vite)
   - type: web
@@ -43,10 +40,6 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
-      # Hoặc người dùng có thể cấu hình VITE_API_BASE_URL trỏ về URL của drmayday-api
     envVars:
       - key: VITE_API_BASE_URL
-        fromService:
-          type: web
-          name: drmayday-api
-          property: url
+        value: https://drmayday-api.onrender.com
