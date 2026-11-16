@@ -17,7 +17,8 @@ services:
       # File SQL của nhóm DB, dùng nguyên bản; chỉ nạp một lần khi volume được khởi tạo.
       - ./apps/api/prisma/vendor/mayday-database/final_restructured.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      # Hỏi qua TCP: lúc nạp schema lần đầu, server tạm chỉ nghe socket nên chưa báo sẵn sàng giữa chừng.
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 3s
       timeout: 3s
       retries: 20

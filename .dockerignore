@@ -1,6 +1,6 @@
 # Bí mật và cấu hình riêng của máy (không bao giờ vào image)
-.env
-.env.*
+**/.env
+**/.env.*
 
 # Phụ thuộc và sản phẩm build: image tự cài và build lại
 **/node_modules
