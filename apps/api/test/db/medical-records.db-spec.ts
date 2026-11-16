@@ -1295,23 +1295,6 @@ describe('API bệnh án /medical_records (PostgreSQL thật)', () => {
           .code,
       ).toBe('4001');
     });
-
-    it('bệnh nhân sửa hồ sơ của mình → 403/3101 (nhánh tự khai làm ở B6), không ghi gì', async () => {
-      const { medical_record_id: id } = await recordOf({
-        patient_id: patient.id,
-        record_type: 'MAN',
-        self_report: { onset_weeks: 6 },
-      });
-      expect(
-        (
-          await api('patch', `/medical_records/${id}`, patient.token)
-            .send({ self_report: { onset_weeks: 8 } })
-            .expect(403)
-        ).body,
-      ).toEqual(DENIED);
-      const after = await api('get', `/medical_records/${id}`, patient.token).expect(200);
-      expect(after.body.data.self_report.onset_weeks).toBe(6);
-    });
   });
 
   describe('allowed_actions theo vai trò × trạng thái (mục 6.4, 7.5)', () => {

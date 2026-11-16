@@ -167,8 +167,11 @@ export class MedicalRecordsService {
   }
 
   /**
-   * PATCH /medical_records/:id: ít nhất 1 trường (2001) → 3101 → khoá (4001) → ô trạng thái (4003/4009)
-   * → bác sĩ phụ trách khi đang khám (3105) → khối lệch loại, luật sau khi gộp → ghi (spec B, mục 6.3).
+   * PATCH /medical_records/:id (spec B, mục 6.3): ít nhất 1 trường (2001) → nhân viên thiếu
+   * manage_medical_records (3101) → khoá (4001) → bệnh nhân: hồ sơ người khác (3106) → ô trạng thái
+   * (4003/4009) → người làm (nhân viên: bác sĩ phụ trách khi đang khám, 3105; bệnh nhân: hồ sơ đã tiếp
+   * nhận, 3101) → bệnh nhân gửi trường ngoài self_report (3101, D-B30) → khối lệch loại, luật sau khi gộp
+   * → ghi.
    */
   async update(
     caller: Caller,
@@ -176,9 +179,10 @@ export class MedicalRecordsService {
     dto: UpdateMedicalRecordDto,
   ): Promise<MedicalRecordData> {
     requireRecordChanges(dto);
-    requireStaffWriter(caller, 'manage_medical_records');
+    requireStaffPermission(caller, 'manage_medical_records');
     const updated = await this.records.update(recordId, (current) => {
       assertCanEdit(caller, recordState(current));
+      if (caller.isPatient) assertPatientBody(dto);
       return planRecordChanges(current, dto);
     });
     if (!updated) throw new AppException('4001');

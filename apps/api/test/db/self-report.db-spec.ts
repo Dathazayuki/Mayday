@@ -7,6 +7,7 @@ import { PrismaService } from '../../src/prisma/prisma.service.js';
 import {
   createTestApp,
   resetData,
+  setRecordStatus,
   signIn,
   type SeedResult,
   type TestUser,
@@ -16,6 +17,7 @@ import {
 type Method = 'get' | 'post' | 'patch';
 
 const DENIED = { code: '3101', message: 'Permission denied' };
+const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
 /**
  * Bệnh nhân tự khai (spec B, D-B30 → D-B32; mục 6.1, 6.3, 6.4, 12.2): nhánh bệnh nhân của
@@ -43,6 +45,9 @@ describe('Bệnh nhân tự khai qua /medical_records (PostgreSQL thật)', () =
     body: Record<string, unknown> = { record_type: 'MAN' },
     by: TestUser = patient,
   ) => (await selfReport(body, by).expect(201)).body.data as MedicalRecordData;
+  const edit = (id: number, body: Record<string, unknown>, by: TestUser = patient) =>
+    api('patch', `/medical_records/${id}`, by).send(body);
+  const accept = (id: number) => api('post', `/medical_records/${id}/accept`, doctor).send({});
   /** Dòng hosobenhan đọc thẳng (không qua API) để kiểm CSDL. */
   const rowOf = (id: number) =>
     prisma.hosobenhan.findUniqueOrThrow({ where: { ma_ho_so: BigInt(id) } });
@@ -174,6 +179,122 @@ describe('Bệnh nhân tự khai qua /medical_records (PostgreSQL thật)', () =
           allowed_actions: ['edit', 'accept', 'cancel'],
         }),
       ]);
+    });
+  });
+
+  describe('PATCH /medical_records/:id: bệnh nhân sửa phần tự khai (D-B30)', () => {
+    it('chờ tiếp nhận: 200/1000, chỉ trường gửi đổi, chuỗi rỗng = xoá; MAN ghi biểu hiện bệnh; dạng bệnh nhân', async () => {
+      const { medical_record_id: id } = await selfReported({
+        record_type: 'MAN',
+        self_report: { referral_diagnosis: 'Mày đay', onset_weeks: 6 },
+      });
+      const res = await edit(id, {
+        self_report: {
+          referral_diagnosis: '',
+          initial_clinic_diagnosis: 'Mày đay mạn',
+          disease_manifestation: 'Chi phu mach',
+        },
+      }).expect(200);
+      expect(res.body).toMatchObject({
+        code: '1000',
+        data: {
+          status: 'pending',
+          self_report: {
+            referral_diagnosis: null,
+            initial_clinic_diagnosis: 'Mày đay mạn',
+            onset_weeks: 6,
+            disease_manifestation: 'Chi phu mach',
+          },
+          details: null,
+          allowed_actions: ['edit', 'cancel'],
+        },
+      });
+      const row = await rowOf(id);
+      expect([row.chan_doan_tuyen_truoc, row.chan_doan_ban_dau_phong_kham]).toEqual([
+        null,
+        'Mày đay mạn',
+      ]);
+      expect((await prisma.benhanmaydayman.findFirstOrThrow()).bieu_hien_qua_trinh_benh).toBe(
+        'Chi phu mach',
+      );
+    });
+
+    it('hồ sơ nháp của mình (đặt thẳng, MT-113) → 200, vẫn nháp', async () => {
+      const { medical_record_id: id } = await selfReported();
+      await setRecordStatus(prisma, id, 'draft');
+      await edit(id, { self_report: { onset_weeks: 2 } }).expect(200);
+      expect((await rowOf(id)).trang_thai).toBe('draft');
+    });
+
+    it('hồ sơ của người khác → 403/3106, kể cả khi gửi trường của nhân viên (3106 xét trước); không ghi gì', async () => {
+      const { medical_record_id: id } = await selfReported(
+        { record_type: 'MAN', self_report: { onset_weeks: 6 } },
+        otherPatient,
+      );
+      for (const body of [{ self_report: { onset_weeks: 8 } }, { family_history: 'Co' }]) {
+        expect((await edit(id, body).expect(403)).body.code).toBe('3106');
+      }
+      expect(Number((await rowOf(id)).thoi_gian_khoi_phat_tuan)).toBe(6);
+    });
+
+    it.each<[string, Record<string, unknown>]>([
+      ['trường lõi', { family_history: 'Khong' }],
+      ['first_visit_at', { first_visit_at: null }],
+      ['khối chronic', { chronic: { main_diagnosis: 'CSU' } }],
+      [
+        'self_report kèm trường lõi',
+        { self_report: { onset_weeks: 8 }, treated_before_visit: true },
+      ],
+    ])('gửi %s → 403/3101, không ghi gì', async (_title, body) => {
+      const { medical_record_id: id } = await selfReported({
+        record_type: 'MAN',
+        self_report: { onset_weeks: 6 },
+      });
+      expect((await edit(id, body).expect(403)).body).toEqual(DENIED);
+      const row = await rowOf(id);
+      expect([Number(row.thoi_gian_khoi_phat_tuan), row.tien_su_gia_dinh]).toEqual([6, null]);
+    });
+
+    it('CAP: biểu hiện bệnh → 400/2003 (field self_report.disease_manifestation)', async () => {
+      const { medical_record_id: id } = await selfReported({ record_type: 'CAP' });
+      expect(
+        (await edit(id, { self_report: { disease_manifestation: 'Chi san phu' } }).expect(400))
+          .body,
+      ).toMatchObject({ code: '2003', data: { field: 'self_report.disease_manifestation' } });
+    });
+
+    it('sau khi bác sĩ tiếp nhận: bệnh nhân → 403/3101 (chỉ đọc), allowed_actions [], first_visit_at = lúc tiếp nhận (D-B9); bác sĩ phụ trách vẫn sửa được phần tự khai (D-B31)', async () => {
+      const { medical_record_id: id } = await selfReported({
+        record_type: 'CAP',
+        self_report: { onset_weeks: 1 },
+      });
+      await accept(id).expect(200);
+      expect((await edit(id, { self_report: { onset_weeks: 2 } }).expect(403)).body).toEqual(
+        DENIED,
+      );
+      const seen = (await api('get', `/medical_records/${id}`, patient).expect(200)).body
+        .data as MedicalRecordData;
+      expect(seen).toMatchObject({
+        status: 'in_progress',
+        allowed_actions: [],
+        self_report: { onset_weeks: 1 },
+      });
+      expect(seen.first_visit_at).toMatch(ISO_DATE_TIME);
+      await edit(id, { self_report: { onset_weeks: 3 } }, doctor).expect(200);
+      expect(Number((await rowOf(id)).thoi_gian_khoi_phat_tuan)).toBe(3);
+    });
+
+    it('hoàn tất → 409/4003; đã huỷ → 400/4009 (ô trạng thái trước người làm)', async () => {
+      const { medical_record_id: done } = await selfReported();
+      await setRecordStatus(prisma, done, 'completed');
+      expect((await edit(done, { self_report: { onset_weeks: 2 } }).expect(409)).body.code).toBe(
+        '4003',
+      );
+      const { medical_record_id: gone } = await selfReported();
+      await setRecordStatus(prisma, gone, 'cancelled');
+      expect((await edit(gone, { self_report: { onset_weeks: 2 } }).expect(400)).body.code).toBe(
+        '4009',
+      );
     });
   });
 });

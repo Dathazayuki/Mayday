@@ -101,7 +101,7 @@ export class MedicalRecordsController {
     return this.records.summary(await this.callers.resolve(user), id);
   }
 
-  /** Mới (MT-120), thay medrec10: sửa trường có kiểu; nhánh bệnh nhân (chỉ self_report) trả 3101 tới B6. */
+  /** Mới (MT-120), thay medrec10: sửa trường có kiểu; bệnh nhân chỉ sửa self_report khi chưa tiếp nhận. */
   @Patch(':id')
   async update(
     @CurrentUser() user: VerifiedJwt,

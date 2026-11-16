@@ -362,13 +362,11 @@ describe('MedicalRecordsService (spec B, mục 5.3, 6.3)', () => {
   });
 
   describe('update (PATCH /medical_records/:id)', () => {
-    it('trước khi đọc CSDL: bệnh nhân → 3101 (tới B6); thiếu manage → 3101; body không có trường nào → 2001', async () => {
+    it('trước khi đọc CSDL: nhân viên thiếu manage → 3101; body không có trường nào → 2001 (kể cả bệnh nhân)', async () => {
       const { service, records } = setup();
       await expect(
-        codeOf(service.update(patientCaller(), 12, updateDto({ self_report: { onset_weeks: 1 } }))),
-      ).resolves.toMatchObject({
-        code: '3101',
-      });
+        codeOf(service.update(patientCaller(), 12, updateDto({ self_report: {} }))),
+      ).resolves.toMatchObject({ code: '2001' });
       await expect(
         codeOf(
           service.update(
@@ -441,6 +439,55 @@ describe('MedicalRecordsService (spec B, mục 5.3, 6.3)', () => {
         core: { family_history: 'Khong', family_history_detail: null },
       });
       expect(data.details).not.toBeNull();
+    });
+  });
+
+  describe('update: bệnh nhân sửa phần tự khai (D-B30)', () => {
+    it.each(['pending', 'draft'] as const)(
+      'hồ sơ của mình ở %s: chỉ ghi khối tự khai; trả dạng bệnh nhân',
+      async (status) => {
+        const { service, decided } = setup(medicalRecord({ status }));
+        const data = await service.update(
+          patientCaller(),
+          12,
+          updateDto({ self_report: { onset_weeks: 3, referral_diagnosis: null } }),
+        );
+        expect(decided()).toEqual({
+          selfReport: { onset_weeks: 3, referral_diagnosis: null },
+          core: {},
+          acute: {},
+          chronic: {},
+        });
+        expect(data.details).toBeNull();
+      },
+    );
+
+    it('sau khi khoá, theo mục 6.3: hồ sơ người khác → 3106 (trước ô trạng thái) → hoàn tất 4003, đã huỷ 4009 → đã tiếp nhận 3101 → trường ngoài self_report 3101 → biểu hiện bệnh với CAP 2003', async () => {
+      const staffField = { family_history: 'Co' };
+      const selfReport = { self_report: { onset_weeks: 1 } };
+      const cases: [MedicalRecord, object, string][] = [
+        [
+          inProgressRecord(DOCTOR_ID, { patientId: OTHER_PATIENT_ID, status: 'completed' }),
+          staffField,
+          '3106',
+        ],
+        [inProgressRecord(DOCTOR_ID, { status: 'completed' }), staffField, '4003'],
+        [medicalRecord({ status: 'cancelled' }), staffField, '4009'],
+        [inProgressRecord(DOCTOR_ID), selfReport, '3101'],
+        [medicalRecord(), { ...selfReport, ...staffField }, '3101'],
+        [
+          medicalRecord({ type: 'CAP', chronic: null }),
+          { self_report: { disease_manifestation: 'Chi san phu' } },
+          '2003',
+        ],
+      ];
+      for (const [current, body, code] of cases) {
+        const { service, records } = setup(current);
+        await expect(
+          codeOf(service.update(patientCaller(), 12, updateDto(body))),
+        ).resolves.toMatchObject({ code });
+        expect(records.update).toHaveBeenCalledTimes(1);
+      }
     });
   });
 
