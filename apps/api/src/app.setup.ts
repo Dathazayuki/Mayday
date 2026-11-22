@@ -67,6 +67,8 @@ export function configureApp(app: INestApplication): void {
           /^\/api\/v1\/medical_records\/patients\/([^/?]+)(\?.*)?$/,
           '/api/v1/medical_records/patients/$1/history$2',
         );
+      } else if (/^\/api\/v1\/(departments|rooms|templates)(?:\/|\?|$)/.test(req.url)) {
+        req.url = req.url.replace(/^\/api\/v1\/(departments|rooms|templates)/, '/api/v1/legacy-w4/$1');
       }
     }
     next();

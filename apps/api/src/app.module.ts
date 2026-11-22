@@ -10,6 +10,7 @@ import { validateEnv } from './config/env.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { FacilitiesModule } from './facilities/facilities.module.js';
 import { HealthController } from './health/health.controller.js';
+import { LegacyW4Module } from './legacy-w4/legacy-w4.module.js';
 import { MedicalRecordsModule } from './medical-records/medical-records.module.js';
 import { PatientsModule } from './patients/patients.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -26,6 +27,7 @@ import { ProfileModule } from './profile/profile.module.js';
     AuthModule,
     ProfileModule,
     FacilitiesModule,
+    LegacyW4Module,
     AdminUsersModule,
     PatientsModule,
     MedicalRecordsModule,

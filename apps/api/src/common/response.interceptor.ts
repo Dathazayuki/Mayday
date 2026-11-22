@@ -39,6 +39,24 @@ export class ResponseInterceptor implements NestInterceptor {
         response.status(info.httpStatus);
         const envelope = { code: info.code, message: info.message };
         if (data instanceof Paginated) return { ...envelope, data: data.items, total: data.total };
+        if (
+          isCompat &&
+          data !== null &&
+          typeof data === 'object' &&
+          !Array.isArray(data) &&
+          'branch_id' in data &&
+          'user_id' in data
+        ) {
+          const staff = data as Record<string, unknown>;
+          return {
+            ...envelope,
+            data: {
+              ...staff,
+              department_id: staff.department_id ?? null,
+              room_id: staff.room_id ?? null,
+            },
+          };
+        }
         return data === undefined ? envelope : { ...envelope, data };
       }),
     );
