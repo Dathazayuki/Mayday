@@ -2,7 +2,10 @@ import type { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { API_PREFIX } from '@drmayday/shared';
+import type { NextFunction, Request, Response } from 'express';
 import type { Env } from './config/env.js';
+
+type LegacyRequest = Request & { isLegacyApi?: boolean };
 
 /** Origin của Web khi chạy `pnpm dev:web` (apps/web/vite.config.ts, server.port). */
 export const DEV_WEB_ORIGIN = 'http://localhost:5173';
@@ -38,6 +41,36 @@ export function configureApp(app: INestApplication): void {
   };
   const prefix = API_PREFIX.replace(/^\//, '');
   app.setGlobalPrefix(prefix);
+
+  // Tương thích mayday-test: chuyển tiếp /api/* (không có /v1/) sang /api/v1/* và ánh xạ route legacy
+  app.use((req: LegacyRequest, _res: Response, next: NextFunction) => {
+    if (typeof req.url === 'string' && req.url.startsWith('/api/') && !req.url.startsWith('/api/v1/')) {
+      req.isLegacyApi = true;
+      req.url = req.url.replace(/^\/api\//, '/api/v1/');
+      if (req.url === '/api/v1/auth/create-staff' || req.url.startsWith('/api/v1/auth/create-staff?')) {
+        req.url = req.url.replace('/api/v1/auth/create-staff', '/api/v1/auth/admin/create-staff');
+      } else if (
+        req.method === 'POST' &&
+        (req.url === '/api/v1/auth/change-password' || req.url.startsWith('/api/v1/auth/change-password?'))
+      ) {
+        req.method = 'PUT';
+      } else if (
+        req.method === 'DELETE' &&
+        /^\/api\/v1\/role_permissions\/role\/[^/?]+\/permission\/[^/?]+/.test(req.url)
+      ) {
+        req.url = req.url.replace(
+          /^\/api\/v1\/role_permissions\/role\/([^/?]+)\/permission\/([^/?]+)/,
+          '/api/v1/role_permissions/$1/$2',
+        );
+      } else if (req.method === 'GET' && /^\/api\/v1\/medical_records\/patients\/[^/?]+(\?.*)?$/.test(req.url)) {
+        req.url = req.url.replace(
+          /^\/api\/v1\/medical_records\/patients\/([^/?]+)(\?.*)?$/,
+          '/api/v1/medical_records/patients/$1/history$2',
+        );
+      }
+    }
+    next();
+  });
 
   const origins = corsOrigins(env);
   if (origins.length > 0) app.enableCors({ origin: origins });

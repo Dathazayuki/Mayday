@@ -19,13 +19,19 @@ export class ResponseInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() !== 'http') return next.handle();
 
-    const code =
+    const http = context.switchToHttp() as {
+      getRequest?: () => { isLegacyApi?: boolean };
+      getResponse: () => Response;
+    };
+    const isCompat = Boolean(http.getRequest?.()?.isLegacyApi) || process.env.COMPAT_TEST_CODES === 'true';
+    const rawCode =
       this.reflector.getAllAndOverride<Code | undefined>(RESPONSE_CODE_KEY, [
         context.getHandler(),
         context.getClass(),
       ]) ?? '1000';
+    const code: Code = isCompat && rawCode === '1001' ? '1000' : rawCode;
     const info = RESPONSE_CODES[code];
-    const response = context.switchToHttp().getResponse<Response>();
+    const response = http.getResponse();
 
     return next.handle().pipe(
       map((data: unknown) => {

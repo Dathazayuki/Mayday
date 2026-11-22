@@ -22,6 +22,7 @@ import type { ChangePasswordDto } from './dto/change-password.dto.js';
 import type { CreateStaffDto } from './dto/create-staff.dto.js';
 import type { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
+import type { ResetPasswordDto } from './dto/reset-password.dto.js';
 import type { SignupDto } from './dto/signup.dto.js';
 import type { SignedJwtPayload, VerifiedJwt } from './jwt-payload.js';
 import { OtpSender } from './otp-sender.js';
@@ -103,8 +104,24 @@ export class AuthService {
     if (!this.otpSender.isAvailable()) throw new AppException('9903');
     const user = await this.users.findByLogin(dto.phone);
     if (!user) throw new AppException('3007');
+    if (!user.isActive) throw new AppException('3101');
     const otp = this.resetOtp.issue({ accountId: user.accountId, passwordHash: user.passwordHash });
     await this.otpSender.send(dto.phone, otp);
+  }
+
+  /** Đặt lại mật khẩu bằng OTP 6 chữ số không lưu trữ (MT-16 / tương thích mayday-test). */
+  async resetPassword(dto: ResetPasswordDto): Promise<void> {
+    const user = await this.users.findByLogin(dto.phone);
+    if (!user) throw new AppException('3007');
+    if (!user.isActive) throw new AppException('3101');
+    const check = this.resetOtp.verify(
+      { accountId: user.accountId, passwordHash: user.passwordHash },
+      dto.otp,
+    );
+    if (check === 'invalid') throw new AppException('3004');
+    if (check === 'expired' || check === 'locked') throw new AppException('3005');
+    const passwordHash = await this.passwords.hash(dto.new_password);
+    await this.users.updatePasswordHash(user.userId, passwordHash);
   }
 
   /**

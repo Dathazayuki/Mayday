@@ -24,7 +24,7 @@ services:
           name: drmayday-db
           property: connectionString
       - key: JWT_SECRET
-        generateValue: true
+        value: 6846d3424c02aa007650463407aad828d4659822dc8f697cba42acd9af2ec44b
       - key: JWT_EXPIRES_IN
         value: 86400
       - key: CORS_ORIGINS

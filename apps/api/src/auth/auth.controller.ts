@@ -14,6 +14,7 @@ import { ChangePasswordDto } from './dto/change-password.dto.js';
 import { CreateStaffDto } from './dto/create-staff.dto.js';
 import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import { LoginDto } from './dto/login.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
 import { SignupDto } from './dto/signup.dto.js';
 import type { VerifiedJwt } from './jwt-payload.js';
 import { Public } from './public.decorator.js';
@@ -48,6 +49,13 @@ export class AuthController {
   @Post('forgot-password')
   async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<Record<string, never>> {
     await this.auth.forgotPassword(dto);
+    return {};
+  }
+
+  @Public()
+  @Post('reset-password')
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<Record<string, never>> {
+    await this.auth.resetPassword(dto);
     return {};
   }
 

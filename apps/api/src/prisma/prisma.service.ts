@@ -6,7 +6,7 @@ import type { Env } from '../config/env.js';
 import { PrismaClient } from '../generated/prisma/client.js';
 
 /** Mặc định của `pg` là chờ kết nối vô hạn: host không phản hồi thì request treo thay vì trả 9902. */
-const CONNECTION_TIMEOUT_MS = 5000;
+const CONNECTION_TIMEOUT_MS = 10000;
 
 export type DatabaseStatus = 'up' | 'down' | 'not_configured';
 
