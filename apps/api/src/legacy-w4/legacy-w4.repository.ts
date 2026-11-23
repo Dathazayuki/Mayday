@@ -23,6 +23,7 @@ export interface RoomRecord {
 }
 
 export interface TemplateOptionRecord {
+  id: number;
   option_id: number;
   option_text: string;
   option_value: string;
@@ -30,18 +31,63 @@ export interface TemplateOptionRecord {
 }
 
 export interface TemplateQuestionRecord {
-  question_id: number;
+  question_id: string;
+  section_id: number;
   question_text: string;
   type_question: string;
   order: number;
+  placeholder: string | null;
+  is_required: string;
+  help_text: string | null;
+  allow_image: string;
+  show_if_answer: string | null;
+  trigger_image_upload: string;
+  parent_question_id: string | null;
   options: TemplateOptionRecord[];
 }
 
 export interface TemplateSectionRecord {
   section_id: number;
+  template_id: string;
   title: string;
   order: number;
+  is_required: string;
+  filled_by: string;
   questions: TemplateQuestionRecord[];
+}
+
+export type SectionSummaryRecord = Omit<TemplateSectionRecord, 'questions'>;
+
+export interface TemplateMetaRecord {
+  code_template: string;
+  in_use: boolean;
+}
+
+export interface SectionWithTemplateRecord {
+  section_id: number;
+  code_template: string;
+  in_use: boolean;
+}
+
+export interface QuestionWithTemplateRecord {
+  question_id: string;
+  section_id: number;
+  code_template: string;
+  type_question: string;
+  in_use: boolean;
+}
+
+export interface CreateOptionInput {
+  optionText: string;
+  optionValue: string;
+  order: number;
+}
+
+export interface UpdateOptionInput {
+  id?: number;
+  optionText: string;
+  optionValue: string;
+  order: number;
 }
 
 export interface TemplateSummaryRecord {
@@ -89,33 +135,89 @@ interface TemplateRow {
 
 interface SectionRow {
   section_id: bigint;
+  code_template: string;
   title: string;
   sort_order: number;
+  is_required: string;
+  filled_by: string;
 }
 
 interface QuestionRow {
-  question_id: bigint;
+  question_id: string;
   section_id: bigint;
   question_text: string;
   type_question: string;
   sort_order: number;
+  placeholder: string | null;
+  is_required: string;
+  help_text: string | null;
+  allow_image: string;
+  show_if_answer: string | null;
+  trigger_image_upload: string;
+  parent_question_id: string | null;
 }
 
 interface OptionRow {
   option_id: bigint;
-  question_id: bigint;
+  question_id: string;
   option_text: string;
   option_value: string;
   sort_order: number;
 }
 
 function isPgUnique(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    return true;
+  }
   const cause = driverCause(error);
   return (
     cause?.kind === 'UniqueConstraintViolation' ||
     cause?.originalCode === '23505' ||
     cause?.code === '23505'
   );
+}
+
+function toSectionSummary(row: SectionRow): SectionSummaryRecord {
+  return {
+    section_id: Number(row.section_id),
+    template_id: row.code_template,
+    title: row.title,
+    order: row.sort_order,
+    is_required: row.is_required,
+    filled_by: row.filled_by,
+  };
+}
+
+function toOptionRecord(row: OptionRow): TemplateOptionRecord {
+  const id = Number(row.option_id);
+  return {
+    id,
+    option_id: id,
+    option_text: row.option_text,
+    option_value: row.option_value,
+    order: row.sort_order,
+  };
+}
+
+function toQuestionRecord(
+  row: QuestionRow,
+  options: TemplateOptionRecord[],
+): TemplateQuestionRecord {
+  return {
+    question_id: row.question_id,
+    section_id: Number(row.section_id),
+    question_text: row.question_text,
+    type_question: row.type_question,
+    order: row.sort_order,
+    placeholder: row.placeholder,
+    is_required: row.is_required,
+    help_text: row.help_text,
+    allow_image: row.allow_image,
+    show_if_answer: row.show_if_answer,
+    trigger_image_upload: row.trigger_image_upload,
+    parent_question_id: row.parent_question_id,
+    options,
+  };
 }
 
 function toDepartment(row: DepartmentRow): DepartmentRecord {
@@ -221,22 +323,48 @@ export class LegacyW4Repository {
         section_id BIGSERIAL PRIMARY KEY,
         code_template VARCHAR(50) NOT NULL REFERENCES w4_templates(code_template) ON DELETE CASCADE,
         title VARCHAR(255) NOT NULL,
-        sort_order INTEGER NOT NULL DEFAULT 1
+        sort_order INTEGER NOT NULL DEFAULT 1,
+        is_required VARCHAR(1) NOT NULL DEFAULT '0',
+        filled_by VARCHAR(20) NOT NULL DEFAULT 'patient'
       )`;
     await db.$executeRaw`
+      ALTER TABLE w4_template_sections
+      ADD COLUMN IF NOT EXISTS is_required VARCHAR(1) NOT NULL DEFAULT '0'`;
+    await db.$executeRaw`
+      ALTER TABLE w4_template_sections
+      ADD COLUMN IF NOT EXISTS filled_by VARCHAR(20) NOT NULL DEFAULT 'patient'`;
+    // Bảng Tuần 4 dùng question_id BIGSERIAL; Tuần 5 dùng mã chuỗi VARCHAR(50) toàn cục.
+    const qColRows = await db.$queryRaw<{ data_type: string }[]>`
+      SELECT data_type
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = 'w4_template_questions'
+        AND column_name = 'question_id'`;
+    if (qColRows[0] && qColRows[0].data_type !== 'character varying') {
+      await db.$executeRaw`DROP TABLE IF EXISTS w4_template_options CASCADE`;
+      await db.$executeRaw`DROP TABLE IF EXISTS w4_template_questions CASCADE`;
+    }
+    await db.$executeRaw`
       CREATE TABLE IF NOT EXISTS w4_template_questions (
-        question_id BIGSERIAL PRIMARY KEY,
+        question_id VARCHAR(50) PRIMARY KEY,
         section_id BIGINT NOT NULL REFERENCES w4_template_sections(section_id) ON DELETE CASCADE,
-        question_text TEXT NOT NULL,
-        type_question VARCHAR(50) NOT NULL DEFAULT 'single_choice',
-        sort_order INTEGER NOT NULL DEFAULT 1
+        question_text VARCHAR(500) NOT NULL,
+        type_question VARCHAR(20) NOT NULL DEFAULT 'text',
+        sort_order INTEGER NOT NULL DEFAULT 1,
+        placeholder TEXT,
+        is_required VARCHAR(1) NOT NULL DEFAULT '0',
+        help_text TEXT,
+        allow_image VARCHAR(1) NOT NULL DEFAULT '0',
+        show_if_answer TEXT,
+        trigger_image_upload VARCHAR(1) NOT NULL DEFAULT '0',
+        parent_question_id VARCHAR(50) REFERENCES w4_template_questions(question_id) ON DELETE SET NULL
       )`;
     await db.$executeRaw`
       CREATE TABLE IF NOT EXISTS w4_template_options (
         option_id BIGSERIAL PRIMARY KEY,
-        question_id BIGINT NOT NULL REFERENCES w4_template_questions(question_id) ON DELETE CASCADE,
-        option_text VARCHAR(255) NOT NULL,
-        option_value VARCHAR(255) NOT NULL,
+        question_id VARCHAR(50) NOT NULL REFERENCES w4_template_questions(question_id) ON DELETE CASCADE,
+        option_text VARCHAR(200) NOT NULL,
+        option_value VARCHAR(200) NOT NULL,
         sort_order INTEGER NOT NULL DEFAULT 1
       )`;
   }
@@ -462,7 +590,7 @@ export class LegacyW4Repository {
     if (!tpl) return null;
 
     const sectionRows = await this.prisma.db.$queryRaw<SectionRow[]>`
-      SELECT section_id, title, sort_order
+      SELECT section_id, code_template, title, sort_order, is_required, filled_by
       FROM w4_template_sections
       WHERE code_template = ${code}
       ORDER BY sort_order ASC, section_id ASC`;
@@ -472,10 +600,12 @@ export class LegacyW4Repository {
 
     const sectionIds = sectionRows.map((s) => s.section_id);
     const questionRows = await this.prisma.db.$queryRaw<QuestionRow[]>`
-      SELECT question_id, section_id, question_text, type_question, sort_order
+      SELECT question_id, section_id, question_text, type_question, sort_order,
+             placeholder, is_required, help_text, allow_image, show_if_answer,
+             trigger_image_upload, parent_question_id
       FROM w4_template_questions
       WHERE section_id = ANY(${sectionIds}::bigint[])
-      ORDER BY sort_order ASC, question_id ASC`;
+      ORDER BY sort_order ASC, question_id COLLATE "C" ASC`;
 
     const questionIds = questionRows.map((q) => q.question_id);
     const optionRows =
@@ -484,40 +614,26 @@ export class LegacyW4Repository {
         : await this.prisma.db.$queryRaw<OptionRow[]>`
             SELECT option_id, question_id, option_text, option_value, sort_order
             FROM w4_template_options
-            WHERE question_id = ANY(${questionIds}::bigint[])
+            WHERE question_id = ANY(${questionIds}::text[])
             ORDER BY sort_order ASC, option_id ASC`;
 
     const optionsByQuestion = new Map<string, TemplateOptionRecord[]>();
     for (const opt of optionRows) {
-      const qKey = String(opt.question_id);
-      const list = optionsByQuestion.get(qKey) ?? [];
-      list.push({
-        option_id: Number(opt.option_id),
-        option_text: opt.option_text,
-        option_value: opt.option_value,
-        order: opt.sort_order,
-      });
-      optionsByQuestion.set(qKey, list);
+      const list = optionsByQuestion.get(opt.question_id) ?? [];
+      list.push(toOptionRecord(opt));
+      optionsByQuestion.set(opt.question_id, list);
     }
 
     const questionsBySection = new Map<string, TemplateQuestionRecord[]>();
     for (const q of questionRows) {
       const sKey = String(q.section_id);
       const list = questionsBySection.get(sKey) ?? [];
-      list.push({
-        question_id: Number(q.question_id),
-        question_text: q.question_text,
-        type_question: q.type_question,
-        order: q.sort_order,
-        options: optionsByQuestion.get(String(q.question_id)) ?? [],
-      });
+      list.push(toQuestionRecord(q, optionsByQuestion.get(q.question_id) ?? []));
       questionsBySection.set(sKey, list);
     }
 
     const sections: TemplateSectionRecord[] = sectionRows.map((sec) => ({
-      section_id: Number(sec.section_id),
-      title: sec.title,
-      order: sec.sort_order,
+      ...toSectionSummary(sec),
       questions: questionsBySection.get(String(sec.section_id)) ?? [],
     }));
 
@@ -561,23 +677,286 @@ export class LegacyW4Repository {
     return count > 0 ? 'deleted' : 'not_found';
   }
 
-  async updateSectionTitle(sectionId: number, title: string): Promise<boolean> {
+  async getTemplateMeta(code: string): Promise<TemplateMetaRecord | null> {
+    await this.ensureTables();
+    const rows = await this.prisma.db.$queryRaw<TemplateMetaRecord[]>`
+      SELECT code_template, in_use
+      FROM w4_templates
+      WHERE code_template = ${code}`;
+    return rows[0] ?? null;
+  }
+
+  // ---- Template Sections ----
+
+  async createSection(input: {
+    codeTemplate: string;
+    title: string;
+    order: number;
+    isRequired: string;
+    filledBy: string;
+  }): Promise<SectionSummaryRecord> {
+    await this.ensureTables();
+    const rows = await this.prisma.db.$queryRaw<SectionRow[]>`
+      INSERT INTO w4_template_sections (code_template, title, sort_order, is_required, filled_by)
+      VALUES (
+        ${input.codeTemplate},
+        ${input.title},
+        ${input.order},
+        ${input.isRequired},
+        ${input.filledBy}
+      )
+      RETURNING section_id, code_template, title, sort_order, is_required, filled_by`;
+    return toSectionSummary(rows[0]!);
+  }
+
+  async getSectionWithTemplate(sectionId: number): Promise<SectionWithTemplateRecord | null> {
+    await this.ensureTables();
+    const rows = await this.prisma.db.$queryRaw<
+      { section_id: bigint; code_template: string; in_use: boolean }[]
+    >`
+      SELECT s.section_id, s.code_template, t.in_use
+      FROM w4_template_sections s
+      JOIN w4_templates t ON t.code_template = s.code_template
+      WHERE s.section_id = ${BigInt(sectionId)}`;
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      section_id: Number(row.section_id),
+      code_template: row.code_template,
+      in_use: row.in_use,
+    };
+  }
+
+  async updateSection(
+    sectionId: number,
+    changes: { title?: string; order?: number; isRequired?: string; filledBy?: string },
+  ): Promise<SectionSummaryRecord | null> {
+    await this.ensureTables();
+    const sets: Prisma.Sql[] = [];
+    if (changes.title !== undefined) sets.push(Prisma.sql`title = ${changes.title}`);
+    if (changes.order !== undefined) sets.push(Prisma.sql`sort_order = ${changes.order}`);
+    if (changes.isRequired !== undefined) sets.push(Prisma.sql`is_required = ${changes.isRequired}`);
+    if (changes.filledBy !== undefined) sets.push(Prisma.sql`filled_by = ${changes.filledBy}`);
+    if (sets.length === 0) return null;
+    const rows = await this.prisma.db.$queryRaw<SectionRow[]>`
+      UPDATE w4_template_sections
+      SET ${Prisma.join(sets, ', ')}
+      WHERE section_id = ${BigInt(sectionId)}
+      RETURNING section_id, code_template, title, sort_order, is_required, filled_by`;
+    return rows[0] ? toSectionSummary(rows[0]) : null;
+  }
+
+  async deleteSection(sectionId: number): Promise<boolean> {
     await this.ensureTables();
     const count = await this.prisma.db.$executeRaw`
-      UPDATE w4_template_sections SET title = ${title} WHERE section_id = ${BigInt(sectionId)}`;
+      DELETE FROM w4_template_sections WHERE section_id = ${BigInt(sectionId)}`;
     return count > 0;
   }
 
-  async updateQuestionText(questionId: number, questionText: string): Promise<boolean> {
+  // ---- Template Questions & Options ----
+
+  async getQuestionWithTemplate(questionId: string): Promise<QuestionWithTemplateRecord | null> {
     await this.ensureTables();
-    const count = await this.prisma.db.$executeRaw`
-      UPDATE w4_template_questions
-      SET question_text = ${questionText}
-      WHERE question_id = ${BigInt(questionId)}`;
-    return count > 0;
+    const rows = await this.prisma.db.$queryRaw<
+      {
+        question_id: string;
+        section_id: bigint;
+        code_template: string;
+        type_question: string;
+        in_use: boolean;
+      }[]
+    >`
+      SELECT q.question_id, q.section_id, s.code_template, q.type_question, t.in_use
+      FROM w4_template_questions q
+      JOIN w4_template_sections s ON s.section_id = q.section_id
+      JOIN w4_templates t ON t.code_template = s.code_template
+      WHERE q.question_id = ${questionId}`;
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      question_id: row.question_id,
+      section_id: Number(row.section_id),
+      code_template: row.code_template,
+      type_question: row.type_question,
+      in_use: row.in_use,
+    };
   }
 
-  async ensureDepartmentMissingError(): Promise<never> {
-    throw notFound();
+  async createQuestion(input: {
+    questionId: string;
+    sectionId: number;
+    questionText: string;
+    typeQuestion: string;
+    order: number;
+    placeholder: string | null;
+    isRequired: string;
+    helpText: string | null;
+    allowImage: string;
+    showIfAnswer: string | null;
+    triggerImageUpload: string;
+    parentQuestionId: string | null;
+    options: CreateOptionInput[];
+  }): Promise<TemplateQuestionRecord> {
+    await this.ensureTables();
+    try {
+      return await this.prisma.db.$transaction(async (tx) => {
+        const qRows = await tx.$queryRaw<QuestionRow[]>`
+          INSERT INTO w4_template_questions (
+            question_id, section_id, question_text, type_question, sort_order,
+            placeholder, is_required, help_text, allow_image, show_if_answer,
+            trigger_image_upload, parent_question_id
+          )
+          VALUES (
+            ${input.questionId},
+            ${BigInt(input.sectionId)},
+            ${input.questionText},
+            ${input.typeQuestion},
+            ${input.order},
+            ${input.placeholder},
+            ${input.isRequired},
+            ${input.helpText},
+            ${input.allowImage},
+            ${input.showIfAnswer},
+            ${input.triggerImageUpload},
+            ${input.parentQuestionId}
+          )
+          RETURNING question_id, section_id, question_text, type_question, sort_order,
+                    placeholder, is_required, help_text, allow_image, show_if_answer,
+                    trigger_image_upload, parent_question_id`;
+
+        const options: TemplateOptionRecord[] = [];
+        for (const opt of input.options) {
+          const optRows = await tx.$queryRaw<OptionRow[]>`
+            INSERT INTO w4_template_options (question_id, option_text, option_value, sort_order)
+            VALUES (${input.questionId}, ${opt.optionText}, ${opt.optionValue}, ${opt.order})
+            RETURNING option_id, question_id, option_text, option_value, sort_order`;
+          options.push(toOptionRecord(optRows[0]!));
+        }
+
+        return toQuestionRecord(qRows[0]!, options);
+      });
+    } catch (error) {
+      if (isPgUnique(error)) throw conflict();
+      throw error;
+    }
+  }
+
+  async updateQuestion(
+    questionId: string,
+    changes: {
+      questionText?: string;
+      order?: number;
+      placeholder?: string | null;
+      isRequired?: string;
+      helpText?: string | null;
+      allowImage?: string;
+      showIfAnswer?: string | null;
+      triggerImageUpload?: string;
+      parentQuestionId?: string | null;
+      options?: UpdateOptionInput[];
+    },
+  ): Promise<TemplateQuestionRecord | null> {
+    await this.ensureTables();
+    return this.prisma.db.$transaction(async (tx) => {
+      const currentRows = await tx.$queryRaw<QuestionRow[]>`
+        SELECT question_id, section_id, question_text, type_question, sort_order,
+               placeholder, is_required, help_text, allow_image, show_if_answer,
+               trigger_image_upload, parent_question_id
+        FROM w4_template_questions
+        WHERE question_id = ${questionId}
+        FOR UPDATE`;
+      let questionRow = currentRows[0];
+      if (!questionRow) return null;
+
+      if (changes.options !== undefined) {
+        const existingOptRows = await tx.$queryRaw<{ option_id: bigint }[]>`
+          SELECT option_id
+          FROM w4_template_options
+          WHERE question_id = ${questionId}`;
+        const existingIds = new Set(existingOptRows.map((row) => Number(row.option_id)));
+        // Kiểm tra toàn bộ option.id thuộc câu hỏi này trước khi ghi (QED-14).
+        for (const opt of changes.options) {
+          if (opt.id !== undefined && !existingIds.has(opt.id)) {
+            throw notFound();
+          }
+        }
+
+        const keptIds = changes.options
+          .filter((opt): opt is UpdateOptionInput & { id: number } => opt.id !== undefined)
+          .map((opt) => BigInt(opt.id));
+        if (keptIds.length === 0) {
+          await tx.$executeRaw`
+            DELETE FROM w4_template_options WHERE question_id = ${questionId}`;
+        } else {
+          await tx.$executeRaw`
+            DELETE FROM w4_template_options
+            WHERE question_id = ${questionId}
+              AND NOT (option_id = ANY(${keptIds}::bigint[]))`;
+        }
+
+        for (const opt of changes.options) {
+          if (opt.id !== undefined) {
+            await tx.$executeRaw`
+              UPDATE w4_template_options
+              SET option_text = ${opt.optionText},
+                  option_value = ${opt.optionValue},
+                  sort_order = ${opt.order}
+              WHERE option_id = ${BigInt(opt.id)} AND question_id = ${questionId}`;
+          } else {
+            await tx.$executeRaw`
+              INSERT INTO w4_template_options (question_id, option_text, option_value, sort_order)
+              VALUES (${questionId}, ${opt.optionText}, ${opt.optionValue}, ${opt.order})`;
+          }
+        }
+      }
+
+      const sets: Prisma.Sql[] = [];
+      if (changes.questionText !== undefined) {
+        sets.push(Prisma.sql`question_text = ${changes.questionText}`);
+      }
+      if (changes.order !== undefined) sets.push(Prisma.sql`sort_order = ${changes.order}`);
+      if (changes.placeholder !== undefined) {
+        sets.push(Prisma.sql`placeholder = ${changes.placeholder}`);
+      }
+      if (changes.isRequired !== undefined) {
+        sets.push(Prisma.sql`is_required = ${changes.isRequired}`);
+      }
+      if (changes.helpText !== undefined) sets.push(Prisma.sql`help_text = ${changes.helpText}`);
+      if (changes.allowImage !== undefined) sets.push(Prisma.sql`allow_image = ${changes.allowImage}`);
+      if (changes.showIfAnswer !== undefined) {
+        sets.push(Prisma.sql`show_if_answer = ${changes.showIfAnswer}`);
+      }
+      if (changes.triggerImageUpload !== undefined) {
+        sets.push(Prisma.sql`trigger_image_upload = ${changes.triggerImageUpload}`);
+      }
+      if (changes.parentQuestionId !== undefined) {
+        sets.push(Prisma.sql`parent_question_id = ${changes.parentQuestionId}`);
+      }
+
+      if (sets.length > 0) {
+        const updatedRows = await tx.$queryRaw<QuestionRow[]>`
+          UPDATE w4_template_questions
+          SET ${Prisma.join(sets, ', ')}
+          WHERE question_id = ${questionId}
+          RETURNING question_id, section_id, question_text, type_question, sort_order,
+                    placeholder, is_required, help_text, allow_image, show_if_answer,
+                    trigger_image_upload, parent_question_id`;
+        questionRow = updatedRows[0]!;
+      }
+
+      const finalOptions = await tx.$queryRaw<OptionRow[]>`
+        SELECT option_id, question_id, option_text, option_value, sort_order
+        FROM w4_template_options
+        WHERE question_id = ${questionId}
+        ORDER BY sort_order ASC, option_id ASC`;
+      return toQuestionRecord(questionRow, finalOptions.map(toOptionRecord));
+    });
+  }
+
+  async deleteQuestion(questionId: string): Promise<boolean> {
+    await this.ensureTables();
+    const count = await this.prisma.db.$executeRaw`
+      DELETE FROM w4_template_questions WHERE question_id = ${questionId}`;
+    return count > 0;
   }
 }

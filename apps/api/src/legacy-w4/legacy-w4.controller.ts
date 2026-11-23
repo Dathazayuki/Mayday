@@ -7,14 +7,17 @@ import { RequireRole } from '../roles/require-role.decorator.js';
 import type {
   DepartmentRecord,
   RoomRecord,
+  SectionSummaryRecord,
   TemplateDetailRecord,
+  TemplateQuestionRecord,
   TemplateSummaryRecord,
 } from './legacy-w4.repository.js';
 import { LegacyW4Service } from './legacy-w4.service.js';
 
 /**
- * Controller tương thích integration test Tuần 4 (`departments`, `rooms` theo khoa, `templates`).
- * Chỉ phục vụ đường dẫn legacy đã chuyển tiếp qua middleware trong `app.setup.ts`.
+ * Controller tương thích integration test Tuần 4 và Tuần 5 (`departments`, `rooms` theo khoa,
+ * `templates`, `sections`, `questions`, `options`). Chỉ phục vụ đường dẫn legacy đã chuyển tiếp qua
+ * middleware trong `app.setup.ts`.
  */
 @ApiTags('legacy-w4')
 @ApiBearerAuth()
@@ -110,18 +113,56 @@ export class LegacyW4Controller {
     return this.w4.listTemplates(page, limit);
   }
 
+  @Post('templates/sections/:id/questions')
+  @RequireRole('admin')
+  @RequirePermission('manage_facilities')
+  @ResponseCode('1001')
+  createQuestion(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<TemplateQuestionRecord> {
+    return this.w4.createQuestion(id, body);
+  }
+
   @Put('templates/sections/:id')
   @RequireRole('admin')
   @RequirePermission('manage_facilities')
-  updateSection(@Param('id') id: string, @Body() body: unknown): Promise<Record<string, never>> {
+  updateSection(@Param('id') id: string, @Body() body: unknown): Promise<SectionSummaryRecord> {
     return this.w4.updateSection(id, body);
+  }
+
+  @Delete('templates/sections/:id')
+  @RequireRole('admin')
+  @RequirePermission('manage_facilities')
+  async deleteSection(@Param('id') id: string): Promise<Record<string, never>> {
+    await this.w4.deleteSection(id);
+    return {};
   }
 
   @Put('templates/questions/:id')
   @RequireRole('admin')
   @RequirePermission('manage_facilities')
-  updateQuestion(@Param('id') id: string, @Body() body: unknown): Promise<Record<string, never>> {
+  updateQuestion(@Param('id') id: string, @Body() body: unknown): Promise<TemplateQuestionRecord> {
     return this.w4.updateQuestion(id, body);
+  }
+
+  @Delete('templates/questions/:id')
+  @RequireRole('admin')
+  @RequirePermission('manage_facilities')
+  async deleteQuestion(@Param('id') id: string): Promise<Record<string, never>> {
+    await this.w4.deleteQuestion(id);
+    return {};
+  }
+
+  @Post('templates/:code/sections')
+  @RequireRole('admin')
+  @RequirePermission('manage_facilities')
+  @ResponseCode('1001')
+  createSection(
+    @Param('code') code: string,
+    @Body() body: unknown,
+  ): Promise<SectionSummaryRecord> {
+    return this.w4.createSection(code, body);
   }
 
   @Get('templates/:code')
